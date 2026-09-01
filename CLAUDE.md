@@ -1,0 +1,152 @@
+# CLAUDE.md — Boop OS
+
+Manual operacional deste repositório. Leia antes de escrever código.
+
+## O que é
+
+Plataforma proprietária da Boop, consultoria de marca, marketing, conteúdo e
+crescimento. Centraliza a experiência do cliente e organiza a operação interna.
+
+O cliente enxerga **uma única interface: Boop**. Ferramentas internas não aparecem
+para ele.
+
+Percepção-alvo: *"Eu sei exatamente o que está acontecendo com minha marca."*
+
+**Status atual: FASE 0 concluída — arquitetura e documentação. Nenhuma aplicação
+ainda. A próxima fase é a 1.**
+
+## Vocabulário
+
+- **Marco 1 (M1):** FASES 0–11 + e-mail mínimo. O fluxo ponta a ponta descrito em
+  [`docs/product.md`](docs/product.md#marco-1--definição-de-pronto).
+- **V0:** FASES 0–20, terminando em produção.
+- **Cliente** (`client`) é o **tenant** — a marca atendida, não a pessoa. A pessoa
+  é `client_user`.
+
+## Stack
+
+Next.js (App Router) · React · TypeScript strict · Tailwind CSS · Supabase
+(Postgres + Auth + Storage) · Vercel · Resend · Notion (interno, FASE 17) ·
+GitHub. **Sem n8n**: automação é código TypeScript aqui dentro.
+
+## Os cinco princípios
+
+1. **Supabase é a fonte única da verdade.** Notion, Vercel e Resend não são banco.
+2. **Multi-tenant desde a primeira migration.** Cliente A nunca vê Cliente B.
+3. **Duas camadas de autorização.** Aplicação *e* RLS. Nenhuma sozinha basta.
+4. **Nada aprovado é sobrescrito em silêncio.** Estratégia e conteúdo são versionados.
+5. **Arquitetura profissional não é arquitetura grande.** Monolito modular,
+   Postgres, serverless, integrações simples.
+
+## Onde está cada coisa
+
+| Preciso de… | Leia |
+| --- | --- |
+| Visão, jornada, telas, dashboard | [`docs/product.md`](docs/product.md) |
+| Camadas, pastas, ciclo de request, máquinas de estado | [`docs/architecture.md`](docs/architecture.md) |
+| Tabelas, colunas, índices, o que ficou de fora | [`docs/data-model.md`](docs/data-model.md) |
+| RLS, uploads, secrets, ameaças | [`docs/security.md`](docs/security.md) |
+| Quem pode o quê | [`docs/permissions.md`](docs/permissions.md) |
+| Contrato de workflow e catálogo de eventos | [`docs/workflows.md`](docs/workflows.md) |
+| Resend, Notion, calendário | [`docs/integrations.md`](docs/integrations.md) |
+| Ambientes, variáveis, migrations, CI | [`docs/deployment.md`](docs/deployment.md) |
+| O que construir agora | [`docs/roadmap.md`](docs/roadmap.md) |
+| Por que decidimos assim | [`docs/adr/`](docs/adr/) |
+| Inconsistências e decisões pendentes | [`docs/spec-review.md`](docs/spec-review.md) |
+
+Regras imperativas, curtas, para consulta durante o trabalho:
+[`.claude/rules/`](.claude/rules/) — `database.md`, `security.md`, `frontend.md`,
+`testing.md`, `integrations.md`.
+
+Documentação não se duplica: o **raciocínio** vive em `docs/`, a **obrigação**
+vive em `.claude/rules/`. Ao mudar uma decisão, atualize os dois no mesmo PR.
+
+## Regras que não se negociam
+
+**Segurança**
+- `service_role` só em `src/lib/supabase/admin.ts` (que importa `server-only`).
+  Nunca `NEXT_PUBLIC_`, nunca no browser.
+- Server Action é endpoint público: toda action passa por `defineWorkflow`
+  (valida → autentica → autoriza → executa → audita → notifica).
+- Toda tabela com RLS e políticas explícitas para `select`, `insert`, `update`,
+  `delete`. Policy de UPDATE sempre com `USING` **e** `WITH CHECK`.
+- `client_id` nunca vem do input: é derivado do pai por trigger e é imutável.
+- Recurso inacessível responde **404**, não 403.
+- `middleware.ts` renova sessão. Não decide autorização.
+
+**Domínio**
+- Nenhuma regra de negócio dentro de componente React.
+- Nenhum domínio importa outro domínio direto; a coordenação é do workflow.
+- Sem `select *`. Sem pasta `utils/` genérica. Sem `any`.
+- Status nunca é string solta: vem de `src/config/enums.ts`.
+- Aprovação pertence à **versão**, nunca ao item.
+- **Só `client_user` aprova.** Nem `boop_admin` aprova conteúdo ou estratégia.
+
+**Produto**
+- Sete itens de navegação no portal. Um oitavo exige justificativa escrita.
+- Bloco vazio desaparece; não vira card de "nenhum item".
+- Client-facing é mobile first. Nunca tabela com scroll horizontal no celular.
+- Interface em pt-BR; código, identificadores e commits em inglês.
+
+## Comandos
+
+*(Disponíveis a partir da FASE 1.)*
+
+```bash
+npm run dev             # aplicação em desenvolvimento
+npm run build           # build de produção
+npm run typecheck       # tsc --noEmit
+npm run lint            # eslint
+npm run test            # unit + rls
+npm run test:unit       # policies, máquinas de estado, validação
+npm run test:rls        # isolamento contra Postgres real (exige supabase start)
+npm run test:e2e        # Playwright (FASE 20)
+
+supabase start          # Postgres + Auth + Storage locais
+supabase stop
+npm run db:reset        # recria o banco local: migrations + seed
+npm run db:types        # regenera src/lib/supabase/database.types.ts
+npm run db:new <nome>   # cria uma migration
+```
+
+## Definition of Done
+
+Uma tarefa só está pronta quando **tudo** abaixo é verdade:
+
+- [ ] `typecheck`, `lint`, `test` e `build` passam
+- [ ] Tabela nova: RLS + quatro políticas + teste de isolamento (o que vê **e** o
+      que não vê)
+- [ ] Workflow novo: validação zod `.strict()`, autorização, activity log e teste
+- [ ] Nenhum caminho novo pelo qual um cliente alcance dado de outro
+- [ ] Estados de loading, vazio, erro e sucesso implementados
+- [ ] Funciona no celular, quando a tela é client-facing
+- [ ] Acessível: semântica, teclado, `label`, foco visível, contraste AA
+- [ ] Nenhum segredo, PII ou signed URL em log
+- [ ] Documentação afetada atualizada no mesmo PR
+- [ ] Decisão arquitetural relevante virou ADR
+
+## Como trabalhar aqui
+
+1. **Uma fase por vez.** Não avance sem terminar a anterior. O roadmap é ordem,
+   não sugestão.
+2. **Segurança antes de tela.** A FASE 4 (multi-tenancy + RLS) é o gargalo real:
+   nada depois dela começa antes de a suíte de isolamento estar verde.
+3. **Diante de duas soluções válidas, escolha a mais simples, mais segura e mais
+   fácil de manter** — sem fechar a porta para a evolução.
+4. **Antes de criar abstração, pergunte se existem três casos reais.** Ver a lista
+   de overengineering a evitar em
+   [`docs/spec-review.md` §4](docs/spec-review.md#4-overengineering-a-evitar).
+5. **Encontrou inconsistência na especificação?** Registre em
+   [`docs/spec-review.md`](docs/spec-review.md), proponha o default e siga. Não
+   pare o trabalho por decisão que tem default razoável.
+6. **Mudou uma decisão?** ADR novo, referenciando o anterior. ADR aceito não se
+   reescreve: substitui-se.
+
+## O que este projeto deliberadamente não tem
+
+Microservices, Kubernetes, event sourcing, CQRS, Kafka, Redis, fila distribuída,
+ORM, monorepo, GraphQL, tRPC, realtime, i18n, motor genérico de permissões,
+construtor visual de jornadas ou de formulários, sync bidirecional com Notion.
+
+Se algo dessa lista entrar, entra por ADR, com o gatilho concreto que o
+justificou.
