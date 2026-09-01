@@ -7,15 +7,15 @@ outro cliente**. Qualquer decisão em conflito com isso perde.
 
 Quem pode atacar, o que quer, e o que impede.
 
-| Ator | Objetivo | Controle principal |
-| --- | --- | --- |
-| Anônimo na internet | Ler dados privados, enumerar clientes | Sem signup público; nenhuma rota de dado acessível sem sessão; RLS nega por padrão |
-| `client_user` autenticado (Cliente A) | Ver dados do Cliente B trocando IDs na URL | `requireProjectAccess` + RLS por vínculo; 404 em vez de 403 |
-| `client_user` curioso | Ver backlog, comentário interno, rascunho | Filtro por status e por `is_internal` na RLS; projeções explícitas |
-| `client_user` malicioso | Chamar Server Action direto, forjar payload | Toda action passa por `defineWorkflow`; zod `.strict()`; autorização server-side |
-| `boop_member` | Acessar cliente sem vínculo | RLS por vínculo também para interno (D-08) |
-| Terceiro com link vazado | Baixar arquivo | Signed URL com TTL curto, gerada sob demanda, nunca cacheada nem logada |
-| Vazamento de código/env | Obter `service_role` | `server-only`, sem prefixo público, scanning, teste de lint |
+| Ator                                  | Objetivo                                    | Controle principal                                                                 |
+| ------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Anônimo na internet                   | Ler dados privados, enumerar clientes       | Sem signup público; nenhuma rota de dado acessível sem sessão; RLS nega por padrão |
+| `client_user` autenticado (Cliente A) | Ver dados do Cliente B trocando IDs na URL  | `requireProjectAccess` + RLS por vínculo; 404 em vez de 403                        |
+| `client_user` curioso                 | Ver backlog, comentário interno, rascunho   | Filtro por status e por `is_internal` na RLS; projeções explícitas                 |
+| `client_user` malicioso               | Chamar Server Action direto, forjar payload | Toda action passa por `defineWorkflow`; zod `.strict()`; autorização server-side   |
+| `boop_member`                         | Acessar cliente sem vínculo                 | RLS por vínculo também para interno (D-08)                                         |
+| Terceiro com link vazado              | Baixar arquivo                              | Signed URL com TTL curto, gerada sob demanda, nunca cacheada nem logada            |
+| Vazamento de código/env               | Obter `service_role`                        | `server-only`, sem prefixo público, scanning, teste de lint                        |
 
 ## Duas camadas, sempre
 
@@ -49,7 +49,7 @@ type Actor = {
   userId: string
   role: 'boop_admin' | 'boop_member' | 'client_user'
   status: 'invited' | 'active' | 'disabled'
-  clientIds: string[]   // vínculos; vazio para boop_admin
+  clientIds: string[] // vínculos; vazio para boop_admin
 }
 ```
 
@@ -64,9 +64,9 @@ Papel **global** em `profiles.role`; vínculo em `client_memberships` concede
 Guards obrigatórios em qualquer rota com parâmetro de recurso:
 
 ```ts
-requireActor()                        // sessão válida e perfil ativo
-requireClientAccess(clientId)         // vínculo ou boop_admin
-requireProjectAccess(projectId)       // resolve o cliente do projeto e verifica
+requireActor() // sessão válida e perfil ativo
+requireClientAccess(clientId) // vínculo ou boop_admin
+requireProjectAccess(projectId) // resolve o cliente do projeto e verifica
 requireBoop() / requireBoopAdmin()
 ```
 
@@ -176,38 +176,38 @@ using (app.is_boop_admin() and app.has_client_access(client_id));
 
 ### Erros de RLS que já sabemos evitar
 
-| Erro | Consequência | Como evitamos |
-| --- | --- | --- |
-| UPDATE só com `USING` | O usuário troca `client_id` e migra a linha de tenant | `WITH CHECK` obrigatório + trigger de imutabilidade |
-| Policy que consulta a própria tabela | Recursão infinita | Predicados só via funções `security definer` |
-| `auth.uid()` solto no predicado | Reavaliação por linha, query lenta | Sempre `(select auth.uid())` |
-| Esquecer `enable row level security` | Tabela aberta a qualquer autenticado | Teste que varre `pg_tables` e falha se faltar RLS ou policy |
-| Confiar no `client_id` do payload | Escrita cruzada entre tenants | `client_id` derivado por trigger a partir do pai |
-| Schema auxiliar exposto | Funções internas chamáveis via API | `app` fora dos schemas expostos, `revoke` explícito |
+| Erro                                 | Consequência                                          | Como evitamos                                               |
+| ------------------------------------ | ----------------------------------------------------- | ----------------------------------------------------------- |
+| UPDATE só com `USING`                | O usuário troca `client_id` e migra a linha de tenant | `WITH CHECK` obrigatório + trigger de imutabilidade         |
+| Policy que consulta a própria tabela | Recursão infinita                                     | Predicados só via funções `security definer`                |
+| `auth.uid()` solto no predicado      | Reavaliação por linha, query lenta                    | Sempre `(select auth.uid())`                                |
+| Esquecer `enable row level security` | Tabela aberta a qualquer autenticado                  | Teste que varre `pg_tables` e falha se faltar RLS ou policy |
+| Confiar no `client_id` do payload    | Escrita cruzada entre tenants                         | `client_id` derivado por trigger a partir do pai            |
+| Schema auxiliar exposto              | Funções internas chamáveis via API                    | `app` fora dos schemas expostos, `revoke` explícito         |
 
 ### Regras por papel (resumo)
 
-| Tabela | `boop_admin` | `boop_member` | `client_user` |
-| --- | --- | --- | --- |
-| `clients` | CRUD | R (com vínculo) | R (com vínculo, colunas públicas) |
-| `client_memberships` | CRUD | R | R (apenas as próprias) |
-| `projects` | CRUD | RU (com vínculo) | R |
-| `project_stages` | CRUD | RU | R |
-| `onboarding_*` (template) | CRUD | R | R (apenas o template da própria submissão) |
-| `onboarding_submissions` | CRUD | RU | RU (apenas enquanto `draft`) |
-| `onboarding_answers` | CRUD | R | CRU (apenas enquanto `draft`) |
-| `strategies` / `strategy_versions` | CRUD | CRU | R (`status <> 'draft'`) |
-| `strategy_approvals` | R | R | R — escrita **apenas** via RPC |
-| `content_items` | CRUD | CRU | R (`status >= awaiting_client`) |
-| `content_versions` | CRUD | CRU | R (`sent_for_approval_at is not null`) |
-| `content_comments` | CRUD | CRU | CR (`is_internal = false`) |
-| `content_approvals` | R | R | R — escrita **apenas** via RPC |
-| `files` | CRUD | CRU | R (`visibility = 'client'`) |
-| `meetings` | CRUD | CRU | R |
-| `account_metrics` / `content_metrics` | CRUD | CRU | R |
-| `monthly_reviews` | CRUD | CRU | R (`status = 'published'`) |
-| `activity_log` | R | R (`visibility='internal'` do seu escopo) | — |
-| `notifications` | R | — | — |
+| Tabela                                | `boop_admin` | `boop_member`                             | `client_user`                              |
+| ------------------------------------- | ------------ | ----------------------------------------- | ------------------------------------------ |
+| `clients`                             | CRUD         | R (com vínculo)                           | R (com vínculo, colunas públicas)          |
+| `client_memberships`                  | CRUD         | R                                         | R (apenas as próprias)                     |
+| `projects`                            | CRUD         | RU (com vínculo)                          | R                                          |
+| `project_stages`                      | CRUD         | RU                                        | R                                          |
+| `onboarding_*` (template)             | CRUD         | R                                         | R (apenas o template da própria submissão) |
+| `onboarding_submissions`              | CRUD         | RU                                        | RU (apenas enquanto `draft`)               |
+| `onboarding_answers`                  | CRUD         | R                                         | CRU (apenas enquanto `draft`)              |
+| `strategies` / `strategy_versions`    | CRUD         | CRU                                       | R (`status <> 'draft'`)                    |
+| `strategy_approvals`                  | R            | R                                         | R — escrita **apenas** via RPC             |
+| `content_items`                       | CRUD         | CRU                                       | R (`status >= awaiting_client`)            |
+| `content_versions`                    | CRUD         | CRU                                       | R (`sent_for_approval_at is not null`)     |
+| `content_comments`                    | CRUD         | CRU                                       | CR (`is_internal = false`)                 |
+| `content_approvals`                   | R            | R                                         | R — escrita **apenas** via RPC             |
+| `files`                               | CRUD         | CRU                                       | R (`visibility = 'client'`)                |
+| `meetings`                            | CRUD         | CRU                                       | R                                          |
+| `account_metrics` / `content_metrics` | CRUD         | CRU                                       | R                                          |
+| `monthly_reviews`                     | CRUD         | CRU                                       | R (`status = 'published'`)                 |
+| `activity_log`                        | R            | R (`visibility='internal'` do seu escopo) | —                                          |
+| `notifications`                       | R            | —                                         | —                                          |
 
 Aprovações não têm policy de INSERT para ninguém: são gravadas por funções
 `security definer` que validam a transição de estado. Isso torna impossível
@@ -245,6 +245,7 @@ Fluxo em dois passos ([ADR-0008](adr/0008-uploads-privados-com-url-assinada.md))
    `file.uploaded`.
 
 Validações:
+
 - Whitelist de MIME: `image/png`, `image/jpeg`, `image/webp`, `video/mp4`,
   `application/pdf`. **SVG bloqueado** (vetor de XSS).
 - Tamanho máximo por tipo (imagem 10 MB, vídeo 200 MB, PDF 25 MB).
@@ -308,12 +309,47 @@ lugar de conteúdo.**
 
 ## Cabeçalhos e superfície web
 
-Definidos em `next.config.ts` a partir da FASE 1, endurecidos na FASE 19:
-`Content-Security-Policy` (com nonce), `Strict-Transport-Security`,
-`X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`,
-`X-Frame-Options: DENY`, `Permissions-Policy` restritiva.
+**Implementado na FASE 1** (`next.config.ts`, verificado em produção):
 
-`/admin` e `/portal` sempre com `Cache-Control: private, no-store`.
+| Cabeçalho                    | Valor                                                          |
+| ---------------------------- | -------------------------------------------------------------- |
+| `X-Content-Type-Options`     | `nosniff`                                                      |
+| `X-Frame-Options`            | `DENY`                                                         |
+| `Referrer-Policy`            | `strict-origin-when-cross-origin`                              |
+| `Permissions-Policy`         | `camera=(), microphone=(), geolocation=(), browsing-topics=()` |
+| `Cross-Origin-Opener-Policy` | `same-origin`                                                  |
+| `X-DNS-Prefetch-Control`     | `off`                                                          |
+
+`poweredByHeader: false` — a versão do framework não é anunciada.
+`/portal` e `/admin` respondem com `Cache-Control: private, no-store`.
+
+**Adiado para a FASE 19, deliberadamente:**
+
+- **CSP.** Uma política útil no App Router exige nonce por request (middleware),
+  e a superfície de assets e integrações ainda muda até a FASE 17. Uma CSP com
+  `unsafe-inline` agora daria falsa sensação de proteção. Entra junto com o
+  middleware de sessão, com nonce.
+- **HSTS.** É a Vercel que termina o TLS e já envia `Strict-Transport-Security`
+  no domínio de produção; declarar aqui só teria efeito na FASE 20, ao
+  configurar o domínio próprio — e é lá que será conferido.
+
+## Environment e segredos no código
+
+Duas regras aplicadas pelo ESLint, não por combinado
+([ADR-0017](adr/0017-env-validacao-em-duas-camadas.md)):
+
+- **`process.env` só existe em `src/config/env.ts`.** Qualquer outro acesso é
+  erro de lint.
+- **`console` só existe em `src/lib/logging/logger.ts`.** O logger tem
+  `redact()`, que mascara chaves com nome sensível em qualquer profundidade.
+
+`src/lib/supabase/admin.ts` é o único arquivo autorizado a ler
+`SUPABASE_SERVICE_ROLE_KEY`, e começa com `import 'server-only'` — importá-lo de
+um Client Component quebra o build.
+
+O painel de integrações da página inicial existe apenas em desenvolvimento e
+mostra **apenas booleanos** (`configured` / `not configured`). Há teste que falha
+se o valor de uma variável aparecer no HTML renderizado.
 
 ## Checklist de revisão de segurança
 

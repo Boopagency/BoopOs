@@ -5,11 +5,11 @@
 Três, com bancos separados. Ver
 [ADR-0014](adr/0014-dois-projetos-supabase.md).
 
-| | Aplicação | Supabase | Quem usa |
-| --- | --- | --- | --- |
-| **development** | `localhost:3000` | Supabase local (Docker, via CLI) | quem desenvolve |
-| **preview / staging** | Preview da Vercel, por PR | **projeto `boop-os-staging`** | revisão de PR, testes manuais |
-| **production** | domínio da Boop | **projeto `boop-os-prod`** | clientes reais |
+|                       | Aplicação                 | Supabase                         | Quem usa                      |
+| --------------------- | ------------------------- | -------------------------------- | ----------------------------- |
+| **development**       | `localhost:3000`          | Supabase local (Docker, via CLI) | quem desenvolve               |
+| **preview / staging** | Preview da Vercel, por PR | **projeto `boop-os-staging`**    | revisão de PR, testes manuais |
+| **production**        | domínio da Boop           | **projeto `boop-os-prod`**       | clientes reais                |
 
 Dois projetos Supabase, não três: o desenvolvimento roda local (mais rápido,
 gratuito, isolado, e é onde os testes de RLS rodam contra Postgres real). Todos
@@ -21,32 +21,51 @@ produção não vai para `.env.local` de ninguém.
 
 ### Matriz de variáveis
 
-| Variável | dev | preview | prod | Exposta ao browser |
-| --- | :---: | :---: | :---: | :---: |
-| `NEXT_PUBLIC_SITE_URL` | ✓ | ✓ | ✓ | sim |
-| `NEXT_PUBLIC_APP_ENV` | ✓ | ✓ | ✓ | sim |
-| `NEXT_PUBLIC_SUPABASE_URL` | ✓ | ✓ | ✓ | sim |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✓ | ✓ | ✓ | sim |
-| `SUPABASE_SERVICE_ROLE_KEY` | ✓ (local) | ✓ (staging) | ✓ (prod) | **NUNCA** |
-| `SUPABASE_DB_URL` | ✓ (testes) | — | — | **NUNCA** |
-| `RESEND_API_KEY` | — (dry-run) | ✓ (sandbox) | ✓ | **NUNCA** |
-| `EMAIL_FROM` | ✓ | ✓ | ✓ | não |
-| `EMAIL_DRY_RUN` | `true` | `false` | `false` | não |
-| `NOTION_API_KEY` | — | ✓ (F17) | ✓ (F17) | **NUNCA** |
-| `CRON_SECRET` | — | ✓ | ✓ | **NUNCA** |
+| Variável                        |     dev     |   preview   |   prod   | Exposta ao browser |
+| ------------------------------- | :---------: | :---------: | :------: | :----------------: |
+| `NEXT_PUBLIC_APP_URL`           |      ✓      |      ✓      |    ✓     |        sim         |
+| `NEXT_PUBLIC_APP_ENV`           |      ✓      |      ✓      |    ✓     |        sim         |
+| `NEXT_PUBLIC_SUPABASE_URL`      |      ✓      |      ✓      |    ✓     |        sim         |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` |      ✓      |      ✓      |    ✓     |        sim         |
+| `SUPABASE_SERVICE_ROLE_KEY`     |  ✓ (local)  | ✓ (staging) | ✓ (prod) |     **NUNCA**      |
+| `SUPABASE_DB_URL`               | ✓ (testes)  |      —      |    —     |     **NUNCA**      |
+| `RESEND_API_KEY`                | — (dry-run) | ✓ (sandbox) |    ✓     |     **NUNCA**      |
+| `EMAIL_FROM`                    |      ✓      |      ✓      |    ✓     |        não         |
+| `EMAIL_DRY_RUN`                 |   `true`    |   `false`   | `false`  |        não         |
+| `NOTION_API_KEY`                |      —      |   ✓ (F17)   | ✓ (F17)  |     **NUNCA**      |
+| `CRON_SECRET`                   |      —      |      ✓      |    ✓     |     **NUNCA**      |
+
+**Nenhuma variável é obrigatória para `pnpm dev` ou `pnpm build`.** Cada
+integração só exige a sua no momento em que é usada — ver
+[ADR-0017](adr/0017-env-validacao-em-duas-camadas.md). Isso vale inclusive em
+produção: a aplicação sobe, e a rota que precisa da integração ausente falha com
+mensagem nomeando a variável.
 
 Em preview, o e-mail sai apenas para domínios da Boop — nenhum e-mail de teste
 pode alcançar um cliente real. Garantido por allowlist no `EmailService` quando
 `NEXT_PUBLIC_APP_ENV !== 'production'`.
 
+## Toolchain
+
+Node 22 (`.nvmrc`) e **pnpm 10 como package manager único** — `npm` e `yarn`
+falham por `engine-strict` no `.npmrc`. Ver
+[ADR-0016](adr/0016-toolchain-pnpm-node-typescript.md).
+
 ## Setup local
 
+**Hoje (FASE 1)** — o `.env.local` pode ficar vazio:
+
 ```bash
+pnpm install
 cp .env.example .env.local
-npm install
+pnpm dev
+```
+
+**A partir da FASE 2**, com banco local:
+
+```bash
 supabase start          # Postgres, Auth, Storage, Studio locais
-npm run db:reset        # migrations + seed
-npm run dev
+pnpm db:reset           # migrations + seed
 ```
 
 `supabase start` imprime as chaves locais — são fixas e públicas por design,
@@ -59,12 +78,13 @@ Fonte única do schema: `supabase/migrations/*.sql`. Ver
 
 ```bash
 supabase migration new add_content_versions   # cria o arquivo
-npm run db:reset                              # recria o banco local do zero
-npm run db:types                              # regenera database.types.ts
-npm run db:diff                               # confere que nada ficou fora
+pnpm db:reset                              # recria o banco local do zero
+pnpm db:types                              # regenera database.types.ts
+pnpm db:diff                               # confere que nada ficou fora
 ```
 
 Regras:
+
 - **Nunca** alterar o banco pelo Studio como fonte da mudança. O Studio serve
   para explorar; a mudança nasce em arquivo.
 - Migrations são **forward-only**. Não há `down`. Errou? Nova migration corrige.
@@ -74,7 +94,7 @@ Regras:
   1. adiciona a coluna nova, a aplicação escreve nas duas;
   2. faz o backfill e passa a ler da nova;
   3. remove a antiga.
-  Nunca renomear coluna em uso num único passo.
+     Nunca renomear coluna em uso num único passo.
 - Toda tabela nova nasce, **na mesma migration**, com `enable row level security`
   e as quatro políticas. Tabela sem RLS não passa no CI.
 - `database.types.ts` é gerado e commitado; o CI falha se estiver desatualizado.
@@ -85,20 +105,25 @@ Regras:
 
 ## CI (GitHub Actions)
 
-Em todo PR, nesta ordem, com falha bloqueando o merge:
+O CI cresce junto com o projeto. Falha em qualquer passo bloqueia o merge.
+
+**Hoje** (`.github/workflows/ci.yml`):
 
 ```
-1. typecheck        tsc --noEmit
-2. lint             eslint (inclui a regra de service_role confinada)
-3. test:unit        vitest — policies, máquinas de estado, validação
-4. supabase start   + db reset
-5. test:rls         isolamento entre tenants contra Postgres real
-6. build            next build
-7. audit            npm audit --audit-level=high
+install --frozen-lockfile → typecheck → lint → format:check → test → build
 ```
 
-O passo 5 é o que garante multi-tenancy de verdade e por isso não é opcional nem
-"nightly".
+**A partir da FASE 4**, entram os passos de banco:
+
+```
+… → supabase start → db reset → test:rls → build
+```
+
+`test:rls` é o que garante multi-tenancy de verdade: não é opcional e não vira
+execução noturna. `pnpm audit --audit-level=high` entra na FASE 19.
+
+Localmente, `pnpm check` roda typecheck, lint, format e testes — é o portão
+antes de abrir PR.
 
 ## Deploy
 

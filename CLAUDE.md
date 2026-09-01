@@ -10,10 +10,11 @@ crescimento. Centraliza a experiência do cliente e organiza a operação intern
 O cliente enxerga **uma única interface: Boop**. Ferramentas internas não aparecem
 para ele.
 
-Percepção-alvo: *"Eu sei exatamente o que está acontecendo com minha marca."*
+Percepção-alvo: _"Eu sei exatamente o que está acontecendo com minha marca."_
 
-**Status atual: FASE 0 concluída — arquitetura e documentação. Nenhuma aplicação
-ainda. A próxima fase é a 1.**
+**Status atual: FASE 1 concluída — fundação técnica. A aplicação sobe, as rotas
+existem, a qualidade está automatizada. Sem banco, sem auth, sem funcionalidade
+de produto. A próxima fase é a 2 (sistema visual e protótipo).**
 
 ## Vocabulário
 
@@ -29,30 +30,35 @@ Next.js (App Router) · React · TypeScript strict · Tailwind CSS · Supabase
 (Postgres + Auth + Storage) · Vercel · Resend · Notion (interno, FASE 17) ·
 GitHub. **Sem n8n**: automação é código TypeScript aqui dentro.
 
+**Toolchain fixado** ([ADR-0016](docs/adr/0016-toolchain-pnpm-node-typescript.md)):
+Node 22 (`.nvmrc`) · **pnpm 10, único package manager** — `npm` e `yarn` falham
+por `engine-strict` · TypeScript 5.9 e ESLint 9, uma linha atrás do `latest` por
+compatibilidade verificada com `typescript-eslint` e `eslint-config-next`.
+
 ## Os cinco princípios
 
 1. **Supabase é a fonte única da verdade.** Notion, Vercel e Resend não são banco.
 2. **Multi-tenant desde a primeira migration.** Cliente A nunca vê Cliente B.
-3. **Duas camadas de autorização.** Aplicação *e* RLS. Nenhuma sozinha basta.
+3. **Duas camadas de autorização.** Aplicação _e_ RLS. Nenhuma sozinha basta.
 4. **Nada aprovado é sobrescrito em silêncio.** Estratégia e conteúdo são versionados.
 5. **Arquitetura profissional não é arquitetura grande.** Monolito modular,
    Postgres, serverless, integrações simples.
 
 ## Onde está cada coisa
 
-| Preciso de… | Leia |
-| --- | --- |
-| Visão, jornada, telas, dashboard | [`docs/product.md`](docs/product.md) |
+| Preciso de…                                           | Leia                                           |
+| ----------------------------------------------------- | ---------------------------------------------- |
+| Visão, jornada, telas, dashboard                      | [`docs/product.md`](docs/product.md)           |
 | Camadas, pastas, ciclo de request, máquinas de estado | [`docs/architecture.md`](docs/architecture.md) |
-| Tabelas, colunas, índices, o que ficou de fora | [`docs/data-model.md`](docs/data-model.md) |
-| RLS, uploads, secrets, ameaças | [`docs/security.md`](docs/security.md) |
-| Quem pode o quê | [`docs/permissions.md`](docs/permissions.md) |
-| Contrato de workflow e catálogo de eventos | [`docs/workflows.md`](docs/workflows.md) |
-| Resend, Notion, calendário | [`docs/integrations.md`](docs/integrations.md) |
-| Ambientes, variáveis, migrations, CI | [`docs/deployment.md`](docs/deployment.md) |
-| O que construir agora | [`docs/roadmap.md`](docs/roadmap.md) |
-| Por que decidimos assim | [`docs/adr/`](docs/adr/) |
-| Inconsistências e decisões pendentes | [`docs/spec-review.md`](docs/spec-review.md) |
+| Tabelas, colunas, índices, o que ficou de fora        | [`docs/data-model.md`](docs/data-model.md)     |
+| RLS, uploads, secrets, ameaças                        | [`docs/security.md`](docs/security.md)         |
+| Quem pode o quê                                       | [`docs/permissions.md`](docs/permissions.md)   |
+| Contrato de workflow e catálogo de eventos            | [`docs/workflows.md`](docs/workflows.md)       |
+| Resend, Notion, calendário                            | [`docs/integrations.md`](docs/integrations.md) |
+| Ambientes, variáveis, migrations, CI                  | [`docs/deployment.md`](docs/deployment.md)     |
+| O que construir agora                                 | [`docs/roadmap.md`](docs/roadmap.md)           |
+| Por que decidimos assim                               | [`docs/adr/`](docs/adr/)                       |
+| Inconsistências e decisões pendentes                  | [`docs/spec-review.md`](docs/spec-review.md)   |
 
 Regras imperativas, curtas, para consulta durante o trabalho:
 [`.claude/rules/`](.claude/rules/) — `database.md`, `security.md`, `frontend.md`,
@@ -64,6 +70,7 @@ vive em `.claude/rules/`. Ao mudar uma decisão, atualize os dois no mesmo PR.
 ## Regras que não se negociam
 
 **Segurança**
+
 - `service_role` só em `src/lib/supabase/admin.ts` (que importa `server-only`).
   Nunca `NEXT_PUBLIC_`, nunca no browser.
 - Server Action é endpoint público: toda action passa por `defineWorkflow`
@@ -75,6 +82,7 @@ vive em `.claude/rules/`. Ao mudar uma decisão, atualize os dois no mesmo PR.
 - `middleware.ts` renova sessão. Não decide autorização.
 
 **Domínio**
+
 - Nenhuma regra de negócio dentro de componente React.
 - Nenhum domínio importa outro domínio direto; a coordenação é do workflow.
 - Sem `select *`. Sem pasta `utils/` genérica. Sem `any`.
@@ -83,6 +91,7 @@ vive em `.claude/rules/`. Ao mudar uma decisão, atualize os dois no mesmo PR.
 - **Só `client_user` aprova.** Nem `boop_admin` aprova conteúdo ou estratégia.
 
 **Produto**
+
 - Sete itens de navegação no portal. Um oitavo exige justificativa escrita.
 - Bloco vazio desaparece; não vira card de "nenhum item".
 - Client-facing é mobile first. Nunca tabela com scroll horizontal no celular.
@@ -90,30 +99,48 @@ vive em `.claude/rules/`. Ao mudar uma decisão, atualize os dois no mesmo PR.
 
 ## Comandos
 
-*(Disponíveis a partir da FASE 1.)*
+_(Disponíveis a partir da FASE 1.)_
 
 ```bash
-npm run dev             # aplicação em desenvolvimento
-npm run build           # build de produção
-npm run typecheck       # tsc --noEmit
-npm run lint            # eslint
-npm run test            # unit + rls
-npm run test:unit       # policies, máquinas de estado, validação
-npm run test:rls        # isolamento contra Postgres real (exige supabase start)
-npm run test:e2e        # Playwright (FASE 20)
+pnpm dev             # aplicação em desenvolvimento
+pnpm build           # build de produção
+pnpm typecheck       # tsc --noEmit
+pnpm lint            # eslint
+pnpm test            # unit + rls
+pnpm test:unit       # policies, máquinas de estado, validação
+pnpm test:rls        # isolamento contra Postgres real (exige supabase start)
+pnpm test:e2e        # Playwright (FASE 20)
 
 supabase start          # Postgres + Auth + Storage locais
 supabase stop
-npm run db:reset        # recria o banco local: migrations + seed
-npm run db:types        # regenera src/lib/supabase/database.types.ts
-npm run db:new <nome>   # cria uma migration
+pnpm db:reset        # recria o banco local: migrations + seed
+pnpm db:types        # regenera src/lib/supabase/database.types.ts
+pnpm db:new <nome>   # cria uma migration
 ```
+
+## Estrutura atual
+
+```
+src/app/          rotas — (portal) e (admin) em route groups
+src/components/   ui/ (primitivos) · layout/ (cascas de portal e admin)
+src/config/       app.ts (constantes de produto) · env.ts (environment)
+src/lib/          logging/ · supabase/ (fronteira, sem uso) · cn.ts
+tests/unit/       lógica pura       tests/component/  Testing Library
+```
+
+Regras de crescimento:
+
+- **`src/domains/<nome>` nasce na fase do domínio**, nunca como pasta vazia.
+- Rota canônica do portal é `/portal`; `/app` é um redirect em `next.config.ts`.
+- Nenhum componente usa hexadecimal: cor vem de token em `src/app/globals.css`.
+- `process.env` só existe em `src/config/env.ts` (regra do ESLint).
+- `console` só existe em `src/lib/logging/logger.ts` (regra do ESLint).
 
 ## Definition of Done
 
 Uma tarefa só está pronta quando **tudo** abaixo é verdade:
 
-- [ ] `typecheck`, `lint`, `test` e `build` passam
+- [ ] `pnpm check` passa (typecheck + lint + format + test) e `pnpm build` passa
 - [ ] Tabela nova: RLS + quatro políticas + teste de isolamento (o que vê **e** o
       que não vê)
 - [ ] Workflow novo: validação zod `.strict()`, autorização, activity log e teste
@@ -150,3 +177,13 @@ construtor visual de jornadas ou de formulários, sync bidirecional com Notion.
 
 Se algo dessa lista entrar, entra por ADR, com o gatilho concreto que o
 justificou.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

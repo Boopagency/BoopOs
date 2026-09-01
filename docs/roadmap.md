@@ -4,12 +4,13 @@ Vinte fases, na ordem da especificação. **Uma fase por vez.** Não se avança 
 `typecheck`, `lint`, `test` ou `build` quebrados.
 
 Vocabulário fixo:
+
 - **Marco 1 (M1):** FASES 0–11 + e-mail mínimo. É o fluxo da §45 ponta a ponta.
 - **V0:** FASES 0–20, terminando em produção.
 
 Definition of Done comum a **todas** as fases:
 
-- [ ] `npm run typecheck && npm run lint && npm run test && npm run build` verdes
+- [ ] `pnpm typecheck && pnpm lint && pnpm test && pnpm build` verdes
 - [ ] Tabela nova com RLS + quatro políticas + teste de isolamento
 - [ ] Workflow novo com activity log e teste de autorização
 - [ ] Estados de loading, vazio e erro implementados
@@ -19,32 +20,50 @@ Definition of Done comum a **todas** as fases:
 ---
 
 ### FASE 0 — Arquitetura e documentação ✅
+
 Revisão da especificação, decisões, ERD, matriz de permissões, ADRs, regras de
 engenharia.
 **Pronto quando:** os documentos deste diretório existem e as decisões em aberto
 estão listadas com default assumido.
 
-### FASE 1 — Fundação Next.js
-`create-next-app` (App Router, TypeScript, Tailwind), `tsconfig` strict, ESLint +
-Prettier, Vitest, scripts npm, `next.config.ts` com cabeçalhos de segurança,
-tokens de design, primitivos de UI, layout do portal e do admin com dados falsos,
-CI rodando typecheck/lint/test/build.
-**Pronto quando:** o esqueleto sobe, o CI passa e nenhuma rota lê banco.
+### FASE 1 — Fundação Next.js ✅
+
+Next 16 + React 19 + TypeScript 5.9 strict + Tailwind 4; pnpm e Node fixados;
+ESLint + Prettier + Vitest; `next.config.ts` com cabeçalhos de segurança; tokens
+estruturais em CSS variables; seis primitivos de UI acessíveis; rotas `/`,
+`/portal` e `/admin` com layouts desacoplados; error boundaries e 404; camada de
+environment em duas camadas; fronteira do Supabase sem banco; CI.
+**Pronto:** `pnpm check` e `pnpm build` verdes, 23 testes, nenhuma rota lê banco.
+
+### FASE 1.5 — Boop Visual System & Product Prototype
+
+_Inserida pelo briefing da FASE 1. Numerada como 1.5 de propósito: renumerar as
+fases 2–20 quebraria as dezenas de referências cruzadas nesta documentação e nas
+regras de `.claude/rules`._
+
+Identidade da Boop aplicada sobre os tokens estruturais da FASE 1: cor,
+tipografia, nuvens, mascote, art direction, motion. Protótipo navegável de
+dashboard, onboarding, estratégia, conteúdo e aprovação — ainda sem banco.
+**Pronto quando:** o protótipo comunica o produto, nenhum componente carrega
+hexadecimal, e a troca de identidade não exigiu tocar em nenhum primitivo.
 
 ### FASE 2 — Supabase e migrations
+
 `supabase init`, enums, tabelas do M1, triggers (`updated_at`, `client_id`
 derivado, tenant imutável, `profiles` a partir de `auth.users`), índices,
 `seed.sql` com dois clientes distintos, `db:types`, harness de teste de RLS.
-**Pronto quando:** `npm run db:reset` recria tudo do zero e os tipos gerados estão
+**Pronto quando:** `pnpm db:reset` recria tudo do zero e os tipos gerados estão
 commitados.
 
 ### FASE 3 — Autenticação
+
 Magic Link com PKCE, `@supabase/ssr`, middleware de sessão, `/login`, callback,
 logout, `getActor`/`requireActor`, `recordFirstLogin`, signup público desligado.
 **Pronto quando:** dá para entrar por link e sair; rota protegida sem sessão
 redireciona para `/login`.
 
 ### FASE 4 — Multi-tenancy e RLS ⚠️ fase crítica
+
 Funções `app.*`, políticas nas quatro operações de todas as tabelas, guards
 (`requireClientAccess`, `requireProjectAccess`), `can()` e a matriz de permissões
 em código, suíte `tests/rls` completa, teste que falha se existir tabela sem RLS.
@@ -53,6 +72,7 @@ passam — inclusive os que devem falhar.
 **Nenhuma fase seguinte começa antes desta estar verde.**
 
 ### FASE 5 — Admin e clientes
+
 `/admin/clientes` (listar, criar, editar, arquivar), `/admin/usuarios`, convite
 (`inviteUser` com service role), vínculos, activity log visível para a Boop.
 Entra aqui o **`EmailService` mínimo** (`invite`, `welcome`) e o SMTP customizado
@@ -61,6 +81,7 @@ do Supabase — antecipado da FASE 16 ([spec-review I-06](spec-review.md#i-06-a-
 receberem e-mail de verdade.
 
 ### FASE 6 — Projetos e jornada
+
 Templates de jornada tipados, `createProject` materializando `project_stages`,
 `advanceStage`, `changeProjectStatus`, admin de projeto, componente de jornada no
 portal. Jornadas mínimas para os cinco `project_type` — prova de que a
@@ -69,6 +90,7 @@ arquitetura não depende de social.
 mudança.
 
 ### FASE 7 — Onboarding
+
 Renderização a partir do schema, uma seção por vez, progresso, autosave com
 `upsert`, rascunho, `submitOnboarding` (função SQL), leitura das respostas no
 admin, e-mail `onboarding_completed`. Sem perguntas do tipo `file`.
@@ -76,12 +98,14 @@ admin, e-mail `onboarding_completed`. Sem perguntas do tipo `file`.
 perdeu nada; ao finalizar, a etapa avança sozinha.
 
 ### FASE 8 — Dashboard
+
 Seis blocos na ordem da [`product.md`](product.md#dashboard-início), blocos vazios
 desaparecendo, "Precisa da sua atenção" derivado por query, mobile first.
 **Pronto quando:** o cliente entende, em cinco segundos e no celular, o que
 depende dele.
 
 ### FASE 9 — Estratégia
+
 `StrategyContentSchema` (zod), editor no admin, apresentação editorial no portal,
 `createStrategyVersion`, `sendStrategyForApproval`, e-mail `strategy_ready`.
 Aprovação fica para a FASE 11.
@@ -89,6 +113,7 @@ Aprovação fica para a FASE 11.
 apresentação, não como formulário.
 
 ### FASE 10 — Conteúdo
+
 `content_items` + `content_versions`, máquina de estados, admin de produção,
 lista e preview no portal, `createContentVersion` (função SQL) marcando a versão
 anterior como `superseded`.
@@ -96,6 +121,7 @@ anterior como `superseded`.
 devolve o item para produção.
 
 ### FASE 11 — Feedback e aprovação 🎯 Marco 1
+
 `approveContent`, `requestContentChanges`, `approveStrategy`,
 `requestStrategyChanges`, comentários (interno vs. público), idempotência de
 duplo clique, e-mails `content_needs_approval` e `changes_requested`.
@@ -103,6 +129,7 @@ duplo clique, e-mails `content_needs_approval` e `changes_requested`.
 clientes distintos, sem toque manual no banco.
 
 ### FASE 12 — Arquivos
+
 Bucket privado, `requestUpload`/`confirmUpload`, validação de MIME e tamanho no
 servidor, `visibility`, download assinado por Route Handler, tela de Arquivos,
 anexo em versão de conteúdo, pergunta de onboarding tipo `file`, limpeza de
@@ -111,17 +138,20 @@ anexo em versão de conteúdo, pergunta de onboarding tipo `file`, limpeza de
 correto, e não vê arquivo `internal` do próprio cliente.
 
 ### FASE 13 — Reuniões
+
 CRUD de reuniões, timezone `America/Sao_Paulo`, próximo encontro no dashboard,
 tela de Encontros, `meeting_url` manual.
 **Pronto quando:** o cliente vê o próximo encontro com data, hora e link.
 
 ### FASE 14 — Resultados
+
 `account_metrics` e `content_metrics`, entrada manual no admin, tela de
 Resultados com a seção **O que aprendemos** em primeiro plano.
 **Pronto quando:** existe número, existe leitura do número, e o texto pesa mais
 que o gráfico.
 
 ### FASE 15 — Monthly Review
+
 `monthly_reviews`, narrativa fixa (fizemos → aconteceu → funcionou → não
 funcionou → aprendemos → muda), `publishMonthlyReview` disparando
 `startNextCycle`, e-mail `review_ready`.
@@ -129,23 +159,27 @@ funcionou → aprendemos → muda), `publishMonthlyReview` disparando
 "ciclo 2".
 
 ### FASE 16 — Resend (catálogo completo)
+
 Todos os templates, agrupamento de avisos em lote, tela de `notifications` com
 reenvio manual, allowlist de destinatário fora de produção.
 **Pronto quando:** nenhum envio acontece sem linha em `notifications`, e uma falha
 é visível e reenviável.
 
 ### FASE 17 — Notion
+
 `NotionAdapter`, `integration_events`, projeções unidirecionais (cliente criado,
 onboarding concluído, alteração solicitada), falha isolada.
 **Pronto quando:** derrubar o Notion (chave inválida) não altera nenhum
 comportamento do produto.
 
 ### FASE 18 — Automações
+
 Consolidação dos side-effects: idempotência por `dedupe_key`, reprocessamento,
 `automation_runs` **apenas se** o retry automático se justificar.
 **Pronto quando:** reexecutar uma automação não duplica efeito.
 
 ### FASE 19 — Endurecimento de segurança
+
 Revisão completa das policies, CSP com nonce, revisão de erro e log, `npm audit`,
 teste de penetração manual do isolamento, revisão da matriz de permissões contra
 o código, decisão sobre rate limiting.
@@ -153,6 +187,7 @@ o código, decisão sobre rate limiting.
 passa inteiro e os advisors do Supabase estão limpos.
 
 ### FASE 20 — Produção
+
 Domínio, DNS, verificação do Resend, backup com restauração testada, monitoramento,
 runbook de incidente, checklist de [`deployment.md`](deployment.md#antes-de-ir-a-produção-fase-20),
 onboarding do primeiro cliente real.
@@ -173,9 +208,9 @@ clientes estar provado. Ela merece mais tempo do que qualquer tela.
 
 ## Riscos de cronograma
 
-| Risco | Sinal | Resposta |
-| --- | --- | --- |
-| RLS consumindo mais tempo que o previsto | Testes de isolamento falhando de formas inesperadas | Trave o escopo: só as tabelas do M1 na FASE 4 |
-| Editor de estratégia virando CMS | "Precisa de blocos arrastáveis" | Campos fixos por seção; rich text só onde já existir necessidade |
-| Preview de conteúdo virando editor de arte | "Falta cortar a imagem" | Preview é leitura; a arte vem pronta do design |
-| Admin virando ERP | Telas de configuração aparecendo sem demanda | Toda tela nova de admin precisa de um workflow que a exija |
+| Risco                                      | Sinal                                               | Resposta                                                         |
+| ------------------------------------------ | --------------------------------------------------- | ---------------------------------------------------------------- |
+| RLS consumindo mais tempo que o previsto   | Testes de isolamento falhando de formas inesperadas | Trave o escopo: só as tabelas do M1 na FASE 4                    |
+| Editor de estratégia virando CMS           | "Precisa de blocos arrastáveis"                     | Campos fixos por seção; rich text só onde já existir necessidade |
+| Preview de conteúdo virando editor de arte | "Falta cortar a imagem"                             | Preview é leitura; a arte vem pronta do design                   |
+| Admin virando ERP                          | Telas de configuração aparecendo sem demanda        | Toda tela nova de admin precisa de um workflow que a exija       |

@@ -1,0 +1,84 @@
+@import 'tailwindcss';
+
+/*
+ * BOOP OS — tokens estruturais (FASE 1).
+ *
+ * Estes valores sao NEUTROS de proposito. A identidade visual da Boop
+ * (azul, nuvens, mascote, tipografia) entra na FASE 2 e substitui apenas
+ * os valores abaixo — nenhum componente precisa mudar.
+ *
+ * Regra: componente nunca usa hexadecimal. Sempre `bg-surface`, `text-muted`,
+ * `border-border`. Ver .claude/rules/frontend.md.
+ */
+:root {
+  /* Superficies */
+  --background: oklch(0.99 0 0);
+  --foreground: oklch(0.21 0.01 265);
+  --surface: oklch(1 0 0);
+  --surface-foreground: oklch(0.21 0.01 265);
+
+  /* Texto secundario e bordas */
+  --muted: oklch(0.5 0.01 265);
+  --border: oklch(0.92 0.004 265);
+
+  /* Acao primaria — placeholder ate a FASE 2 */
+  --accent: oklch(0.45 0.03 265);
+  --accent-foreground: oklch(0.99 0 0);
+
+  /* Estados */
+  --success: oklch(0.55 0.13 155);
+  --warning: oklch(0.68 0.14 75);
+  --danger: oklch(0.55 0.19 27);
+
+  /* Foco — visivel em qualquer superficie */
+  --ring: oklch(0.45 0.03 265);
+
+  /* Raio e espacamento estrutural */
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-foreground: var(--surface-foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-ring: var(--ring);
+
+  --radius-token: var(--radius);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Foco sempre visivel — .claude/rules/frontend.md */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  /* Respeita quem pediu menos movimento */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

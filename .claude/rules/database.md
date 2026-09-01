@@ -14,7 +14,7 @@ Raciocínio em [`docs/data-model.md`](../../docs/data-model.md) e
   - `created_at`/`updated_at` + trigger de `updated_at`;
   - `client_id` (quando for tabela de domínio) + trigger que o deriva do pai;
   - índices para os caminhos de leitura reais.
-- Depois de mexer no schema: `npm run db:reset && npm run db:types` e commite
+- Depois de mexer no schema: `pnpm db:reset && pnpm db:types` e commite
   `database.types.ts`.
 - Enum novo entra no Postgres **e** em `src/config/enums.ts` — o teste de paridade
   falha se divergirem.
@@ -40,6 +40,7 @@ Antes de criar a sexta, releia
 ## Mudança destrutiva
 
 Três deploys, nunca um:
+
 1. adiciona a coluna nova, a aplicação escreve nas duas;
 2. backfill e passa a ler da nova;
 3. remove a antiga.
@@ -49,7 +50,7 @@ antigo. Nunca em uma linha só.
 
 ## Antes de abrir o PR
 
-- [ ] `npm run db:reset` recria do zero sem erro
+- [ ] `pnpm db:reset` recria do zero sem erro
 - [ ] `database.types.ts` regenerado e commitado
 - [ ] Teste de RLS cobrindo a tabela nova (o que vê **e** o que não vê)
 - [ ] Nenhuma tabela sem RLS (o teste de varredura passa)

@@ -34,14 +34,14 @@ operacional param.
 
 Ordem de dependência. Uma camada só importa das que estão abaixo dela.
 
-| Camada | Onde | Responsabilidade | Nunca faz |
-| --- | --- | --- | --- |
-| **UI** | `src/app`, `src/components`, `domains/*/components` | Renderizar, coletar input, estados de loading/erro/vazio | Regra de negócio, acesso a banco |
-| **Entrypoints** | Server Actions, Route Handlers | Adaptar HTTP ↔ workflow | Lógica; qualquer decisão |
-| **Workflows** | `domains/*/workflows.ts` | Casos de uso: validar, autorizar, executar, auditar, notificar | SQL cru espalhado, render |
-| **Policy** | `domains/*/policy.ts`, `lib/permissions` | `can(actor, action, resource)` — decisão pura | I/O |
-| **Repository** | `domains/*/repository.ts` | Acesso a dados, projeção de colunas, mapeamento linha → domínio | Autorização como única defesa |
-| **Banco** | `supabase/migrations` | Integridade, RLS, transições atômicas | Confiar no app |
+| Camada          | Onde                                                | Responsabilidade                                                | Nunca faz                        |
+| --------------- | --------------------------------------------------- | --------------------------------------------------------------- | -------------------------------- |
+| **UI**          | `src/app`, `src/components`, `domains/*/components` | Renderizar, coletar input, estados de loading/erro/vazio        | Regra de negócio, acesso a banco |
+| **Entrypoints** | Server Actions, Route Handlers                      | Adaptar HTTP ↔ workflow                                         | Lógica; qualquer decisão         |
+| **Workflows**   | `domains/*/workflows.ts`                            | Casos de uso: validar, autorizar, executar, auditar, notificar  | SQL cru espalhado, render        |
+| **Policy**      | `domains/*/policy.ts`, `lib/permissions`            | `can(actor, action, resource)` — decisão pura                   | I/O                              |
+| **Repository**  | `domains/*/repository.ts`                           | Acesso a dados, projeção de colunas, mapeamento linha → domínio | Autorização como única defesa    |
+| **Banco**       | `supabase/migrations`                               | Integridade, RLS, transições atômicas                           | Confiar no app                   |
 
 **Duas camadas de autorização, sempre.** A aplicação decide e nega cedo; a RLS
 nega de novo no banco. Nenhuma das duas é considerada suficiente sozinha. Ver
@@ -49,10 +49,14 @@ nega de novo no banco. Nenhuma das duas é considerada suficiente sozinha. Ver
 
 ## Ciclo de um request
 
+> **Rotas.** `/portal` é canônica. `/app` existe como redirect em
+> `next.config.ts` — é o nome usado no briefing da FASE 1, mantido como alias
+> para não haver duas páginas para a mesma coisa.
+
 **Leitura** (`/portal/[projectId]/conteudo`)
 
 1. `middleware.ts` renova o cookie de sessão. Sem sessão → redirect para
-   `/login`. *Não decide autorização.*
+   `/login`. _Não decide autorização._
 2. O layout do segmento chama `requireProjectAccess(projectId)`, que carrega
    `actor` (`profiles` + vínculos) e devolve 404 se não houver acesso — 404, não
    403, para não confirmar a existência do recurso.
@@ -89,7 +93,8 @@ nega de novo no banco. Nenhuma das duas é considerada suficiente sozinha. Ver
 │   │   ├── (admin)/admin/…   # operação da Boop, desktop first
 │   │   └── api/              # Route Handlers: download, webhooks, health
 │   ├── components/
-│   │   ├── ui/               # primitivos: Button, Field, Dialog, Sheet
+│   │   ├── ui/               # primitivos: Button, Input, Label, Spinner, Callout
+│   │   ├── layout/           # cascas: Shell, Container, SkipLink
 │   │   └── patterns/         # composições sem domínio: PageHeader, EmptyState
 │   ├── domains/              # ← o coração do sistema
 │   │   ├── clients/
@@ -116,9 +121,15 @@ nega de novo no banco. Nenhuma das duas é considerada suficiente sozinha. Ver
 │   └── config/               # journeys, enums, navegação, constantes de produto
 └── tests/
     ├── unit/                 # policy, máquinas de estado, validação
-    ├── rls/                  # isolamento entre tenants contra Postgres real
+    ├── component/            # componentes com Testing Library
+    ├── rls/                  # isolamento entre tenants contra Postgres real (FASE 4)
     └── e2e/                  # Playwright, fluxo do marco 1 (FASE 20)
 ```
+
+**Esta árvore é o destino, não o estado atual.** Uma pasta só existe quando tem
+código dentro: `src/domains/*`, `lib/auth`, `lib/permissions`, `lib/workflows`,
+`lib/audit`, `lib/storage` e `lib/integrations` nascem nas fases que as
+constroem. O que existe hoje está em [`../README.md`](../README.md#estrutura).
 
 ### Anatomia de um domínio
 
@@ -134,6 +145,7 @@ src/domains/content/
 ```
 
 Regras:
+
 - **Nenhuma regra de negócio dentro de componente React.**
 - **Nenhum domínio importa outro domínio diretamente.** Coordenação acontece no
   workflow, que pode chamar repositories de mais de um domínio.
@@ -152,14 +164,14 @@ export const SOCIAL_V1 = defineJourney({
   key: 'social.v1',
   projectType: 'social',
   stages: [
-    { key: 'kickoff',     label: 'Início do projeto', recurring: false },
-    { key: 'onboarding',  label: 'Onboarding',        recurring: false },
-    { key: 'immersion',   label: 'Imersão',           recurring: false },
-    { key: 'research',    label: 'Pesquisa',          recurring: false },
-    { key: 'strategy',    label: 'Estratégia',        recurring: false },
-    { key: 'production',  label: 'Produção',          recurring: true  },
-    { key: 'publishing',  label: 'Publicação',        recurring: true  },
-    { key: 'review',      label: 'Review',            recurring: true  },
+    { key: 'kickoff', label: 'Início do projeto', recurring: false },
+    { key: 'onboarding', label: 'Onboarding', recurring: false },
+    { key: 'immersion', label: 'Imersão', recurring: false },
+    { key: 'research', label: 'Pesquisa', recurring: false },
+    { key: 'strategy', label: 'Estratégia', recurring: false },
+    { key: 'production', label: 'Produção', recurring: true },
+    { key: 'publishing', label: 'Publicação', recurring: true },
+    { key: 'review', label: 'Review', recurring: true },
   ],
 })
 ```
@@ -191,6 +203,7 @@ idea → planned → in_production → internal_review → awaiting_client
 ```
 
 Regras invariantes:
+
 - A aprovação pertence à **versão**, nunca ao item.
 - Criar uma nova versão marca a anterior como `superseded` e devolve o item para
   `in_production`. A aprovação anterior permanece registrada.
@@ -225,7 +238,13 @@ por projeto, garantido por índice único parcial).
 - **Código, identificadores, enums e mensagens de commit em inglês. Documentação,
   textos de interface e conteúdo em pt-BR.**
 - Erros de domínio são tipados (`WorkflowError` com `code`), nunca `throw new
-  Error('deu ruim')`. A UI mapeia `code` para texto em português.
+Error('deu ruim')`. A UI mapeia `code` para texto em português.
+- **`process.env` só em `src/config/env.ts`** e **`console` só em
+  `src/lib/logging/logger.ts`** — as duas regras são aplicadas pelo ESLint, não
+  por combinado.
+- Componente nunca usa hexadecimal: cor vem de token (`bg-surface`,
+  `text-muted`). Os tokens estruturais estão em `src/app/globals.css`; a
+  identidade da Boop os substitui na FASE 1.5 sem tocar em nenhum primitivo.
 
 ## O que esta arquitetura deliberadamente não tem
 

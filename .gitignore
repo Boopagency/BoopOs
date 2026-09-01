@@ -2,12 +2,14 @@
 node_modules/
 .pnp
 .pnp.js
+.pnpm-store/
 
 # next.js
 .next/
 out/
 build/
 next-env.d.ts
+*.tsbuildinfo
 
 # testing
 coverage/
@@ -21,7 +23,7 @@ blob-report/
 .env.*
 !.env.example
 
-# supabase
+# supabase (a partir da FASE 2 — migrations NAO sao ignoradas)
 supabase/.branches
 supabase/.temp
 supabase/.env
@@ -43,7 +45,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-*.tsbuildinfo
 
-# claude code (local, não versionado)
+# temporarios e dumps
+*.log
+*.dump
+*.sql.gz
+tmp/
+.tmp/
+
+# claude code (local, nao versionado)
 .claude/settings.local.json

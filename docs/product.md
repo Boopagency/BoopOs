@@ -9,34 +9,34 @@ cliente só enxerga o que chega por WhatsApp.
 
 O Boop OS é o sistema que sustenta o processo e o torna visível.
 
-**Percepção-alvo do cliente:** *"Eu sei exatamente o que está acontecendo com
-minha marca."*
+**Percepção-alvo do cliente:** _"Eu sei exatamente o que está acontecendo com
+minha marca."_
 
 ## As dez perguntas
 
 Toda tela do portal existe para responder pelo menos uma delas. Se uma tela não
 responde nenhuma, ela não deveria existir.
 
-| # | Pergunta | Onde é respondida |
-| --- | --- | --- |
-| 1 | O que está acontecendo agora? | Início — etapa atual |
-| 2 | Em que etapa estamos? | Início — jornada |
-| 3 | Alguma coisa depende de mim? | Início — "Precisa da sua atenção" |
-| 4 | Qual é a próxima entrega? | Início — próxima entrega |
-| 5 | Qual é o próximo encontro? | Início — próximo encontro / Encontros |
-| 6 | O que já foi aprovado? | Conteúdo · Estratégia |
-| 7 | O que está sendo produzido? | Conteúdo |
-| 8 | Quais resultados estamos obtendo? | Resultados |
-| 9 | O que aprendemos até agora? | Resultados — "O que aprendemos" · Review |
-| 10 | O que acontece depois? | Início — jornada |
+| #   | Pergunta                          | Onde é respondida                        |
+| --- | --------------------------------- | ---------------------------------------- |
+| 1   | O que está acontecendo agora?     | Início — etapa atual                     |
+| 2   | Em que etapa estamos?             | Início — jornada                         |
+| 3   | Alguma coisa depende de mim?      | Início — "Precisa da sua atenção"        |
+| 4   | Qual é a próxima entrega?         | Início — próxima entrega                 |
+| 5   | Qual é o próximo encontro?        | Início — próximo encontro / Encontros    |
+| 6   | O que já foi aprovado?            | Conteúdo · Estratégia                    |
+| 7   | O que está sendo produzido?       | Conteúdo                                 |
+| 8   | Quais resultados estamos obtendo? | Resultados                               |
+| 9   | O que aprendemos até agora?       | Resultados — "O que aprendemos" · Review |
+| 10  | O que acontece depois?            | Início — jornada                         |
 
 ## Personas
 
-| Persona | Papel | Contexto de uso |
-| --- | --- | --- |
-| Sócio/estrategista da Boop | `boop_admin` | Desktop. Cria clientes, projetos, estratégias, publica reviews |
-| Time da Boop | `boop_member` | Desktop. Produz conteúdo, conduz onboarding e reuniões |
-| Contato do cliente | `client_user` | **Celular**, sessões curtas, poucas vezes por semana. Aprova, comenta, acompanha |
+| Persona                    | Papel         | Contexto de uso                                                                  |
+| -------------------------- | ------------- | -------------------------------------------------------------------------------- |
+| Sócio/estrategista da Boop | `boop_admin`  | Desktop. Cria clientes, projetos, estratégias, publica reviews                   |
+| Time da Boop               | `boop_member` | Desktop. Produz conteúdo, conduz onboarding e reuniões                           |
+| Contato do cliente         | `client_user` | **Celular**, sessões curtas, poucas vezes por semana. Aprova, comenta, acompanha |
 
 O `client_user` é o usuário mais importante e o que menos tempo tem. Ele decide
 em 30 segundos, no celular, entre uma reunião e outra.
@@ -60,16 +60,16 @@ projeto guarda as etapas instanciadas.
 
 ### Jornada `social.v1` (a única completa na V0)
 
-| Ordem | Chave | Rótulo no portal |
-| --- | --- | --- |
-| 1 | `kickoff` | Início do projeto |
-| 2 | `onboarding` | Onboarding |
-| 3 | `immersion` | Imersão |
-| 4 | `research` | Pesquisa |
-| 5 | `strategy` | Estratégia |
-| 6 | `production` | Produção |
-| 7 | `publishing` | Publicação |
-| 8 | `review` | Review |
+| Ordem | Chave        | Rótulo no portal  |
+| ----- | ------------ | ----------------- |
+| 1     | `kickoff`    | Início do projeto |
+| 2     | `onboarding` | Onboarding        |
+| 3     | `immersion`  | Imersão           |
+| 4     | `research`   | Pesquisa          |
+| 5     | `strategy`   | Estratégia        |
+| 6     | `production` | Produção          |
+| 7     | `publishing` | Publicação        |
+| 8     | `review`     | Review            |
 
 `website`, `branding`, `automation` e `custom` recebem jornadas mínimas na FASE 6
 (apenas para provar que a arquitetura não depende de social) e são detalhadas
@@ -86,6 +86,10 @@ Início · Projeto · Conteúdo · Estratégia · Arquivos · Resultados · Enco
 Rotas: `/portal/[projectId]`, `/portal/[projectId]/projeto`, `/conteudo`,
 `/estrategia`, `/arquivos`, `/resultados`, `/encontros`.
 
+`/portal` é a rota canônica. `/app` existe como redirect em `next.config.ts`,
+porque é o nome usado no briefing da FASE 1 — um alias, nunca uma segunda
+página.
+
 Com um único projeto acessível, `/portal` redireciona direto e nenhum seletor
 aparece. Com mais de um, surge um seletor discreto no cabeçalho.
 
@@ -95,11 +99,11 @@ Ordem fixa, de cima para baixo. Blocos vazios **desaparecem** — não viram car
 com "nenhum item".
 
 1. **Precisa da sua atenção** — derivado por query, não por tabela.
-   *"3 conteúdos esperando sua aprovação."*
-2. **Etapa atual** — *"Pesquisa estratégica em andamento."*
-3. **Próxima entrega** — *"Direção Editorial · 04 de setembro."*
+   _"3 conteúdos esperando sua aprovação."_
+2. **Etapa atual** — _"Pesquisa estratégica em andamento."_
+3. **Próxima entrega** — _"Direção Editorial · 04 de setembro."_
 4. **Jornada** — linha de etapas: `✓ Imersão · ● Pesquisa · ○ Estratégia · ○ Produção`
-5. **Próximo encontro** — *"Brand Immersion · 03 de setembro · 14:00."*
+5. **Próximo encontro** — _"Brand Immersion · 03 de setembro · 14:00."_
 6. **Resultados** — só aparece quando já existir métrica registrada.
 
 Não há gráficos no dashboard. Não há cards decorativos.
@@ -123,8 +127,8 @@ funcionar perfeitamente com uma mão, no celular.
 **Resultados.** Números importam, mas o componente central é **O QUE APRENDEMOS**.
 
 **Monthly Review.** Narrativa fixa:
-*O que fizemos → O que aconteceu → O que funcionou → O que não funcionou → O que
-aprendemos → O que muda.*
+_O que fizemos → O que aconteceu → O que funcionou → O que não funcionou → O que
+aprendemos → O que muda._
 
 ## Design
 

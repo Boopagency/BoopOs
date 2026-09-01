@@ -16,11 +16,12 @@ Nesta ordem. O topo nunca é sacrificado pelo resto.
 
 ## Onde cada coisa mora
 
-| Pasta | O quê | Ferramenta |
-| --- | --- | --- |
-| `tests/unit` | policies, máquinas de estado, schemas zod, mapeadores | Vitest |
-| `tests/rls` | isolamento contra Postgres real (Supabase local) | Vitest + `pg` |
-| `tests/e2e` | fluxo do Marco 1 | Playwright (FASE 20) |
+| Pasta             | O quê                                                         | Ferramenta               |
+| ----------------- | ------------------------------------------------------------- | ------------------------ |
+| `tests/unit`      | policies, máquinas de estado, schemas zod, config, mapeadores | Vitest                   |
+| `tests/component` | componentes: acessibilidade, estados, ausência de vazamento   | Vitest + Testing Library |
+| `tests/rls`       | isolamento contra Postgres real (Supabase local)              | Vitest + `pg`            |
+| `tests/e2e`       | fluxo do Marco 1                                              | Playwright (FASE 20)     |
 
 ## Como se escreve teste de RLS
 
@@ -34,7 +35,7 @@ set local request.jwt.claims = '{"sub":"<uuid>","role":"authenticated"}';
 rollback;
 ```
 
-**Todo caso é escrito aos pares:** o que a pessoa deve ver *e* o que ela não pode
+**Todo caso é escrito aos pares:** o que a pessoa deve ver _e_ o que ela não pode
 ver. Um teste que só verifica o caminho feliz não prova isolamento.
 
 ## Casos que precisam existir sempre

@@ -11,8 +11,9 @@ Raciocínio em [`docs/architecture.md`](../../docs/architecture.md) e
   workflow decide.
 - Componente não fala com o banco. Server Component chama repository; interação
   chama Server Action, que chama workflow.
-- `src/components/ui` = primitivos. `src/components/patterns` = composições sem
-  domínio. UI de domínio mora em `src/domains/<dominio>/components`.
+- `src/components/ui` = primitivos. `src/components/layout` = cascas (Shell,
+  Container). `src/components/patterns` = composições sem domínio. UI de domínio
+  mora em `src/domains/<dominio>/components`.
 - Sem pasta `utils/` genérica.
 
 ## Design
@@ -22,7 +23,10 @@ Premium, editorial, minimalista. Muito espaço, boa tipografia, hierarquia forte
 **Não:** dashboard SaaS genérico, cards em excesso, gradiente aleatório,
 glassmorphism, menu grande, ícone decorativo, gamificação.
 
-- Escala tipográfica e espaçamento vêm de tokens. Nada de valor mágico.
+- Escala tipográfica, cor e espaçamento vêm de tokens (`src/app/globals.css`).
+  **Nenhum hexadecimal em componente** — use `bg-surface`, `text-muted`,
+  `border-border`. Trocar a identidade na FASE 1.5 não pode exigir tocar em
+  primitivo.
 - Bloco vazio **desaparece**. Não vira card com "nenhum item".
 - O portal tem sete itens de navegação. Acrescentar um exige justificativa escrita.
 

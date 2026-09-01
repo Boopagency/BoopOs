@@ -1,0 +1,59 @@
+{
+  "name": "boop-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plataforma proprietaria da Boop",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22.11.0 <23",
+    "pnpm": ">=10"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test"
+  },
+  "dependencies": {
+    "next": "16.3.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@supabase/ssr": "^0.12.5",
+    "@supabase/supabase-js": "^2.112.4",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.6",
+    "@types/node": "^22.20.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^6.1.1",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "16.3.4",
+    "eslint-config-prettier": "^10.1.8",
+    "jsdom": "^30.0.1",
+    "prettier": "^3.9.6",
+    "prettier-plugin-tailwindcss": "^0.6.14",
+    "server-only": "^0.0.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.69.0",
+    "vitest": "^4.1.11"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "unrs-resolver"
+    ]
+  }
+}
