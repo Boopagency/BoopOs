@@ -11,7 +11,9 @@ Raciocínio em [`docs/security.md`](../../docs/security.md). Aqui só o que é o
    `import 'server-only'`. Nunca `NEXT_PUBLIC_`. Nunca em Client Component.
 4. Server Action é endpoint público. Toda action passa por `defineWorkflow`, que
    valida, autentica e autoriza — nesta ordem, sem exceção.
-5. `middleware.ts` renova sessão e redireciona. **Não decide autorização.**
+5. `proxy.ts` renova sessão e redireciona. **Não decide autorização.** No Next
+   16 o arquivo se chama `proxy.ts` e a função exportada é `proxy`;
+   `middleware.ts` está depreciado ([I-14](../../docs/spec-review.md)).
 
 ## Toda escrita
 

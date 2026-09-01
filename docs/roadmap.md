@@ -71,7 +71,8 @@ ser lido como "o banco está protegido para multi-tenant".
 
 ### FASE 3 — Autenticação
 
-Magic Link com PKCE, `@supabase/ssr`, middleware de sessão, `/login`, callback,
+Magic Link com PKCE, `@supabase/ssr`, renovação de sessão no `proxy.ts`,
+`/login`, callback,
 logout, `getActor`/`requireActor`, `recordFirstLogin`, signup público desligado.
 **Pronto quando:** dá para entrar por link e sair; rota protegida sem sessão
 redireciona para `/login`.

@@ -177,6 +177,36 @@ Os enums `file_category`, `meeting_type` e `meeting_status` já existem em
 continuem **ausentes** do banco, e quebra no dia em que a migration da FASE 12
 os criar — forçando a mover a chave para `PG_ENUMS` no mesmo PR.
 
+### I-14 [B] `middleware.ts` não existe mais no Next 16
+
+Toda a documentação — `CLAUDE.md`, `security.md`, `architecture.md`, o roadmap e
+as regras — fala em `middleware.ts`. **No Next 16 esse arquivo está depreciado.**
+Foi renomeado para `proxy.ts`, e a função exportada passou de `middleware` para
+`proxy`. Verificado em `node_modules/next/dist/docs`, na versão fixada aqui
+(16.3.4); há inclusive um codemod oficial para a migração.
+
+Não é só nome. Duas consequências reais:
+
+- **O runtime mudou.** O Proxy roda em Node.js por padrão, e a opção `runtime`
+  não é aceita — declarar `runtime` num arquivo de Proxy dá erro. As restrições
+  de Edge que costumavam pesar na escolha de bibliotecas deixam de valer.
+- **A intenção mudou.** O time do Next diz explicitamente que renomeou para
+  desencorajar o uso, e recomenda "evitar depender de Middleware a menos que não
+  exista outra opção". Isso não contraria a nossa regra — **reforça** o R-08:
+  esse arquivo renova sessão e redireciona, e nunca decide autorização.
+
+**Resolução adotada:** a documentação passa a dizer `proxy.ts`, com a regra
+inalterada. Vale para os dois lados do par: `docs/` e `.claude/rules/`. Nenhum
+arquivo foi criado — só os nomes foram acertados, para que a FASE 3 não nasça
+escrevendo um arquivo depreciado.
+
+**Fica em aberto para a FASE 3, por ADR:** se esse arquivo deve existir. O
+`@supabase/ssr` precisa renovar a sessão em algum lugar, e o padrão documentado
+pelo Supabase usa exatamente este ponto — mas o Next agora empurra na direção
+contrária. A alternativa é renovar dentro de cada rota, o que espalha a
+responsabilidade e é fácil de esquecer numa rota nova. A decisão, com o
+trade-off escrito, é da fase que criar o arquivo.
+
 ---
 
 ## 2. Riscos
@@ -254,12 +284,14 @@ no servidor _depois_ do upload (o cliente mente antes); `Content-Disposition:
 attachment` para tudo que não seja imagem/vídeo de preview; nomes de arquivo
 sanitizados e nunca reutilizados como path (o path é derivado de UUID).
 
-### R-08 [B] Autorização em `middleware.ts` não é confiável sozinha
+### R-08 [B] Autorização em `proxy.ts` não é confiável sozinha
 
-Já houve classe de bypass de middleware no Next.js (CVE-2025-29927). Middleware é
-roteamento e refresh de sessão, não é fronteira de segurança.
+Já houve classe de bypass de middleware no Next.js (CVE-2025-29927). Esse arquivo
+é roteamento e refresh de sessão, não é fronteira de segurança — e o nome novo
+que o Next 16 lhe deu ("proxy", uma camada de rede na frente da aplicação) diz
+isso melhor do que o antigo (ver I-14).
 
-**Mitigação:** o middleware só renova o cookie de sessão e redireciona não
+**Mitigação:** o proxy só renova o cookie de sessão e redireciona não
 autenticados. **Toda** decisão de autorização é refeita no Server Component /
 workflow que efetivamente lê ou escreve o dado, e a RLS confere de novo no banco.
 

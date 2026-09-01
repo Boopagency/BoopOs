@@ -92,7 +92,8 @@ vive em `.claude/rules/`. Ao mudar uma decisão, atualize os dois no mesmo PR.
   `delete`. Policy de UPDATE sempre com `USING` **e** `WITH CHECK`.
 - `client_id` nunca vem do input: é derivado do pai por trigger e é imutável.
 - Recurso inacessível responde **404**, não 403.
-- `middleware.ts` renova sessão. Não decide autorização.
+- `proxy.ts` renova sessão. Não decide autorização. (No Next 16 o antigo
+  `middleware.ts` está depreciado — ver [I-14](docs/spec-review.md).)
 
 **Domínio**
 

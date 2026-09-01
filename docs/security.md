@@ -34,9 +34,12 @@ funciona apenas por causa de uma delas.
 - **Não existe cadastro público.** Todo acesso nasce de um convite feito por
   `boop_admin`. Signup desabilitado no projeto Supabase.
 - Link com validade de 15 minutos e uso único.
-- `middleware.ts` apenas renova a sessão e redireciona quem não tem sessão. **Não
-  toma decisão de autorização** — já houve classe de bypass de middleware no
-  Next.js, e middleware não é fronteira de segurança.
+- `proxy.ts` apenas renova a sessão e redireciona quem não tem sessão. **Não
+  toma decisão de autorização** — já houve classe de bypass desse arquivo no
+  Next.js, e ele não é fronteira de segurança. No Next 16 ele se chama `proxy.ts`
+  (o antigo `middleware.ts` está depreciado), e o nome novo descreve melhor o que
+  ele é: uma camada de rede na frente da aplicação. Ver
+  [`spec-review.md` I-14](spec-review.md).
 - Toda página e todo workflow refazem a checagem no servidor.
 
 ### O `actor`
@@ -325,10 +328,10 @@ lugar de conteúdo.**
 
 **Adiado para a FASE 19, deliberadamente:**
 
-- **CSP.** Uma política útil no App Router exige nonce por request (middleware),
-  e a superfície de assets e integrações ainda muda até a FASE 17. Uma CSP com
-  `unsafe-inline` agora daria falsa sensação de proteção. Entra junto com o
-  middleware de sessão, com nonce.
+- **CSP.** Uma política útil no App Router exige nonce por request (gerado no
+  `proxy.ts`), e a superfície de assets e integrações ainda muda até a FASE 17.
+  Uma CSP com `unsafe-inline` agora daria falsa sensação de proteção. Entra junto
+  com a renovação de sessão, com nonce.
 - **HSTS.** É a Vercel que termina o TLS e já envia `Strict-Transport-Security`
   no domínio de produção; declarar aqui só teria efeito na FASE 20, ao
   configurar o domínio próprio — e é lá que será conferido.
