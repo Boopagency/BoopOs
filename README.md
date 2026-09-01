@@ -7,10 +7,10 @@ definir estratégia, executar, medir, aprender, evoluir — visível e acompanh�
 O cliente enxerga **uma única interface: Boop**. Ferramentas internas não
 aparecem para ele.
 
-> **Status: FASE 1 concluída — fundação técnica.**
-> A aplicação sobe, as rotas existem e a qualidade está automatizada. Ainda não
-> há banco, autenticação nem funcionalidade de produto: isso começa na FASE 3.
-> Ver [`docs/roadmap.md`](docs/roadmap.md).
+> **Status: FASE 1.5 concluída — sistema visual e protótipo navegável.**
+> Onze telas do portal do cliente, com identidade Boop e dados fictícios.
+> Nenhuma ação é registrada: não há banco nem autenticação — isso começa na
+> FASE 2. Ver [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Stack
 
@@ -51,12 +51,22 @@ exigem configuração quando forem realmente usados — ver
 
 ## Rotas
 
-| Rota      | O que é                                                                                                             |
-| --------- | ------------------------------------------------------------------------------------------------------------------- |
-| `/`       | Página de fundação. Confirma que a aplicação está de pé e, em desenvolvimento, quais integrações estão configuradas |
-| `/portal` | Portal do cliente (placeholder). Rota canônica                                                                      |
-| `/app`    | Alias que redireciona para `/portal`                                                                                |
-| `/admin`  | Operação interna da Boop (placeholder)                                                                              |
+| Rota                                          | O que é                                     |
+| --------------------------------------------- | ------------------------------------------- |
+| `/`                                           | Índice do protótipo, com o fluxo completo   |
+| `/login`                                      | Primeiro contato com a marca                |
+| `/bem-vindo`                                  | Primeiro acesso                             |
+| `/portal`                                     | Redireciona para o projeto do cliente       |
+| `/portal/[projectId]`                         | Dashboard                                   |
+| `/portal/[projectId]/projeto`                 | Escopo, time e jornada completa             |
+| `/portal/[projectId]/onboarding`              | Onboarding em seis seções                   |
+| `/portal/[projectId]/estrategia`              | Direção editorial e aprovação               |
+| `/portal/[projectId]/conteudo`                | Feed editorial                              |
+| `/portal/[projectId]/conteudo/[id]`           | Detalhe e aprovação da peça                 |
+| `/portal/[projectId]/resultados`              | Resultados e aprendizados                   |
+| `/portal/[projectId]/encontros` · `/arquivos` | Encontros e materiais                       |
+| `/admin`                                      | Operação interna (placeholder até a FASE 5) |
+| `/app`                                        | Alias que redireciona para `/portal`        |
 
 ## Comandos
 
@@ -96,14 +106,16 @@ desenvolvimento.
 
 ```
 src/
-  app/            rotas — (portal) e (admin) em route groups
-  components/     ui/ (primitivos) · layout/ (cascas)
-  config/         app.ts (constantes de produto) · env.ts (environment)
-  lib/            logging/ · supabase/ · cn.ts
+  app/            (auth) · (portal)/portal/[projectId] · (admin)
+  components/     ui/ · layout/ · brand/ · patterns/
+  config/         app.ts · enums.ts · env.ts
+  lib/            data/ (camada de acesso) · logging/ · supabase/ · format.ts
+  mocks/          dados fictícios — nenhum componente os importa
 tests/
-  unit/           lógica pura
+  unit/           lógica pura, contraste, formatação
   component/      componentes com Testing Library
-docs/             arquitetura, modelo de dados, segurança, ADRs
+reference/brand/  assets oficiais da marca
+docs/             arquitetura, design, modelo de dados, segurança, ADRs
 .claude/rules/    regras imperativas para quem (ou o que) escreve código
 ```
 
@@ -112,20 +124,23 @@ não como diretórios vazios. Ver [`docs/architecture.md`](docs/architecture.md)
 
 ## Documentação
 
-| Documento                                      | Conteúdo                                                 |
-| ---------------------------------------------- | -------------------------------------------------------- |
-| [`CLAUDE.md`](CLAUDE.md)                       | Manual operacional: regras, comandos, Definition of Done |
-| [`docs/product.md`](docs/product.md)           | Visão, jornada do cliente, navegação, primeiro marco     |
-| [`docs/architecture.md`](docs/architecture.md) | Camadas, ciclo de request, estrutura, convenções         |
-| [`docs/data-model.md`](docs/data-model.md)     | ERD da V0, DDL de referência, tabelas adiadas            |
-| [`docs/security.md`](docs/security.md)         | Modelo de ameaças, RLS, uploads, secrets, headers        |
-| [`docs/permissions.md`](docs/permissions.md)   | Papéis e matriz de permissões                            |
-| [`docs/workflows.md`](docs/workflows.md)       | Contrato de workflow e catálogo de operações             |
-| [`docs/integrations.md`](docs/integrations.md) | Resend, Notion, calendário                               |
-| [`docs/deployment.md`](docs/deployment.md)     | Ambientes, variáveis, migrations, CI/CD                  |
-| [`docs/roadmap.md`](docs/roadmap.md)           | Fases 0 a 20 com Definition of Done                      |
-| [`docs/spec-review.md`](docs/spec-review.md)   | Inconsistências, riscos e decisões em aberto             |
-| [`docs/adr/`](docs/adr/)                       | Architecture Decision Records                            |
+| Documento                                              | Conteúdo                                                 |
+| ------------------------------------------------------ | -------------------------------------------------------- |
+| [`CLAUDE.md`](CLAUDE.md)                               | Manual operacional: regras, comandos, Definition of Done |
+| [`docs/product.md`](docs/product.md)                   | Visão, jornada do cliente, navegação, primeiro marco     |
+| [`docs/design-direction.md`](docs/design-direction.md) | Conceito visual, nuvens, mascote, dos e don'ts           |
+| [`docs/design-system.md`](docs/design-system.md)       | Tokens, tipografia, grid, componentes, contraste         |
+| [`docs/motion.md`](docs/motion.md)                     | Durações, easings, fade-rise, reduced motion             |
+| [`docs/architecture.md`](docs/architecture.md)         | Camadas, ciclo de request, estrutura, convenções         |
+| [`docs/data-model.md`](docs/data-model.md)             | ERD da V0, DDL de referência, tabelas adiadas            |
+| [`docs/security.md`](docs/security.md)                 | Modelo de ameaças, RLS, uploads, secrets, headers        |
+| [`docs/permissions.md`](docs/permissions.md)           | Papéis e matriz de permissões                            |
+| [`docs/workflows.md`](docs/workflows.md)               | Contrato de workflow e catálogo de operações             |
+| [`docs/integrations.md`](docs/integrations.md)         | Resend, Notion, calendário                               |
+| [`docs/deployment.md`](docs/deployment.md)             | Ambientes, variáveis, migrations, CI/CD                  |
+| [`docs/roadmap.md`](docs/roadmap.md)                   | Fases 0 a 20 com Definition of Done                      |
+| [`docs/spec-review.md`](docs/spec-review.md)           | Inconsistências, riscos e decisões em aberto             |
+| [`docs/adr/`](docs/adr/)                               | Architecture Decision Records                            |
 
 ## Princípios
 

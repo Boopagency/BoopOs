@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react'
-import { Shell } from '@/components/layout/shell'
 
 /**
- * Layout do portal do cliente. Independente do admin de proposito: a navegacao
- * de sete itens e o seletor de projeto entram na FASE 2 sem tocar no admin.
+ * Route group do portal do cliente. A casca real (masthead + navegacao) vive
+ * em `[projectId]/layout.tsx`, porque depende do projeto — e `/portal` sozinho
+ * so redireciona.
  */
-export default function PortalLayout({ children }: { children: ReactNode }) {
-  return <Shell context="Client Portal">{children}</Shell>
+export default function PortalGroupLayout({ children }: { children: ReactNode }) {
+  return children
 }

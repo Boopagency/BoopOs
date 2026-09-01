@@ -12,9 +12,9 @@ para ele.
 
 Percepção-alvo: _"Eu sei exatamente o que está acontecendo com minha marca."_
 
-**Status atual: FASE 1 concluída — fundação técnica. A aplicação sobe, as rotas
-existem, a qualidade está automatizada. Sem banco, sem auth, sem funcionalidade
-de produto. A próxima fase é a 2 (sistema visual e protótipo).**
+**Status atual: FASE 1.5 concluída — sistema visual e protótipo navegável. Onze
+telas do portal do cliente, com dados fictícios e nenhuma persistência. Sem
+banco, sem auth. A próxima fase é a 2 (Supabase e migrations).**
 
 ## Vocabulário
 
@@ -46,19 +46,22 @@ compatibilidade verificada com `typescript-eslint` e `eslint-config-next`.
 
 ## Onde está cada coisa
 
-| Preciso de…                                           | Leia                                           |
-| ----------------------------------------------------- | ---------------------------------------------- |
-| Visão, jornada, telas, dashboard                      | [`docs/product.md`](docs/product.md)           |
-| Camadas, pastas, ciclo de request, máquinas de estado | [`docs/architecture.md`](docs/architecture.md) |
-| Tabelas, colunas, índices, o que ficou de fora        | [`docs/data-model.md`](docs/data-model.md)     |
-| RLS, uploads, secrets, ameaças                        | [`docs/security.md`](docs/security.md)         |
-| Quem pode o quê                                       | [`docs/permissions.md`](docs/permissions.md)   |
-| Contrato de workflow e catálogo de eventos            | [`docs/workflows.md`](docs/workflows.md)       |
-| Resend, Notion, calendário                            | [`docs/integrations.md`](docs/integrations.md) |
-| Ambientes, variáveis, migrations, CI                  | [`docs/deployment.md`](docs/deployment.md)     |
-| O que construir agora                                 | [`docs/roadmap.md`](docs/roadmap.md)           |
-| Por que decidimos assim                               | [`docs/adr/`](docs/adr/)                       |
-| Inconsistências e decisões pendentes                  | [`docs/spec-review.md`](docs/spec-review.md)   |
+| Preciso de…                                           | Leia                                                   |
+| ----------------------------------------------------- | ------------------------------------------------------ |
+| Visão, jornada, telas, dashboard                      | [`docs/product.md`](docs/product.md)                   |
+| Conceito visual, nuvens, mascote, dos e don'ts        | [`docs/design-direction.md`](docs/design-direction.md) |
+| Tokens, tipografia, grid, componentes, contraste      | [`docs/design-system.md`](docs/design-system.md)       |
+| Durações, easings, fade-rise, reduced motion          | [`docs/motion.md`](docs/motion.md)                     |
+| Camadas, pastas, ciclo de request, máquinas de estado | [`docs/architecture.md`](docs/architecture.md)         |
+| Tabelas, colunas, índices, o que ficou de fora        | [`docs/data-model.md`](docs/data-model.md)             |
+| RLS, uploads, secrets, ameaças                        | [`docs/security.md`](docs/security.md)                 |
+| Quem pode o quê                                       | [`docs/permissions.md`](docs/permissions.md)           |
+| Contrato de workflow e catálogo de eventos            | [`docs/workflows.md`](docs/workflows.md)               |
+| Resend, Notion, calendário                            | [`docs/integrations.md`](docs/integrations.md)         |
+| Ambientes, variáveis, migrations, CI                  | [`docs/deployment.md`](docs/deployment.md)             |
+| O que construir agora                                 | [`docs/roadmap.md`](docs/roadmap.md)                   |
+| Por que decidimos assim                               | [`docs/adr/`](docs/adr/)                               |
+| Inconsistências e decisões pendentes                  | [`docs/spec-review.md`](docs/spec-review.md)           |
 
 Regras imperativas, curtas, para consulta durante o trabalho:
 [`.claude/rules/`](.claude/rules/) — `database.md`, `security.md`, `frontend.md`,
@@ -93,6 +96,8 @@ vive em `.claude/rules/`. Ao mudar uma decisão, atualize os dois no mesmo PR.
 **Produto**
 
 - Sete itens de navegação no portal. Um oitavo exige justificativa escrita.
+- Sem biblioteca de UI, de ícones ou de motion ([ADR-0018](docs/adr/0018-sem-biblioteca-de-ui-e-de-motion.md)).
+- Aprovar e pedir ajuste têm a mesma prominência visual. Sempre.
 - Bloco vazio desaparece; não vira card de "nenhum item".
 - Client-facing é mobile first. Nunca tabela com scroll horizontal no celular.
 - Interface em pt-BR; código, identificadores e commits em inglês.
@@ -121,18 +126,25 @@ pnpm db:new <nome>   # cria uma migration
 ## Estrutura atual
 
 ```
-src/app/          rotas — (portal) e (admin) em route groups
-src/components/   ui/ (primitivos) · layout/ (cascas de portal e admin)
-src/config/       app.ts (constantes de produto) · env.ts (environment)
-src/lib/          logging/ · supabase/ (fronteira, sem uso) · cn.ts
+src/app/          (auth) login · bem-vindo   (portal) portal/[projectId]/…   (admin)
+src/components/   ui/ (primitivos) · layout/ (cascas) · brand/ (logo, olhos, nuvens)
+                  patterns/ (composições de produto)
+src/config/       app.ts (produto) · enums.ts (taxonomias) · env.ts (environment)
+src/lib/          data/ (camada de acesso) · logging/ · supabase/ (fronteira)
+                  cn.ts · format.ts
+src/mocks/        dados fictícios — a ÚNICA fonte, e nenhum componente a importa
 tests/unit/       lógica pura       tests/component/  Testing Library
 ```
 
 Regras de crescimento:
 
 - **`src/domains/<nome>` nasce na fase do domínio**, nunca como pasta vazia.
-- Rota canônica do portal é `/portal`; `/app` é um redirect em `next.config.ts`.
+- Rota canônica do portal é `/portal/[projectId]`; `/app` redireciona.
+- **Tela nunca importa `src/mocks`.** Fala com `src/lib/data`, que hoje lê dos
+  mocks e na FASE 5 passa a ler do Supabase — o contrato é `data/types.ts`.
 - Nenhum componente usa hexadecimal: cor vem de token em `src/app/globals.css`.
+- Nenhum `max-w-[Nch]` em wrapper: `ch` resolve no font-size do próprio
+  elemento, então a largura vai no elemento que tem o tamanho.
 - `process.env` só existe em `src/config/env.ts` (regra do ESLint).
 - `console` só existe em `src/lib/logging/logger.ts` (regra do ESLint).
 

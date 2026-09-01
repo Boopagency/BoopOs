@@ -23,6 +23,9 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
 
+  /* O selo de dev do Next atrapalha o QA visual e nao existe em producao. */
+  devIndicators: false,
+
   // Nao expor a versao do framework.
   poweredByHeader: false,
 

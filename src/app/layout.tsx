@@ -1,14 +1,22 @@
 import type { Metadata, Viewport } from 'next'
+import { Poppins } from 'next/font/google'
 import type { ReactNode } from 'react'
-import { APP } from '@/config/app'
 import { SkipLink } from '@/components/layout/skip-link'
+import { APP } from '@/config/app'
 import './globals.css'
 
 /*
- * Tipografia: fonte de sistema, de proposito. A tipografia real da Boop entra
- * na FASE 2 com os assets da marca (docs/roadmap.md). Trocar significa
- * adicionar `next/font` aqui e uma variavel em globals.css — nada mais.
+ * Poppins e a fonte oficial da Boop (reference/brand/TYPOGRAPHY.md).
+ * Carregamos exatamente os quatro pesos usados pelo sistema tipografico:
+ * 400 body · 500 label · 600 metadata e titulo funcional · 700 display.
+ * Nenhum peso a mais — cada um custa uma requisicao e bytes no critical path.
  */
+const poppins = Poppins({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-poppins',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: {
@@ -24,11 +32,12 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  themeColor: '#fffdf5',
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang={APP.locale}>
+    <html lang={APP.locale} className={poppins.variable}>
       <body className="font-sans antialiased">
         <SkipLink />
         {children}

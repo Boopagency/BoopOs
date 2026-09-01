@@ -4,3 +4,6 @@ out
 coverage
 pnpm-lock.yaml
 next-env.d.ts
+
+# Material de marca fornecido pela Boop: e fonte, nao codigo. Nao reformatar.
+reference/

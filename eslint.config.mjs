@@ -75,6 +75,17 @@ export default tseslint.config(
   },
 
   /*
+   * A camada de dados e assincrona por contrato, nao por implementacao: hoje
+   * le de `src/mocks`, na FASE 5 passa a fazer I/O contra o Supabase. Manter
+   * a assinatura `async` desde agora e o que permite trocar a origem sem
+   * tocar em nenhuma tela (docs/architecture.md).
+   */
+  {
+    files: ['src/lib/data/**/*.ts'],
+    rules: { '@typescript-eslint/require-await': 'off' },
+  },
+
+  /*
    * Testes precisam montar e derrubar o ambiente para provar que a camada de
    * config se comporta com integracao ausente — e literalmente o que
    * tests/unit/env.test.ts verifica. A regra continua valendo para todo o

@@ -41,6 +41,7 @@ Ordem de dependência. Uma camada só importa das que estão abaixo dela.
 | **Workflows**   | `domains/*/workflows.ts`                            | Casos de uso: validar, autorizar, executar, auditar, notificar  | SQL cru espalhado, render        |
 | **Policy**      | `domains/*/policy.ts`, `lib/permissions`            | `can(actor, action, resource)` — decisão pura                   | I/O                              |
 | **Repository**  | `domains/*/repository.ts`                           | Acesso a dados, projeção de colunas, mapeamento linha → domínio | Autorização como única defesa    |
+| **Read models** | `lib/data/`                                         | O que cada tela do portal lê, já resolvido                      | Regra de negócio                 |
 | **Banco**       | `supabase/migrations`                               | Integridade, RLS, transições atômicas                           | Confiar no app                   |
 
 **Duas camadas de autorização, sempre.** A aplicação decide e nega cedo; a RLS
@@ -93,9 +94,10 @@ nega de novo no banco. Nenhuma das duas é considerada suficiente sozinha. Ver
 │   │   ├── (admin)/admin/…   # operação da Boop, desktop first
 │   │   └── api/              # Route Handlers: download, webhooks, health
 │   ├── components/
-│   │   ├── ui/               # primitivos: Button, Input, Label, Spinner, Callout
-│   │   ├── layout/           # cascas: Shell, Container, SkipLink
-│   │   └── patterns/         # composições sem domínio: PageHeader, EmptyState
+│   │   ├── ui/               # primitivos: Button, Field, StatusMark, Callout
+│   │   ├── layout/           # cascas: PortalShell, navegação, Container
+│   │   ├── brand/            # BoopMark, BoopEyes, CloudLayer
+│   │   └── patterns/         # composições de produto: AttentionBlock, Journey…
 │   ├── domains/              # ← o coração do sistema
 │   │   ├── clients/
 │   │   ├── projects/
@@ -152,6 +154,34 @@ Regras:
 - **Sem pasta `utils/` genérica.** Helper mora ao lado de quem usa, ou vira um
   módulo nomeado em `lib/`.
 - **Sem `select *`** — projeção de colunas explícita em toda query.
+
+## Camada de dados do portal
+
+`src/lib/data/` é a única fronteira entre as telas e a origem dos dados.
+
+```
+MOCK  →  DATA LAYER (lib/data/types.ts)  →  SUPABASE
+```
+
+Três decisões deixam essa troca limpa:
+
+1. **Toda função é `async`.** Hoje resolve na hora, amanhã faz I/O. Nenhum
+   componente precisa virar assíncrono depois. (É por isso que
+   `@typescript-eslint/require-await` está desligado só nessa pasta.)
+2. **Toda função recebe `projectId` e valida.** É onde `requireProjectAccess()`
+   entra na FASE 4 — a autorização já tem lugar reservado, e recurso
+   inacessível já responde 404.
+3. **A visibilidade de conteúdo já é filtrada ali**, com a mesma regra que a RLS
+   vai aplicar no banco: `idea`, `planned`, `in_production` e `internal_review`
+   nunca chegam ao portal.
+
+`src/mocks/` é a única fonte de dados fictícios do repositório, e **nenhum
+componente a importa**.
+
+**Realtime (futuro).** As telas são Server Components que leem da camada de
+dados a cada request. Quando a fase de realtime chegar, um provider assina o
+canal e revalida a rota — a árvore de componentes não muda, porque nenhuma
+delas guarda estado de servidor.
 
 ## Jornadas como dado tipado
 

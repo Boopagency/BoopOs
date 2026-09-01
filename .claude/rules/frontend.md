@@ -1,7 +1,9 @@
 # Regras — Frontend
 
-Raciocínio em [`docs/architecture.md`](../../docs/architecture.md) e
-[`docs/product.md`](../../docs/product.md).
+Raciocínio em [`docs/design-direction.md`](../../docs/design-direction.md),
+[`docs/design-system.md`](../../docs/design-system.md),
+[`docs/motion.md`](../../docs/motion.md) e
+[`docs/architecture.md`](../../docs/architecture.md).
 
 ## Estrutura
 
@@ -24,9 +26,16 @@ Premium, editorial, minimalista. Muito espaço, boa tipografia, hierarquia forte
 glassmorphism, menu grande, ícone decorativo, gamificação.
 
 - Escala tipográfica, cor e espaçamento vêm de tokens (`src/app/globals.css`).
-  **Nenhum hexadecimal em componente** — use `bg-surface`, `text-muted`,
-  `border-border`. Trocar a identidade na FASE 1.5 não pode exigir tocar em
-  primitivo.
+  **Nenhum hexadecimal em componente** — use `bg-background`, `text-muted`,
+  `border-rule`, `.t-section`.
+- **Ação primária é azul com texto navy.** Off-white sobre `#00C2FF` dá 2.03:1 e
+  reprova; o azul também não serve como texto em fundo claro. Há teste.
+- Laje, não card: sem sombra, sem borda em volta de tudo, raio de 0 a 4px.
+- Status é ponto + rótulo em pt-BR, nunca pill, e a cor nunca é o único
+  portador do significado.
+- Sem biblioteca de ícones: seta é `→`. Sem Radix, sem shadcn, sem Framer
+  Motion ([ADR-0018](../../docs/adr/0018-sem-biblioteca-de-ui-e-de-motion.md)).
+- `max-w-[Nch]` vai no elemento que tem o font-size, nunca no wrapper.
 - Bloco vazio **desaparece**. Não vira card com "nenhum item".
 - O portal tem sete itens de navegação. Acrescentar um exige justificativa escrita.
 
@@ -43,6 +52,16 @@ conteúdo, feedback, aprovação, resultados.
 
 Toda tela que carrega dado implementa os quatro: **loading**, **vazio**, **erro**,
 **sucesso**. Faltar um é PR incompleto.
+
+Estado vazio nunca diz "nenhum dado": diz o que está acontecendo e o que vem a
+seguir, na voz da Boop.
+
+## Motion
+
+- Navegação cotidiana é instantânea. `fade-rise` só em abertura editorial.
+- **Nunca** atrasar um controle que o usuário já quer clicar.
+- Toda animação respeita `prefers-reduced-motion`, e nenhuma informação depende
+  de movimento. Ver [`docs/motion.md`](../../docs/motion.md).
 
 ## Acessibilidade
 

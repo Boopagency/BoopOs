@@ -35,17 +35,21 @@ estruturais em CSS variables; seis primitivos de UI acessíveis; rotas `/`,
 environment em duas camadas; fronteira do Supabase sem banco; CI.
 **Pronto:** `pnpm check` e `pnpm build` verdes, 23 testes, nenhuma rota lê banco.
 
-### FASE 1.5 — Boop Visual System & Product Prototype
+### FASE 1.5 — Boop Visual System & Product Prototype ✅
 
 _Inserida pelo briefing da FASE 1. Numerada como 1.5 de propósito: renumerar as
 fases 2–20 quebraria as dezenas de referências cruzadas nesta documentação e nas
 regras de `.claude/rules`._
 
-Identidade da Boop aplicada sobre os tokens estruturais da FASE 1: cor,
-tipografia, nuvens, mascote, art direction, motion. Protótipo navegável de
-dashboard, onboarding, estratégia, conteúdo e aprovação — ainda sem banco.
-**Pronto quando:** o protótipo comunica o produto, nenhum componente carrega
-hexadecimal, e a troca de identidade não exigiu tocar em nenhum primitivo.
+Identidade da Boop aplicada sobre os tokens estruturais da FASE 1: paleta
+extraída dos assets oficiais, Poppins, grid editorial, sistema de nuvens e de
+mascote, motion em CSS. Onze telas navegáveis: login, boas-vindas, dashboard,
+projeto, onboarding, estratégia, conteúdo, detalhe, aprovação, resultados,
+encontros e arquivos.
+**Pronto:** `pnpm check` e `pnpm build` verdes, 69 testes, zero overflow em
+cinco breakpoints, nenhum hexadecimal em componente, camada de dados isolando
+os mocks. Documentado em `design-direction.md`, `design-system.md` e
+`motion.md`.
 
 ### FASE 2 — Supabase e migrations
 
