@@ -13,10 +13,10 @@ externo espalhada pelo código é proibida.
 Dois caminhos distintos, um único provedor. Ver
 [ADR-0010](adr/0010-email-auth-vs-produto.md).
 
-| Caminho | Quem envia | O quê |
-| --- | --- | --- |
-| **Autenticação** | Supabase Auth, via **SMTP customizado apontando para o Resend** | magic link, convite |
-| **Produto** | `EmailService` → **API do Resend** | estratégia pronta, conteúdo aguardando aprovação, alteração solicitada, review publicado |
+| Caminho          | Quem envia                                                      | O quê                                                                                    |
+| ---------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **Autenticação** | Supabase Auth, via **SMTP customizado apontando para o Resend** | magic link, convite                                                                      |
+| **Produto**      | `EmailService` → **API do Resend**                              | estratégia pronta, conteúdo aguardando aprovação, alteração solicitada, review publicado |
 
 Por que assim: o Supabase precisa enviar o link de autenticação e não aceita que
 a aplicação intercepte esse envio sem reimplementar o fluxo. Configurar o SMTP
@@ -33,6 +33,7 @@ export interface EmailService {
 ```
 
 Regras:
+
 - **Nenhum arquivo fora de `lib/integrations/email` importa o SDK do Resend.**
 - Todo envio grava uma linha em `notifications` **antes** de tentar: `pending` →
   `sent` ou `failed` com `error`. Nada é enviado sem rastro.
@@ -44,15 +45,15 @@ Regras:
 
 ### Templates
 
-| Template | Gatilho | Destinatário | Fase |
-| --- | --- | --- | --- |
-| `invite` | `inviteUser` | cliente | 5 |
-| `welcome` | primeiro login | cliente | 5 |
-| `onboarding_completed` | `submitOnboarding` | equipe Boop | 7 |
-| `strategy_ready` | `sendStrategyForApproval` | cliente | 9 |
-| `content_needs_approval` | `submitContentForApproval` | cliente | 11 |
-| `changes_requested` | `requestContentChanges` / `requestStrategyChanges` | equipe Boop | 11 |
-| `review_ready` | `publishMonthlyReview` | cliente | 15 |
+| Template                 | Gatilho                                            | Destinatário | Fase |
+| ------------------------ | -------------------------------------------------- | ------------ | ---- |
+| `invite`                 | `inviteUser`                                       | cliente      | 5    |
+| `welcome`                | primeiro login                                     | cliente      | 5    |
+| `onboarding_completed`   | `submitOnboarding`                                 | equipe Boop  | 7    |
+| `strategy_ready`         | `sendStrategyForApproval`                          | cliente      | 9    |
+| `content_needs_approval` | `submitContentForApproval`                         | cliente      | 11   |
+| `changes_requested`      | `requestContentChanges` / `requestStrategyChanges` | equipe Boop  | 11   |
+| `review_ready`           | `publishMonthlyReview`                             | cliente      | 15   |
 
 Templates em React Email ou HTML simples, com fallback em texto puro. Assunto e
 corpo em pt-BR, tom da marca, sem emoji decorativo.
@@ -69,11 +70,13 @@ O Notion não é banco. Se um sync falhar, o dado no Supabase continua correto e
 aplicação não muda de comportamento.
 
 Projeções previstas:
+
 - cliente criado → página no Notion;
 - onboarding concluído → registro no workspace com link para as respostas;
 - alteração solicitada pelo cliente → item operacional na base de produção.
 
 Implementação:
+
 - `NotionAdapter` isolado em `src/lib/integrations/notion`;
 - tabela `integration_events` (criada nesta fase, não antes) com `provider`,
   `event`, `entity`, `status`, `attempts`, `error`, `external_id`;

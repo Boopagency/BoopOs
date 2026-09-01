@@ -4,9 +4,9 @@
 
 **Papel global + escopo por vínculo.**
 
-- `profiles.role` define o que a pessoa *pode fazer*: `boop_admin`,
+- `profiles.role` define o que a pessoa _pode fazer_: `boop_admin`,
   `boop_member`, `client_user`.
-- `client_memberships` define *sobre quais clientes* ela pode fazer.
+- `client_memberships` define _sobre quais clientes_ ela pode fazer.
 
 Um `boop_admin` não precisa de vínculo: enxerga tudo. `boop_member` e
 `client_user` só enxergam clientes onde têm vínculo. Ver
@@ -19,16 +19,19 @@ aditivo, sem migração destrutiva.
 ## Papéis
 
 ### `boop_admin`
+
 Administra o sistema. Cria clientes, convida e desativa usuários, cria projetos,
 altera a jornada, escreve estratégia e conteúdo, publica review, gerencia
 integrações, enxerga todos os clientes e todo o activity log.
 
 ### `boop_member`
+
 Trabalha nos clientes em que tem vínculo: estratégia, conteúdo, onboarding,
 reuniões, arquivos, métricas, reviews. Não administra usuários, não cria clientes,
 não configura integrações, não apaga registro.
 
 ### `client_user`
+
 Acessa **apenas** os clientes em que tem vínculo. Vê o projeto e a jornada,
 responde o onboarding, lê e aprova a estratégia, lê o conteúdo enviado, comenta,
 solicita alteração, aprova, baixa arquivos autorizados, vê reuniões, resultados e
@@ -42,72 +45,72 @@ configuração, integrações, activity log, outros clientes.
 `✓` permitido · `—` negado · `escopo` permitido dentro do vínculo ·
 `própria` apenas os próprios registros
 
-| Ação | `boop_admin` | `boop_member` | `client_user` |
-| --- | :---: | :---: | :---: |
-| **Clientes** | | | |
-| `client.list` (todos) | ✓ | escopo | — |
-| `client.read` | ✓ | escopo | escopo (dados públicos) |
-| `client.create` | ✓ | — | — |
-| `client.update` | ✓ | escopo | — |
-| `client.archive` | ✓ | — | — |
-| `client.read_internal_notes` | ✓ | escopo | — |
-| **Usuários** | | | |
-| `user.invite_client_user` | ✓ | — | — |
-| `user.invite_boop_member` | ✓ | — | — |
-| `user.list` | ✓ | escopo | — |
-| `user.disable` | ✓ | — | — |
-| `membership.grant` / `membership.revoke` | ✓ | — | — |
-| **Projetos** | | | |
-| `project.create` | ✓ | — | — |
-| `project.read` | ✓ | escopo | escopo |
-| `project.update` | ✓ | escopo | — |
-| `project.advance_stage` | ✓ | escopo | — |
-| `project.change_status` | ✓ | escopo | — |
-| **Onboarding** | | | |
-| `onboarding.template.manage` | ✓ | — | — |
-| `onboarding.start` | ✓ | escopo | — |
-| `onboarding.answer` | ✓ | escopo | escopo (enquanto `draft`) |
-| `onboarding.submit` | ✓ | escopo | escopo |
-| `onboarding.read_answers` | ✓ | escopo | escopo (as próprias) |
-| **Estratégia** | | | |
-| `strategy.create` / `strategy.version.create` | ✓ | escopo | — |
-| `strategy.read_draft` | ✓ | escopo | — |
-| `strategy.read_published` | ✓ | escopo | escopo |
-| `strategy.send_for_approval` | ✓ | escopo | — |
-| `strategy.approve` | — | — | escopo |
-| `strategy.request_changes` | — | — | escopo |
-| **Conteúdo** | | | |
-| `content.create` / `content.version.create` | ✓ | escopo | — |
-| `content.read_internal` (idea → internal_review) | ✓ | escopo | — |
-| `content.read_shared` (a partir de awaiting_client) | ✓ | escopo | escopo |
-| `content.send_for_approval` | ✓ | escopo | — |
-| `content.approve` | — | — | escopo |
-| `content.request_changes` | — | — | escopo |
-| `content.comment_internal` | ✓ | escopo | — |
-| `content.comment_public` | ✓ | escopo | escopo |
-| `content.mark_published` | ✓ | escopo | — |
-| `content.archive` | ✓ | escopo | — |
-| **Arquivos** | | | |
-| `file.upload` | ✓ | escopo | escopo (resposta de onboarding, FASE 12) |
-| `file.read_internal` | ✓ | escopo | — |
-| `file.read_client` | ✓ | escopo | escopo |
-| `file.set_visibility` | ✓ | escopo | — |
-| `file.delete` | ✓ | — | — |
-| **Reuniões** | | | |
-| `meeting.create` / `meeting.update` / `meeting.cancel` | ✓ | escopo | — |
-| `meeting.read` | ✓ | escopo | escopo |
-| **Resultados** | | | |
-| `metrics.write` | ✓ | escopo | — |
-| `metrics.read` | ✓ | escopo | escopo |
-| **Reviews** | | | |
-| `review.create` / `review.update` | ✓ | escopo | — |
-| `review.publish` | ✓ | escopo | — |
-| `review.read_draft` | ✓ | escopo | — |
-| `review.read_published` | ✓ | escopo | escopo |
-| **Sistema** | | | |
-| `activity.read` | ✓ | escopo (internal) | — |
-| `notification.read` / `notification.resend` | ✓ | — | — |
-| `integration.manage` | ✓ | — | — |
+| Ação                                                   | `boop_admin` |   `boop_member`   |              `client_user`               |
+| ------------------------------------------------------ | :----------: | :---------------: | :--------------------------------------: |
+| **Clientes**                                           |              |                   |                                          |
+| `client.list` (todos)                                  |      ✓       |      escopo       |                    —                     |
+| `client.read`                                          |      ✓       |      escopo       |         escopo (dados públicos)          |
+| `client.create`                                        |      ✓       |         —         |                    —                     |
+| `client.update`                                        |      ✓       |      escopo       |                    —                     |
+| `client.archive`                                       |      ✓       |         —         |                    —                     |
+| `client.read_internal_notes`                           |      ✓       |      escopo       |                    —                     |
+| **Usuários**                                           |              |                   |                                          |
+| `user.invite_client_user`                              |      ✓       |         —         |                    —                     |
+| `user.invite_boop_member`                              |      ✓       |         —         |                    —                     |
+| `user.list`                                            |      ✓       |      escopo       |                    —                     |
+| `user.disable`                                         |      ✓       |         —         |                    —                     |
+| `membership.grant` / `membership.revoke`               |      ✓       |         —         |                    —                     |
+| **Projetos**                                           |              |                   |                                          |
+| `project.create`                                       |      ✓       |         —         |                    —                     |
+| `project.read`                                         |      ✓       |      escopo       |                  escopo                  |
+| `project.update`                                       |      ✓       |      escopo       |                    —                     |
+| `project.advance_stage`                                |      ✓       |      escopo       |                    —                     |
+| `project.change_status`                                |      ✓       |      escopo       |                    —                     |
+| **Onboarding**                                         |              |                   |                                          |
+| `onboarding.template.manage`                           |      ✓       |         —         |                    —                     |
+| `onboarding.start`                                     |      ✓       |      escopo       |                    —                     |
+| `onboarding.answer`                                    |      ✓       |      escopo       |        escopo (enquanto `draft`)         |
+| `onboarding.submit`                                    |      ✓       |      escopo       |                  escopo                  |
+| `onboarding.read_answers`                              |      ✓       |      escopo       |           escopo (as próprias)           |
+| **Estratégia**                                         |              |                   |                                          |
+| `strategy.create` / `strategy.version.create`          |      ✓       |      escopo       |                    —                     |
+| `strategy.read_draft`                                  |      ✓       |      escopo       |                    —                     |
+| `strategy.read_published`                              |      ✓       |      escopo       |                  escopo                  |
+| `strategy.send_for_approval`                           |      ✓       |      escopo       |                    —                     |
+| `strategy.approve`                                     |      —       |         —         |                  escopo                  |
+| `strategy.request_changes`                             |      —       |         —         |                  escopo                  |
+| **Conteúdo**                                           |              |                   |                                          |
+| `content.create` / `content.version.create`            |      ✓       |      escopo       |                    —                     |
+| `content.read_internal` (idea → internal_review)       |      ✓       |      escopo       |                    —                     |
+| `content.read_shared` (a partir de awaiting_client)    |      ✓       |      escopo       |                  escopo                  |
+| `content.send_for_approval`                            |      ✓       |      escopo       |                    —                     |
+| `content.approve`                                      |      —       |         —         |                  escopo                  |
+| `content.request_changes`                              |      —       |         —         |                  escopo                  |
+| `content.comment_internal`                             |      ✓       |      escopo       |                    —                     |
+| `content.comment_public`                               |      ✓       |      escopo       |                  escopo                  |
+| `content.mark_published`                               |      ✓       |      escopo       |                    —                     |
+| `content.archive`                                      |      ✓       |      escopo       |                    —                     |
+| **Arquivos**                                           |              |                   |                                          |
+| `file.upload`                                          |      ✓       |      escopo       | escopo (resposta de onboarding, FASE 12) |
+| `file.read_internal`                                   |      ✓       |      escopo       |                    —                     |
+| `file.read_client`                                     |      ✓       |      escopo       |                  escopo                  |
+| `file.set_visibility`                                  |      ✓       |      escopo       |                    —                     |
+| `file.delete`                                          |      ✓       |         —         |                    —                     |
+| **Reuniões**                                           |              |                   |                                          |
+| `meeting.create` / `meeting.update` / `meeting.cancel` |      ✓       |      escopo       |                    —                     |
+| `meeting.read`                                         |      ✓       |      escopo       |                  escopo                  |
+| **Resultados**                                         |              |                   |                                          |
+| `metrics.write`                                        |      ✓       |      escopo       |                    —                     |
+| `metrics.read`                                         |      ✓       |      escopo       |                  escopo                  |
+| **Reviews**                                            |              |                   |                                          |
+| `review.create` / `review.update`                      |      ✓       |      escopo       |                    —                     |
+| `review.publish`                                       |      ✓       |      escopo       |                    —                     |
+| `review.read_draft`                                    |      ✓       |      escopo       |                    —                     |
+| `review.read_published`                                |      ✓       |      escopo       |                  escopo                  |
+| **Sistema**                                            |              |                   |                                          |
+| `activity.read`                                        |      ✓       | escopo (internal) |                    —                     |
+| `notification.read` / `notification.resend`            |      ✓       |         —         |                    —                     |
+| `integration.manage`                                   |      ✓       |         —         |                    —                     |
 
 ### Duas linhas que merecem atenção
 
@@ -133,9 +136,9 @@ Três lugares, nesta ordem. Nenhum deles é opcional.
 ```ts
 // src/domains/content/content.policy.ts
 export function canApproveContentVersion(actor: Actor, v: ContentVersion): Result {
-  if (actor.role !== 'client_user')      return deny('content.approve.only_client')
+  if (actor.role !== 'client_user') return deny('content.approve.only_client')
   if (!actor.clientIds.includes(v.clientId)) return deny('content.access.denied')
-  if (v.status !== 'awaiting_client')    return deny('content.version_not_pending')
+  if (v.status !== 'awaiting_client') return deny('content.version_not_pending')
   return allow()
 }
 ```

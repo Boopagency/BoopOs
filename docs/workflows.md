@@ -53,13 +53,13 @@ via `rpc`). Ver [ADR-0011](adr/0011-workflows-transacionais-em-sql.md).
 
 **Rodam em SQL** (V0 — cinco funções, não mais):
 
-| Função | Por que precisa ser atômica |
-| --- | --- |
-| `approve_content_version` | aprovação + status do item + activity log |
-| `request_content_changes` | decisão + status do item + activity log |
-| `create_content_version` | nova versão + `superseded` na anterior + ponteiro + status |
-| `approve_strategy_version` | aprovação + status da versão + activity log |
-| `submit_onboarding` | status da submissão + avanço de etapa + activity log |
+| Função                     | Por que precisa ser atômica                                |
+| -------------------------- | ---------------------------------------------------------- |
+| `approve_content_version`  | aprovação + status do item + activity log                  |
+| `request_content_changes`  | decisão + status do item + activity log                    |
+| `create_content_version`   | nova versão + `superseded` na anterior + ponteiro + status |
+| `approve_strategy_version` | aprovação + status da versão + activity log                |
+| `submit_onboarding`        | status da submissão + avanço de etapa + activity log       |
 
 Todo o resto é escrita de uma linha só, seguida de `logActivity()`. Se essa
 segunda escrita falhar, o log estruturado registra a inconsistência e a operação
@@ -68,14 +68,14 @@ a operação.
 
 ## Idempotência
 
-| Mecanismo | Onde |
-| --- | --- |
-| Índice único parcial `where decision='approved'` | aprovação de conteúdo e de estratégia |
-| Guarda de estado dentro da função SQL (`where status = 'awaiting_client'`) | todas as transições |
-| `upsert` em `(submission_id, question_id)` | autosave do onboarding |
-| `unique (client_id, user_id)` | convite repetido |
-| `notifications.dedupe_key` | e-mail duplicado |
-| `unique (project_id, period_month)` | review republicado |
+| Mecanismo                                                                  | Onde                                  |
+| -------------------------------------------------------------------------- | ------------------------------------- |
+| Índice único parcial `where decision='approved'`                           | aprovação de conteúdo e de estratégia |
+| Guarda de estado dentro da função SQL (`where status = 'awaiting_client'`) | todas as transições                   |
+| `upsert` em `(submission_id, question_id)`                                 | autosave do onboarding                |
+| `unique (client_id, user_id)`                                              | convite repetido                      |
+| `notifications.dedupe_key`                                                 | e-mail duplicado                      |
+| `unique (project_id, period_month)`                                        | review republicado                    |
 
 Repetir uma ação já concluída devolve **sucesso**, não erro: o duplo clique no
 celular é o caso comum, não o ataque.
@@ -83,68 +83,74 @@ celular é o caso comum, não o ataque.
 ## Catálogo de workflows
 
 ### Clientes e usuários
-| Workflow | Papel | Efeitos | Evento |
-| --- | --- | --- | --- |
-| `createClient` | `boop_admin` | cria cliente | `client.created` |
-| `updateClient` | Boop | | `client.updated` |
-| `archiveClient` | `boop_admin` | | `client.archived` |
-| `inviteUser` | `boop_admin` | cria `auth.users` + `profiles` + vínculo; e-mail de convite | `client.invited` |
-| `grantClientAccess` | `boop_admin` | vínculo | `membership.granted` |
-| `revokeClientAccess` | `boop_admin` | remove vínculo | `membership.revoked` |
-| `disableUser` | `boop_admin` | `status='disabled'` | `user.disabled` |
-| `recordFirstLogin` | sistema | `status='active'` | `user.joined` |
+
+| Workflow             | Papel        | Efeitos                                                     | Evento               |
+| -------------------- | ------------ | ----------------------------------------------------------- | -------------------- |
+| `createClient`       | `boop_admin` | cria cliente                                                | `client.created`     |
+| `updateClient`       | Boop         |                                                             | `client.updated`     |
+| `archiveClient`      | `boop_admin` |                                                             | `client.archived`    |
+| `inviteUser`         | `boop_admin` | cria `auth.users` + `profiles` + vínculo; e-mail de convite | `client.invited`     |
+| `grantClientAccess`  | `boop_admin` | vínculo                                                     | `membership.granted` |
+| `revokeClientAccess` | `boop_admin` | remove vínculo                                              | `membership.revoked` |
+| `disableUser`        | `boop_admin` | `status='disabled'`                                         | `user.disabled`      |
+| `recordFirstLogin`   | sistema      | `status='active'`                                           | `user.joined`        |
 
 ### Projetos
-| Workflow | Papel | Efeitos | Evento |
-| --- | --- | --- | --- |
-| `createProject` | `boop_admin` | cria projeto + materializa `project_stages` do template | `project.created` |
-| `advanceStage` | Boop | fecha a etapa atual, abre a próxima | `project.stage_changed` |
-| `setStageState` | Boop | correção manual (`skipped`, volta atrás) | `project.stage_changed` |
-| `changeProjectStatus` | Boop | pausa, conclui, arquiva | `project.status_changed` |
-| `startNextCycle` | sistema (via review) | `cycle++`, reabre etapas recorrentes | `project.cycle_started` |
+
+| Workflow              | Papel                | Efeitos                                                 | Evento                   |
+| --------------------- | -------------------- | ------------------------------------------------------- | ------------------------ |
+| `createProject`       | `boop_admin`         | cria projeto + materializa `project_stages` do template | `project.created`        |
+| `advanceStage`        | Boop                 | fecha a etapa atual, abre a próxima                     | `project.stage_changed`  |
+| `setStageState`       | Boop                 | correção manual (`skipped`, volta atrás)                | `project.stage_changed`  |
+| `changeProjectStatus` | Boop                 | pausa, conclui, arquiva                                 | `project.status_changed` |
+| `startNextCycle`      | sistema (via review) | `cycle++`, reabre etapas recorrentes                    | `project.cycle_started`  |
 
 ### Onboarding
-| Workflow | Papel | Efeitos | Evento |
-| --- | --- | --- | --- |
-| `startOnboarding` | Boop | cria submissão a partir do template | `onboarding.started` |
-| `saveOnboardingAnswer` | cliente/Boop | upsert; só enquanto `draft` | — (ruidoso demais) |
-| `submitOnboarding` | cliente | `submitted` + avança etapa + e-mail interno | `onboarding.completed` |
-| `reopenOnboarding` | `boop_admin` | volta para `draft` | `onboarding.reopened` |
+
+| Workflow               | Papel        | Efeitos                                     | Evento                 |
+| ---------------------- | ------------ | ------------------------------------------- | ---------------------- |
+| `startOnboarding`      | Boop         | cria submissão a partir do template         | `onboarding.started`   |
+| `saveOnboardingAnswer` | cliente/Boop | upsert; só enquanto `draft`                 | — (ruidoso demais)     |
+| `submitOnboarding`     | cliente      | `submitted` + avança etapa + e-mail interno | `onboarding.completed` |
+| `reopenOnboarding`     | `boop_admin` | volta para `draft`                          | `onboarding.reopened`  |
 
 ### Estratégia
-| Workflow | Papel | Efeitos | Evento |
-| --- | --- | --- | --- |
-| `createStrategy` | Boop | cria a estratégia do projeto | `strategy.created` |
-| `createStrategyVersion` | Boop | v(n+1) em `draft`; anterior vira `superseded` | `strategy.version_created` |
-| `sendStrategyForApproval` | Boop | `awaiting_client` + e-mail ao cliente | `strategy.sent_for_approval` |
-| `approveStrategy` | **cliente** | aprovação + avanço de etapa + e-mail interno | `strategy.approved` |
-| `requestStrategyChanges` | **cliente** | decisão + nota + e-mail interno | `strategy.changes_requested` |
+
+| Workflow                  | Papel       | Efeitos                                       | Evento                       |
+| ------------------------- | ----------- | --------------------------------------------- | ---------------------------- |
+| `createStrategy`          | Boop        | cria a estratégia do projeto                  | `strategy.created`           |
+| `createStrategyVersion`   | Boop        | v(n+1) em `draft`; anterior vira `superseded` | `strategy.version_created`   |
+| `sendStrategyForApproval` | Boop        | `awaiting_client` + e-mail ao cliente         | `strategy.sent_for_approval` |
+| `approveStrategy`         | **cliente** | aprovação + avanço de etapa + e-mail interno  | `strategy.approved`          |
+| `requestStrategyChanges`  | **cliente** | decisão + nota + e-mail interno               | `strategy.changes_requested` |
 
 ### Conteúdo
-| Workflow | Papel | Efeitos | Evento |
-| --- | --- | --- | --- |
-| `createContentItem` | Boop | item em `idea`/`planned` | `content.created` |
-| `updateContentItem` | Boop | planejamento (título, canal, data) | `content.updated` |
-| `createContentVersion` | Boop | nova versão; item volta a `in_production` | `content.version_created` |
-| `submitContentForApproval` | Boop | `awaiting_client` + e-mail ao cliente | `content.sent_for_approval` |
-| `approveContent` | **cliente** | aprovação + e-mail interno | `content.approved` |
-| `requestContentChanges` | **cliente** | decisão + nota + e-mail interno | `content.changes_requested` |
-| `commentOnContent` | ambos | comentário (interno ou público) | `content.commented` |
-| `scheduleContent` | Boop | `scheduled` + `scheduled_for` | `content.scheduled` |
-| `markContentPublished` | Boop | `published` + URL | `content.published` |
-| `archiveContent` | Boop | | `content.archived` |
+
+| Workflow                   | Papel       | Efeitos                                   | Evento                      |
+| -------------------------- | ----------- | ----------------------------------------- | --------------------------- |
+| `createContentItem`        | Boop        | item em `idea`/`planned`                  | `content.created`           |
+| `updateContentItem`        | Boop        | planejamento (título, canal, data)        | `content.updated`           |
+| `createContentVersion`     | Boop        | nova versão; item volta a `in_production` | `content.version_created`   |
+| `submitContentForApproval` | Boop        | `awaiting_client` + e-mail ao cliente     | `content.sent_for_approval` |
+| `approveContent`           | **cliente** | aprovação + e-mail interno                | `content.approved`          |
+| `requestContentChanges`    | **cliente** | decisão + nota + e-mail interno           | `content.changes_requested` |
+| `commentOnContent`         | ambos       | comentário (interno ou público)           | `content.commented`         |
+| `scheduleContent`          | Boop        | `scheduled` + `scheduled_for`             | `content.scheduled`         |
+| `markContentPublished`     | Boop        | `published` + URL                         | `content.published`         |
+| `archiveContent`           | Boop        |                                           | `content.archived`          |
 
 ### Arquivos · Reuniões · Resultados · Reviews
-| Workflow | Papel | Efeitos | Evento |
-| --- | --- | --- | --- |
-| `requestUpload` | Boop/cliente | valida, cria `files` `pending`, assina URL | — |
-| `confirmUpload` | Boop/cliente | revalida no servidor, `ready` | `file.uploaded` |
-| `setFileVisibility` | Boop | `internal ↔ client` | `file.visibility_changed` |
-| `deleteFile` | `boop_admin` | remove objeto + linha | `file.deleted` |
-| `createMeeting` / `updateMeeting` / `cancelMeeting` | Boop | | `meeting.created` / `.updated` / `.cancelled` |
-| `recordAccountMetrics` / `recordContentMetrics` | Boop | upsert por período | `metrics.recorded` |
-| `createMonthlyReview` | Boop | rascunho | `review.created` |
-| `publishMonthlyReview` | Boop | publica + `startNextCycle` + e-mail ao cliente | `review.published` |
+
+| Workflow                                            | Papel        | Efeitos                                        | Evento                                        |
+| --------------------------------------------------- | ------------ | ---------------------------------------------- | --------------------------------------------- |
+| `requestUpload`                                     | Boop/cliente | valida, cria `files` `pending`, assina URL     | —                                             |
+| `confirmUpload`                                     | Boop/cliente | revalida no servidor, `ready`                  | `file.uploaded`                               |
+| `setFileVisibility`                                 | Boop         | `internal ↔ client`                            | `file.visibility_changed`                     |
+| `deleteFile`                                        | `boop_admin` | remove objeto + linha                          | `file.deleted`                                |
+| `createMeeting` / `updateMeeting` / `cancelMeeting` | Boop         |                                                | `meeting.created` / `.updated` / `.cancelled` |
+| `recordAccountMetrics` / `recordContentMetrics`     | Boop         | upsert por período                             | `metrics.recorded`                            |
+| `createMonthlyReview`                               | Boop         | rascunho                                       | `review.created`                              |
+| `publishMonthlyReview`                              | Boop         | publica + `startNextCycle` + e-mail ao cliente | `review.published`                            |
 
 ## Catálogo de eventos
 
@@ -175,10 +181,10 @@ que permitirá ligar o histórico para o cliente (D-05) sem reclassificar o pass
 
 ```ts
 type WorkflowError = {
-  code: string        // 'content.version_not_pending'
+  code: string // 'content.version_not_pending'
   status: 400 | 401 | 403 | 404 | 409 | 422 | 500
-  message: string     // texto de produto, em português
-  details?: unknown   // apenas para o log; nunca vai para o cliente
+  message: string // texto de produto, em português
+  details?: unknown // apenas para o log; nunca vai para o cliente
 }
 ```
 
