@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@supabase/ssr':
+        specifier: ^0.12.5
+        version: 0.12.5(@supabase/supabase-js@2.112.4)
+      '@supabase/supabase-js':
+        specifier: ^2.112.4
+        version: 2.112.4
       next:
         specifier: 16.3.4
         version: 16.3.4(@babel/core@7.29.7)(@types/node@22.20.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -17,16 +23,13 @@ importers:
       react-dom:
         specifier: ^19.2.8
         version: 19.2.8(react@19.2.8)
+      server-only:
+        specifier: ^0.0.1
+        version: 0.0.1
       zod:
         specifier: ^4.5.4
         version: 4.5.4
     devDependencies:
-      '@supabase/ssr':
-        specifier: ^0.12.5
-        version: 0.12.5(@supabase/supabase-js@2.112.4)
-      '@supabase/supabase-js':
-        specifier: ^2.112.4
-        version: 2.112.4
       '@tailwindcss/postcss':
         specifier: ^4.3.3
         version: 4.3.3
@@ -72,9 +75,6 @@ importers:
       prettier-plugin-tailwindcss:
         specifier: ^0.6.14
         version: 0.6.14(prettier@3.9.6)
-      server-only:
-        specifier: ^0.0.1
-        version: 0.0.1
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
