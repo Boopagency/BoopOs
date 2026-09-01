@@ -5,7 +5,17 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: ['.next/**', 'node_modules/**', 'coverage/**', 'next-env.d.ts', 'out/**'],
+    ignores: [
+      '.next/**',
+      'node_modules/**',
+      'coverage/**',
+      'next-env.d.ts',
+      'out/**',
+      // Saida do `supabase gen types`: a fonte e o schema, nao este arquivo.
+      // Corrigir lint aqui seria editar codigo gerado — e a proxima regeracao
+      // desfaria. Ver .claude/rules/database.md.
+      'src/lib/supabase/database.types.ts',
+    ],
   },
 
   ...nextCoreWebVitals,

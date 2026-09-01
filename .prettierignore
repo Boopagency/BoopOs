@@ -7,3 +7,6 @@ next-env.d.ts
 
 # Material de marca fornecido pela Boop: e fonte, nao codigo. Nao reformatar.
 reference/
+
+# Saida do `supabase gen types`. Reformatar so criaria diff a cada regeracao.
+src/lib/supabase/database.types.ts
