@@ -180,6 +180,10 @@ Uma tarefa só está pronta quando **tudo** abaixo é verdade:
    pare o trabalho por decisão que tem default razoável.
 6. **Mudou uma decisão?** ADR novo, referenciando o anterior. ADR aceito não se
    reescreve: substitui-se.
+7. **Ao fechar uma fase, entregue o patch.** `git format-patch` da fase e do
+   histórico completo, mais um documento curto de estado: o que foi feito, o
+   que ficou faltando, qual débito foi assumido e qual decisão depende de uma
+   pessoa. O container de trabalho é efêmero; o patch é o que sobrevive a ele.
 
 ## O que este projeto deliberadamente não tem
 
