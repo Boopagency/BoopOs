@@ -5,11 +5,16 @@
 Três, com bancos separados. Ver
 [ADR-0014](adr/0014-dois-projetos-supabase.md).
 
-|                       | Aplicação                 | Supabase                         | Quem usa                      |
-| --------------------- | ------------------------- | -------------------------------- | ----------------------------- |
-| **development**       | `localhost:3000`          | Supabase local (Docker, via CLI) | quem desenvolve               |
-| **preview / staging** | Preview da Vercel, por PR | **projeto `boop-os-staging`**    | revisão de PR, testes manuais |
-| **production**        | domínio da Boop           | **projeto `boop-os-prod`**       | clientes reais                |
+|                       | Aplicação                 | Supabase                                                         | Quem usa                      |
+| --------------------- | ------------------------- | ---------------------------------------------------------------- | ----------------------------- |
+| **development**       | `localhost:3000`          | Supabase local (Docker, via CLI)                                 | quem desenvolve               |
+| **preview / staging** | Preview da Vercel, por PR | **`boop-os-staging`** · `sa-east-1` · ref `njlkuzrppnwkgrdacmos` | revisão de PR, testes manuais |
+| **production**        | domínio da Boop           | **`boop-os-prod`** — ainda não existe, nasce na FASE 20          | clientes reais                |
+
+**Região: `sa-east-1` (São Paulo).** O cliente e a equipe estão no Brasil, e a
+ida e volta até `us-west` custa entre 150 e 200 ms em toda leitura do portal.
+Região de projeto Supabase não se altera depois: mudar exige projeto novo e
+migração de dados. Por isso foi decidida antes da primeira migration.
 
 Dois projetos Supabase, não três: o desenvolvimento roda local (mais rápido,
 gratuito, isolado, e é onde os testes de RLS rodam contra Postgres real). Todos
@@ -66,10 +71,17 @@ pnpm dev
 ```bash
 supabase start          # Postgres, Auth, Storage, Studio locais
 pnpm db:reset           # migrations + seed
+pnpm db:types           # regenera src/lib/supabase/database.types.ts
+pnpm test:rls           # a suíte que precisa de banco
 ```
 
 `supabase start` imprime as chaves locais — são fixas e públicas por design,
 podem ir no `.env.local`.
+
+**Sem Docker?** `pnpm db:reset` avisa e cai para um Postgres nu com shim de
+`auth` (`scripts/db/local-postgres.sh`). Serve para migrations, constraints,
+triggers e RLS; não serve para login, e-mail, Storage nem PostgREST. Ver
+[`database.md`](database.md#rodar-localmente).
 
 ## Migrations
 
@@ -98,10 +110,17 @@ Regras:
 - Toda tabela nova nasce, **na mesma migration**, com `enable row level security`
   e as quatro políticas. Tabela sem RLS não passa no CI.
 - `database.types.ts` é gerado e commitado; o CI falha se estiver desatualizado.
-- `supabase/seed.sql` popula apenas desenvolvimento: uma Boop admin, dois
-  clientes fictícios com usuários distintos (essenciais para os testes de
-  isolamento), um projeto social, um template de onboarding. **Nunca** dado real
-  de cliente.
+- `supabase/seed.sql` popula apenas desenvolvimento e staging: uma Boop admin,
+  dois clientes fictícios com usuários distintos (essenciais para os testes de
+  isolamento), um projeto social cada, um template de onboarding. **Nunca** dado
+  real de cliente — e o seed **aborta** se encontrar um cliente fora do conjunto
+  demo.
+- Depois de aplicar em staging, rode `scripts/db/fingerprint.sql` nos dois lados
+  e compare os sete hashes. É como se verifica que o banco reconstruído do
+  repositório e o remoto são o mesmo banco, sem depender de `supabase db diff`.
+- O linter do Supabase (`security` e `performance`) faz parte do fechamento de
+  qualquer fase que mexa em schema. Achado dele vira migration nova, nunca
+  edição de migration antiga.
 
 ## CI (GitHub Actions)
 

@@ -12,9 +12,18 @@ para ele.
 
 Percepção-alvo: _"Eu sei exatamente o que está acontecendo com minha marca."_
 
-**Status atual: FASE 1.5 concluída — sistema visual e protótipo navegável. Onze
-telas do portal do cliente, com dados fictícios e nenhuma persistência. Sem
-banco, sem auth. A próxima fase é a 2 (Supabase e migrations).**
+**Status atual: FASE 2 concluída — o banco existe.** 19 tabelas, 16 enums, 10
+migrations, seed com dois tenants fictícios e 64 testes contra Postgres real.
+`boop-os-staging` está em `sa-east-1` e tem o mesmo schema, conferido hash a
+hash. As onze telas do portal continuam lendo mocks: a troca para Supabase é a
+FASE 5.
+
+**A RLS está LIGADA e SEM POLÍTICAS.** Isso é negação por padrão — o baseline
+seguro —, não autorização. As políticas, as funções `app.has_client_access()` e
+a suíte de isolamento são a FASE 4. Até lá o acesso é só server-side por
+`service_role`. Não leia "RLS em 19/19 tabelas" como "seguro para multi-tenant".
+
+A próxima fase é a 3 (autenticação).
 
 ## Vocabulário
 
@@ -54,6 +63,7 @@ compatibilidade verificada com `typescript-eslint` e `eslint-config-next`.
 | Durações, easings, fade-rise, reduced motion          | [`docs/motion.md`](docs/motion.md)                     |
 | Camadas, pastas, ciclo de request, máquinas de estado | [`docs/architecture.md`](docs/architecture.md)         |
 | Tabelas, colunas, índices, o que ficou de fora        | [`docs/data-model.md`](docs/data-model.md)             |
+| Migrations, seed, triggers, rodar e testar o banco    | [`docs/database.md`](docs/database.md)                 |
 | RLS, uploads, secrets, ameaças                        | [`docs/security.md`](docs/security.md)                 |
 | Quem pode o quê                                       | [`docs/permissions.md`](docs/permissions.md)           |
 | Contrato de workflow e catálogo de eventos            | [`docs/workflows.md`](docs/workflows.md)               |
@@ -109,19 +119,29 @@ _(Disponíveis a partir da FASE 1.)_
 ```bash
 pnpm dev             # aplicação em desenvolvimento
 pnpm build           # build de produção
+pnpm check           # typecheck + lint + format + test  (o portão da DoD)
 pnpm typecheck       # tsc --noEmit
 pnpm lint            # eslint
 pnpm test            # unit + rls
-pnpm test:unit       # policies, máquinas de estado, validação
-pnpm test:rls        # isolamento contra Postgres real (exige supabase start)
+pnpm test:unit       # lógica pura e componentes — não precisa de banco
+pnpm test:rls        # schema, invariantes e isolamento contra Postgres real
 pnpm test:e2e        # Playwright (FASE 20)
 
-supabase start          # Postgres + Auth + Storage locais
-supabase stop
-pnpm db:reset        # recria o banco local: migrations + seed
+pnpm db:start        # sobe o banco local
+pnpm db:stop
+pnpm db:status
+pnpm db:reset        # recria do zero: migrations + seed
 pnpm db:types        # regenera src/lib/supabase/database.types.ts
+pnpm db:psql         # console SQL
 pnpm db:new <nome>   # cria uma migration
+pnpm db:push         # aplica as migrations no projeto linkado
 ```
+
+`pnpm db:*` usa `supabase start` quando há Docker. **Sem Docker**, cai para um
+Postgres nu com shim de `auth` (`scripts/db/local-postgres.sh`) — e avisa em toda
+execução. O plano B cobre migrations, constraints, triggers e RLS; não cobre
+login, e-mail, Storage nem PostgREST. Ver
+[`docs/database.md`](docs/database.md#rodar-localmente).
 
 ## Estrutura atual
 
@@ -133,7 +153,11 @@ src/config/       app.ts (produto) · enums.ts (taxonomias) · env.ts (environme
 src/lib/          data/ (camada de acesso) · logging/ · supabase/ (fronteira)
                   cn.ts · format.ts
 src/mocks/        dados fictícios — a ÚNICA fonte, e nenhum componente a importa
+supabase/         migrations/ (forward-only, a fonte do schema) · seed.sql · config.toml
+scripts/db/       dev-db.sh (escolhe o motor) · local-postgres.sh + auth-shim.sql
+                  (plano B sem Docker) · fingerprint.sql (comparar dois bancos)
 tests/unit/       lógica pura       tests/component/  Testing Library
+tests/rls/        o que exige Postgres de verdade: schema, enums, invariantes, seed
 ```
 
 Regras de crescimento:
@@ -147,6 +171,8 @@ Regras de crescimento:
   elemento, então a largura vai no elemento que tem o tamanho.
 - `process.env` só existe em `src/config/env.ts` (regra do ESLint).
 - `console` só existe em `src/lib/logging/logger.ts` (regra do ESLint).
+- `src/lib/supabase/database.types.ts` é **gerado**. Não se edita, não se
+  formata, não se linta. Mudou o schema? Migration, `db:reset`, `db:types`.
 
 ## Definition of Done
 

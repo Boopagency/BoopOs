@@ -145,6 +145,38 @@ inteira para armazenar o texto de "solicitar ajuste" é desproporcional.
 fica fora da V0. Comentário livre existe só em conteúdo (§21), onde é a
 funcionalidade central.
 
+### I-12 [A] Log append-only e `on delete set null` não cabem juntos
+
+Encontrada na FASE 2, e não por leitura: por um teste de invariante que quebrou.
+
+`activity_log` rejeita todo `UPDATE`, de todo mundo, por trigger (ADR-0012).
+`activity_log.actor_id` foi declarado `on delete set null`, pela mesma razão de
+`strategy_approvals.decided_by` — a pessoa sai da empresa, o registro fica. Mas
+`ON DELETE SET NULL` É um `UPDATE`: apagar um perfil com qualquer linha no log
+falhava com `activity_log e append-only`, mensagem que não explica nada para
+quem só queria remover um usuário.
+
+**Resolução adotada:** `actor_id` passa a `on delete restrict`. Quem deixou
+rastro não é apagado — é desabilitado, que é o ciclo de vida que o produto já
+tem. Ver [ADR-0019](adr/0019-log-append-only-vence-a-exclusao-de-pessoa.md).
+
+### I-13 [C] O ERD do Marco 1 desenha tabelas que o roadmap constrói depois
+
+O ERD de [`data-model.md`](data-model.md) está rotulado "Marco 1 (FASES 0–11)" e
+desenha `files` e `meetings`. O roadmap constrói arquivos na FASE 12 e reuniões
+na FASE 13 — depois do Marco 1, portanto.
+
+**Resolução adotada:** manda o roadmap. A FASE 2 criou apenas as tabelas das
+FASES 0–11; `files` e `meetings` nascem nas fases delas, com os enums delas.
+Trazer schema antes do requisito é criar tabela que ninguém sabe usar. O ERD é
+mapa do Marco 1 **e do que encosta nele**, não a lista da FASE 2 — o rótulo
+merece um ajuste quando `data-model.md` for revisado.
+
+Os enums `file_category`, `meeting_type` e `meeting_status` já existem em
+`src/config/enums.ts` porque o protótipo os usa. Um teste de paridade exige que
+continuem **ausentes** do banco, e quebra no dia em que a migration da FASE 12
+os criar — forçando a mover a chave para `PG_ENUMS` no mesmo PR.
+
 ---
 
 ## 2. Riscos
@@ -294,6 +326,13 @@ Duas fontes descrevendo a mesma taxonomia acabam divergindo.
 **Mitigação:** teste que lê `pg_enum` do banco local e compara com as constantes
 de `src/config/enums.ts`; falha o CI na divergência.
 
+**Implementada na FASE 2**, em duas camadas em vez de uma. `tests/rls/enums.test.ts`
+lê `pg_enum` e compara valor a valor, na ordem. `tests/unit/enums.test.ts` compara
+`src/config/enums.ts` com `Constants` de `database.types.ts` — e este roda **sem
+banco**, então pega quem regenerou os tipos e esqueceu de atualizar as constantes,
+mesmo em máquina sem Postgres. O contrato ficou explícito no próprio código:
+`PG_ENUMS` mapeia nome do tipo → lista de valores.
+
 ---
 
 ## 3. Decisões que ainda precisam de uma pessoa
@@ -301,20 +340,25 @@ de `src/config/enums.ts`; falha o CI na divergência.
 Nenhuma bloqueia a FASE 1. Cada uma tem um **default assumido** que será seguido
 se ninguém decidir o contrário até a fase indicada.
 
-| #    | Decisão                                                                                               | Default assumido                                                                   | Precisa até |
-| ---- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ----------- |
-| D-01 | Domínio e subdomínio da aplicação (`os.boop…`? `app.boop…`?) e domínio remetente verificado no Resend | `os.<dominio-da-boop>`, remetente `os@`                                            | FASE 5      |
-| D-02 | Um cliente pode ter usuários com níveis diferentes (ex.: aprovador vs. leitor)?                       | Não na V0 — todo `client_user` do cliente aprova                                   | FASE 11     |
-| D-03 | Quem aprova conteúdo quando há dois contatos: qualquer um ou ambos?                                   | Qualquer um; registra-se quem aprovou                                              | FASE 11     |
-| D-04 | Conteúdo aprovado pode ser reaberto pela Boop após aprovação?                                         | Sim, criando v2; a aprovação da v1 fica no histórico                               | FASE 10     |
-| D-05 | O cliente pode ver o activity log dele na V0?                                                         | Não. A coluna `visibility` já nasce pronta para ligar depois                       | FASE 8      |
-| D-06 | Magic Link apenas, ou também OTP de 6 dígitos?                                                        | Apenas Magic Link                                                                  | FASE 3      |
-| D-07 | Retenção de arquivos e política de exclusão (quem apaga, quando)                                      | Sem exclusão automática; exclusão lógica por `boop_admin`                          | FASE 12     |
-| D-08 | O `boop_member` enxerga todos os clientes ou só os que tem vínculo?                                   | Só os com vínculo (princípio do menor privilégio)                                  | FASE 4      |
-| D-09 | Idioma da interface                                                                                   | pt-BR único, sem i18n                                                              | FASE 1      |
-| D-10 | Tipografia e paleta definitivas (§34)                                                                 | Sistema de tokens neutro, decidido junto com a marca                               | FASE 8      |
-| D-11 | LGPD: base legal, política de privacidade e prazo de retenção                                         | Fora da V0; registrar dívida antes de produção                                     | FASE 20     |
-| D-12 | Métricas obrigatórias por canal em Resultados (§26)                                                   | Alcance, seguidores, visualizações, compartilhamentos, salvamentos + `extra` livre | FASE 14     |
+**D-08 foi decidida** e não volta à pauta: `boop_admin` enxerga tudo,
+`boop_member` só os clientes com vínculo explícito, `client_user` só o próprio
+tenant. O seed da FASE 2 já materializa os três casos — inclusive um
+`boop_member` sem vínculo nenhum, que é o caso negativo puro da matriz.
+
+| #    | Decisão                                                                                               | Default assumido                                                                                               | Precisa até |
+| ---- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ----------- |
+| D-01 | Domínio e subdomínio da aplicação (`os.boop…`? `app.boop…`?) e domínio remetente verificado no Resend | `os.<dominio-da-boop>`, remetente `os@`                                                                        | FASE 5      |
+| D-02 | Um cliente pode ter usuários com níveis diferentes (ex.: aprovador vs. leitor)?                       | Não na V0 — todo `client_user` do cliente aprova                                                               | FASE 11     |
+| D-03 | Quem aprova conteúdo quando há dois contatos: qualquer um ou ambos?                                   | Qualquer um; registra-se quem aprovou                                                                          | FASE 11     |
+| D-04 | Conteúdo aprovado pode ser reaberto pela Boop após aprovação?                                         | Sim, criando v2; a aprovação da v1 fica no histórico                                                           | FASE 10     |
+| D-05 | O cliente pode ver o activity log dele na V0?                                                         | Não. A coluna `visibility` já nasce pronta para ligar depois                                                   | FASE 8      |
+| D-06 | Magic Link apenas, ou também OTP de 6 dígitos?                                                        | Apenas Magic Link                                                                                              | FASE 3      |
+| D-07 | Retenção de arquivos e política de exclusão (quem apaga, quando)                                      | Sem exclusão automática; exclusão lógica por `boop_admin`                                                      | FASE 12     |
+| D-08 | O `boop_member` enxerga todos os clientes ou só os que tem vínculo?                                   | **RESOLVIDA na FASE 2** — `boop_admin` global; `boop_member` só com vínculo; `client_user` só o próprio tenant | —           |
+| D-09 | Idioma da interface                                                                                   | pt-BR único, sem i18n                                                                                          | FASE 1      |
+| D-10 | Tipografia e paleta definitivas (§34)                                                                 | Sistema de tokens neutro, decidido junto com a marca                                                           | FASE 8      |
+| D-11 | LGPD: base legal, política de privacidade e prazo de retenção                                         | Fora da V0; registrar dívida antes de produção                                                                 | FASE 20     |
+| D-12 | Métricas obrigatórias por canal em Resultados (§26)                                                   | Alcance, seguidores, visualizações, compartilhamentos, salvamentos + `extra` livre                             | FASE 14     |
 
 ---
 

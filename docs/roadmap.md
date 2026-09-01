@@ -51,13 +51,23 @@ cinco breakpoints, nenhum hexadecimal em componente, camada de dados isolando
 os mocks. Documentado em `design-direction.md`, `design-system.md` e
 `motion.md`.
 
-### FASE 2 — Supabase e migrations
+### FASE 2 — Supabase e migrations ✅
 
 `supabase init`, enums, tabelas do M1, triggers (`updated_at`, `client_id`
 derivado, tenant imutável, `profiles` a partir de `auth.users`), índices,
 `seed.sql` com dois clientes distintos, `db:types`, harness de teste de RLS.
 **Pronto quando:** `pnpm db:reset` recria tudo do zero e os tipos gerados estão
 commitados.
+
+**Pronto:** 19 tabelas, 16 enums, 10 migrations, seed com Hartmann e Velmont e
+64 testes contra Postgres real. Banco vazio → migrations → seed → tipos → testes
+funciona ponta a ponta, e a impressão digital do schema local bate com a do
+`boop-os-staging` (`sa-east-1`), hash a hash. Documentado em
+[`database.md`](database.md).
+
+**RLS está ligada e SEM políticas** — negação por padrão, que é o baseline
+seguro, não a autorização. As políticas são a FASE 4, e nada antes disso deve
+ser lido como "o banco está protegido para multi-tenant".
 
 ### FASE 3 — Autenticação
 

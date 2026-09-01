@@ -16,12 +16,12 @@ Nesta ordem. O topo nunca é sacrificado pelo resto.
 
 ## Onde cada coisa mora
 
-| Pasta             | O quê                                                         | Ferramenta               |
-| ----------------- | ------------------------------------------------------------- | ------------------------ |
-| `tests/unit`      | policies, máquinas de estado, schemas zod, config, mapeadores | Vitest                   |
-| `tests/component` | componentes: acessibilidade, estados, ausência de vazamento   | Vitest + Testing Library |
-| `tests/rls`       | isolamento contra Postgres real (Supabase local)              | Vitest + `pg`            |
-| `tests/e2e`       | fluxo do Marco 1                                              | Playwright (FASE 20)     |
+| Pasta             | O quê                                                                | Ferramenta               |
+| ----------------- | -------------------------------------------------------------------- | ------------------------ |
+| `tests/unit`      | policies, máquinas de estado, schemas zod, config, mapeadores        | Vitest                   |
+| `tests/component` | componentes: acessibilidade, estados, ausência de vazamento          | Vitest + Testing Library |
+| `tests/rls`       | tudo que exige Postgres real: schema, enums, invariantes, isolamento | Vitest + `pg`            |
+| `tests/e2e`       | fluxo do Marco 1                                                     | Playwright (FASE 20)     |
 
 ## Como se escreve teste de RLS
 
@@ -53,10 +53,22 @@ ver. Um teste que só verifica o caminho feliz não prova isolamento.
 - Aprovação duplicada gera **um** registro
 - Alterar `client_id` de uma linha existente **falha**
 - Varredura: nenhuma tabela em `public` sem RLS e sem as quatro políticas
-- Paridade: `pg_enum` bate com `src/config/enums.ts`
+- Varredura: `anon` e `authenticated` sem privilégio nenhum em `public`
+- Varredura: toda tabela com `updated_at` tem o trigger; toda folha com
+  `client_id` tem a derivação
+- Paridade: `pg_enum` bate com `src/config/enums.ts` (`tests/rls/enums.test.ts`)
+- Paridade: `database.types.ts` bate com `src/config/enums.ts`, sem banco
+  (`tests/unit/enums.test.ts`)
 
 ## Regras
 
+- `pnpm test` roda as duas suítes. A `rls` **falha com instrução** quando não
+  acha banco — nunca pula em silêncio. Um teste de isolamento que "passa" sem
+  banco não prova nada.
+- Invariante de banco (trigger, constraint, append-only) se testa como
+  `service_role`: é o papel mais poderoso, e se a regra segura nele, segura em
+  qualquer um. Isso **não** é provar isolamento — isolamento é RLS, e RLS não se
+  testa com o papel que a ignora.
 - Policy é função pura: teste em tabela, sem banco, sem mock.
 - **Nunca mocke o Supabase para testar RLS.** Testaria o mock.
 - Teste de workflow usa o banco local, não dublê.

@@ -3,6 +3,11 @@
 Postgres no Supabase. **É a fonte única da verdade.** Nada de estado de domínio
 vivendo apenas no frontend, no Notion ou no Vercel.
 
+> **Desde a FASE 2 este documento é o projeto, não o estado.** O schema que
+> existe de verdade está em `supabase/migrations/*.sql`; divergiu, manda a
+> migration. Como rodar, testar e conferir o banco:
+> [`database.md`](database.md).
+
 Convenções gerais:
 
 - PK `uuid` com `gen_random_uuid()`, exceto `activity_log` (`bigint identity`).
@@ -13,13 +18,18 @@ Convenções gerais:
 - `client_id` denormalizado nas tabelas-folha para simplificar RLS e índices.
   **Sempre derivado por trigger a partir do pai** — nunca aceito do input.
 - `client_id` e `project_id` são **imutáveis** após o insert (trigger
-  `enforce_immutable_tenant`).
+  `app.enforce_immutable_columns`).
 - Toda tabela com RLS habilitada e políticas explícitas para SELECT, INSERT,
-  UPDATE e DELETE. Ver [`security.md`](security.md).
+  UPDATE e DELETE. Ver [`security.md`](security.md). **Na FASE 2 a RLS foi
+  ligada sem nenhuma policy** — negação por padrão; as políticas são a FASE 4.
 
 ---
 
 ## ERD — Marco 1 (FASES 0–11)
+
+> `files` e `meetings` aparecem no diagrama porque encostam no Marco 1, mas
+> nascem nas FASES 12 e 13 — a FASE 2 não as criou. Ver
+> [`spec-review.md` I-13](spec-review.md).
 
 ```
 auth.users ──1:1──▶ profiles

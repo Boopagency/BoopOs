@@ -15,7 +15,9 @@ Raciocínio em [`docs/data-model.md`](../../docs/data-model.md) e
   - `client_id` (quando for tabela de domínio) + trigger que o deriva do pai;
   - índices para os caminhos de leitura reais.
 - Depois de mexer no schema: `pnpm db:reset && pnpm db:types` e commite
-  `database.types.ts`.
+  `database.types.ts`. Ele é **gerado**: não edite, não formate, não linte.
+- Coluna case-insensitive nova se escreve `extensions.citext`. A extensão saiu
+  de `public` na migration `20260901160001`.
 - Enum novo entra no Postgres **e** em `src/config/enums.ts` — o teste de paridade
   falha se divergirem.
 
@@ -27,7 +29,11 @@ Raciocínio em [`docs/data-model.md`](../../docs/data-model.md) e
 - `auth.uid()` solto no predicado. Sempre `(select auth.uid())`.
 - Consultar a própria tabela dentro da policy dela. Use as funções `app.*`.
 - Escrever em `activity_log` fora de `logActivity()` ou das funções SQL.
-- Colocar dado real de cliente em `seed.sql`.
+- Colocar dado real de cliente em `seed.sql`. E-mail fictício mora em
+  `example.com`, domínio reservado que não alcança ninguém.
+- Apontar uma FK para `activity_log` com `on delete set null`. A tabela é
+  append-only: `SET NULL` é um `UPDATE` e o trigger o rejeita
+  ([ADR-0019](../../docs/adr/0019-log-append-only-vence-a-exclusao-de-pessoa.md)).
 
 ## Escrita multi-linha
 
@@ -54,3 +60,7 @@ antigo. Nunca em uma linha só.
 - [ ] `database.types.ts` regenerado e commitado
 - [ ] Teste de RLS cobrindo a tabela nova (o que vê **e** o que não vê)
 - [ ] Nenhuma tabela sem RLS (o teste de varredura passa)
+- [ ] Enum novo em `PG_ENUMS` (`src/config/enums.ts`) — as duas paridades passam
+- [ ] Linter do Supabase (`security` e `performance`) rodado depois de aplicar
+      em staging; achado vira migration nova, nunca edição da antiga
+- [ ] `scripts/db/fingerprint.sql` bate entre local e staging
