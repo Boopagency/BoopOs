@@ -1,10 +1,10 @@
 import 'server-only'
 
-import { logActivity } from '@/lib/activity/log'
 import { logger } from '@/lib/logging/logger'
-import { createSupabaseAdminClient } from '@/lib/supabase/admin'
+import { createSupabaseServerClient } from '@/lib/supabase/server'
 
-export type FirstLoginResult = 'promoted' | 'already_active' | 'disabled' | 'no_profile' | 'failed'
+export type FirstLoginResult =
+  'promoted' | 'already_active' | 'disabled' | 'no_profile' | 'no_session' | 'failed'
 
 /**
  * Primeiro login: `invited` vira `active` e o sistema registra `user.joined`.
@@ -12,71 +12,53 @@ export type FirstLoginResult = 'promoted' | 'already_active' | 'disabled' | 'no_
  * E o outro lado do ADR-0009 — nao existe tabela de convite, entao o convite
  * "se completa" aqui, no primeiro acesso bem-sucedido.
  *
- * Idempotente por construcao: o `eq('status', 'invited')` faz a promocao
- * acontecer uma unica vez, e so ela dispara o evento. Reentrar dez vezes
- * gera um `user.joined`, nao dez.
+ * ## Por que uma funcao no banco, e nao um `update` daqui
  *
- * O filtro tambem e a defesa de quem foi desligado: `disabled` nao casa com
- * `invited`, entao ninguem volta a ficar ativo por clicar num link antigo.
+ * A promocao escreve `profiles.status`, e `role` mora na mesma linha. Conceder
+ * UPDATE de `profiles` a `authenticated` para permitir esta transicao seria
+ * conceder, na mesma tacada, `update profiles set role = 'boop_admin' where id
+ * = auth.uid()` — escalada de privilegio em uma linha de SQL. Por isso
+ * `profiles` nao tem policy nem GRANT de UPDATE para ninguem, e a transicao
+ * sai por `public.promote_invited_profile()`: `security definer`, opera
+ * exclusivamente sobre `auth.uid()` e faz uma transicao so.
  *
- * Service role pelo mesmo motivo de `getActor` (ADR-0021): ate a FASE 4 a RLS
- * esta ligada e sem politicas. O `userId` vem sempre da sessao recem-trocada
- * no callback, nunca do navegador.
+ * A funcao nao recebe parametro nenhum, e e isso que a torna impossivel de
+ * apontar para outra pessoa. Esta funcao TypeScript tambem nao recebe: nao ha
+ * `userId` para passar adiante, nem para errar.
+ *
+ * ## Idempotencia
+ *
+ * O `where status = 'invited'` do lado do banco faz a promocao acontecer uma
+ * unica vez, e o `user.joined` e gravado na MESMA transacao. Reentrar dez
+ * vezes promove uma vez e escreve um evento, nao dez — e nao existe janela em
+ * que a promocao valha e o registro se perca.
+ *
+ * Quem esta `disabled` nao casa com `invited` e nao volta a ficar ativo por
+ * clicar num link antigo.
  */
-export async function recordFirstLogin(userId: string): Promise<FirstLoginResult> {
-  const admin = createSupabaseAdminClient()
-  const now = new Date().toISOString()
+export async function recordFirstLogin(): Promise<FirstLoginResult> {
+  const supabase = await createSupabaseServerClient()
 
-  const { data: promoted, error } = await admin
-    .from('profiles')
-    .update({ status: 'active', last_seen_at: now })
-    .eq('id', userId)
-    .eq('status', 'invited')
-    .select('id')
-    .maybeSingle()
+  const { data, error } = await supabase.rpc('promote_invited_profile')
 
   if (error) {
-    logger.error('auth.first_login_failed', { userId, code: error.code })
+    logger.error('auth.first_login_failed', { code: error.code })
     return 'failed'
   }
 
-  if (promoted) {
-    await logActivity({
-      action: 'user.joined',
-      entityType: 'profile',
-      entityId: userId,
-      actorId: userId,
-      /* Identificadores e transicao — nunca e-mail, nome ou token. */
-      metadata: { status_from: 'invited', status_to: 'active' },
-    })
-    return 'promoted'
+  const resultado = data as FirstLoginResult | null
+
+  if (
+    resultado !== 'promoted' &&
+    resultado !== 'already_active' &&
+    resultado !== 'disabled' &&
+    resultado !== 'no_profile' &&
+    resultado !== 'no_session'
+  ) {
+    /* Resposta fora do contrato: falha fechada, nunca "deu certo, acho". */
+    logger.error('auth.first_login_unexpected', { resultado: String(resultado) })
+    return 'failed'
   }
 
-  /*
-   * Nao promoveu: ou ja estava ativo (caminho normal de quem volta), ou esta
-   * `disabled` e nao pode entrar. So o segundo caso muda o desfecho, entao
-   * vale uma leitura para distinguir — sem ela, uma pessoa desligada veria
-   * "entrou" e so seria barrada no `requireActor`, com mensagem errada.
-   */
-  const { data: profile } = await admin
-    .from('profiles')
-    .select('status')
-    .eq('id', userId)
-    .maybeSingle()
-
-  if (!profile) {
-    /*
-     * Sessao valida sem espelho em `profiles`: estado inconsistente, nunca um
-     * usuario novo. Ninguem ganha perfil aqui — criar um seria inventar papel
-     * para quem o trigger de `auth.users` nao registrou.
-     */
-    logger.warn('auth.first_login_profile_missing', { userId })
-    return 'no_profile'
-  }
-
-  if (profile.status !== 'active') return 'disabled'
-
-  await admin.from('profiles').update({ last_seen_at: now }).eq('id', userId)
-
-  return 'already_active'
+  return resultado
 }

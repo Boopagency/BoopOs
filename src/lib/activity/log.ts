@@ -3,7 +3,7 @@ import 'server-only'
 import type { ActivityAction, ActivityEntityType } from '@/config/activity'
 import type { ActivityVisibility } from '@/config/enums'
 import { logger } from '@/lib/logging/logger'
-import { createSupabaseAdminClient } from '@/lib/supabase/admin'
+import { createSupabaseServerClient } from '@/lib/supabase/server'
 
 /**
  * Unico caminho da aplicacao para escrever em `activity_log`
@@ -15,16 +15,24 @@ import { createSupabaseAdminClient } from '@/lib/supabase/admin'
  * segredo. Um objeto aninhado aqui seria o comeco de "vamos so guardar a
  * resposta do onboarding para depurar".
  *
- * Escreve pela service role porque a RLS esta ligada e sem politicas ate a
- * FASE 4, e `authenticated` nao tem privilegio em `public` (ADR-0021). A linha
- * carrega `actor_id`, entao a autoria continua registrada mesmo com a escrita
- * saindo em nome do sistema.
+ * ## Por que RPC, e nao um insert daqui
+ *
+ * A FASE 3 escrevia com service role porque `authenticated` nao tinha
+ * privilegio em `public` (ADR-0021). A FASE 4 nao trocou isso por um GRANT de
+ * INSERT: conceder escrita direta em `activity_log` permitiria gravar linha
+ * com `actor_id` de outra pessoa, ou um evento que nunca aconteceu — e um log
+ * de auditoria que aceita ser forjado e pior do que nao ter log.
+ *
+ * `public.record_activity()` e `security definer` e resolve `actor_id` a
+ * partir de `auth.uid()`, sempre. Por isso `actorId` NAO existe mais nesta
+ * assinatura: nao ha o que passar, nem o que errar. Ela tambem confere
+ * `clientId` e `projectId` contra o vinculo de quem chama, entao ninguem
+ * atribui evento a um tenant que nao alcanca.
  */
 export type ActivityEntry = {
   action: ActivityAction
   entityType: ActivityEntityType
   entityId?: string | null
-  actorId?: string | null
   clientId?: string | null
   projectId?: string | null
   metadata?: Record<string, string | number | boolean | null>
@@ -38,17 +46,25 @@ export type ActivityEntry = {
  */
 export async function logActivity(entry: ActivityEntry): Promise<void> {
   try {
-    const admin = createSupabaseAdminClient()
+    const supabase = await createSupabaseServerClient()
 
-    const { error } = await admin.from('activity_log').insert({
-      action: entry.action,
-      entity_type: entry.entityType,
-      entity_id: entry.entityId ?? null,
-      actor_id: entry.actorId ?? null,
-      client_id: entry.clientId ?? null,
-      project_id: entry.projectId ?? null,
-      metadata: entry.metadata ?? {},
-      visibility: entry.visibility ?? 'internal',
+    /*
+     * A chave OMITIDA, e nao a chave com `undefined`.
+     *
+     * Os tres parametros opcionais tem DEFAULT no banco, e o PostgREST so
+     * aplica o default quando a chave nao vem no corpo. O `exactOptional
+     * PropertyTypes` do TypeScript diz a mesma coisa por outro caminho: uma
+     * propriedade opcional ausente nao e a mesma coisa que presente e
+     * indefinida. Os dois concordam, e o spread condicional atende os dois.
+     */
+    const { error } = await supabase.rpc('record_activity', {
+      p_action: entry.action,
+      p_entity_type: entry.entityType,
+      ...(entry.entityId ? { p_entity_id: entry.entityId } : {}),
+      ...(entry.clientId ? { p_client_id: entry.clientId } : {}),
+      ...(entry.projectId ? { p_project_id: entry.projectId } : {}),
+      p_metadata: entry.metadata ?? {},
+      p_visibility: entry.visibility ?? 'internal',
     })
 
     if (error) {

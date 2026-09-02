@@ -7,7 +7,6 @@ import type { ProfileStatus, UserRole } from '@/config/enums'
 import { integrationStatus } from '@/config/env'
 import { LOGIN_PATH } from '@/lib/auth/routes'
 import { logger } from '@/lib/logging/logger'
-import { createSupabaseAdminClient } from '@/lib/supabase/admin'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
 /**
@@ -17,11 +16,13 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
  * reconstruido a partir de dado enviado pelo cliente: o unico ponto de partida
  * e a sessao validada pelo Supabase Auth (docs/security.md).
  *
- * Falta aqui o `clientIds` que docs/security.md desenha. Nao e esquecimento:
- * vinculo e **escopo**, e escopo e autorizacao — FASE 4. Nesta fase o Actor
- * responde "quem e voce", nunca "o que voce pode ver". Quando as politicas
- * existirem, o vinculo vem das funcoes `app.*` sob RLS, e nao de uma consulta
- * com service role (ADR-0021).
+ * O Actor carrega identidade e NAO carrega `clientIds` — nem depois da FASE 4,
+ * e isso e decisao, nao pendencia. Vinculo e escopo, e escopo mora no banco:
+ * quem responde "o que voce pode ver" sao as funcoes `app.*` dentro das
+ * policies, avaliadas a cada query. Uma lista de `clientIds` montada no inicio
+ * do request seria uma copia do escopo com prazo de validade — revogar um
+ * vinculo no meio do request nao teria efeito, e o Actor passaria a ser uma
+ * segunda fonte da verdade competindo com a RLS.
  */
 export type Actor = {
   userId: string
@@ -38,12 +39,15 @@ export type Actor = {
  * cookie, e o cookie e enviado pelo navegador. Aqui o resultado decide acesso,
  * entao o token e conferido com o servidor de Auth.
  *
- * A leitura de `profiles` usa a service role, o que ignora a RLS. E deliberado
- * e temporario (ADR-0021): ate a FASE 4 a RLS esta ligada e sem politicas, e
- * `authenticated` nao tem privilegio em `public`, entao esta leitura pelo JWT
- * do usuario devolveria vazio para todo mundo. As tres regras que mantem isso
- * seguro estao logo abaixo, no codigo: a identidade vem da sessao, a projecao
- * e minima e o filtro e sempre o proprio `id`.
+ * A leitura de `profiles` sai pelo JWT do usuario e passa pela RLS. Foi o que
+ * mudou na FASE 4: ate ali a policy nao existia e a leitura precisava de
+ * service role para nao voltar vazia para todo mundo (ADR-0021, substituida).
+ *
+ * A policy de `profiles` concede a propria linha sem exigir `status = active`,
+ * de proposito: e o que permite distinguir "convidada" de "desligada" e dar a
+ * cada uma a mensagem certa. O `.eq('id', ...)` abaixo continua, e nao e
+ * redundante com a policy — sao as duas camadas, e a aplicacao nao delega ao
+ * banco a decisao de qual linha pedir.
  */
 export const getActor = cache(async (): Promise<Actor | null> => {
   /*
@@ -68,8 +72,7 @@ export const getActor = cache(async (): Promise<Actor | null> => {
 
   if (authError || !auth.user) return null
 
-  const admin = createSupabaseAdminClient()
-  const { data: profile, error } = await admin
+  const { data: profile, error } = await supabase
     .from('profiles')
     /* Projecao explicita: nunca `select *` (.claude/rules/database.md). */
     .select('id, email, full_name, role, status')

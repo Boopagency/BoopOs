@@ -54,13 +54,18 @@ export async function GET(request: NextRequest) {
     return failure(callbackErrorCode(error?.code))
   }
 
-  const result = await recordFirstLogin(data.user.id)
+  const result = await recordFirstLogin()
 
-  if (result === 'disabled' || result === 'no_profile' || result === 'failed') {
+  if (result !== 'promoted' && result !== 'already_active') {
     /*
-     * Fail closed: sessao trocada, mas a identidade nao autoriza entrada.
-     * O `signOut` derruba o cookie na hora, em vez de deixar uma sessao viva
-     * que o `requireActor` teria de barrar a cada request.
+     * Fail closed por lista de permissao, e nao por lista de recusa: so
+     * `promoted` e `already_active` entram. Um resultado novo — `no_session`,
+     * ou qualquer outro que a fronteira do banco passe a devolver — cai aqui
+     * em vez de escapar por um `else` que ninguem revisou.
+     *
+     * Sessao trocada, mas a identidade nao autoriza entrada: o `signOut`
+     * derruba o cookie na hora, em vez de deixar uma sessao viva que o
+     * `requireActor` teria de barrar a cada request.
      */
     await supabase.auth.signOut()
 

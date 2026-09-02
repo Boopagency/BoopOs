@@ -14,7 +14,10 @@ import { requireActor } from '@/lib/auth/actor'
  * projeto, e `/portal` sozinho so redireciona.
  *
  * O que este guard NAO faz: verificar se esta pessoa pode ver ESTE projeto.
- * Isso e `requireProjectAccess`, e e FASE 4 — hoje as telas leem mocks.
+ * Isso e `requireProjectAccess()`, que existe desde a FASE 4 e passa a ser
+ * chamado quando as telas trocarem os mocks por dado real (FASE 5+). Aqui
+ * seria cedo: `/portal` sozinho nao tem projeto, e o layout de
+ * `[projectId]` e quem conhece o id.
  */
 export default async function PortalGroupLayout({ children }: { children: ReactNode }) {
   await requireActor()
