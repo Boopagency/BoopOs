@@ -237,15 +237,63 @@ Conferido depois, contra os dados reais que o QA deixou:
 - `client_user` editando o próprio cliente: **0 linhas**, filtrado pela policy;
 - auto-concessão de vínculo: recusada com `42501`.
 
-### Dois passos do checklist que o QA não exercitou
+### QA hospedado — COMPLETO
+
+Os dois passos que faltavam foram exercitados numa rodada final, depois de a
+configuração de e-mail ficar de pé. A FASE 5 está validada ponta a ponta.
+
+**Infraestrutura de e-mail, agora real:**
+
+| Item                | Valor                                                |
+| ------------------- | ---------------------------------------------------- |
+| SMTP                | customizado, apontando para o **Resend** (ADR-0010)  |
+| Domínio remetente   | **`auth.deumboop.com.br`**, verificado               |
+| Template do convite | corrigido para `{{ .TokenHash }}` → `/auth/callback` |
+
+Isso fecha a **D-01**, que era a única decisão pendente capaz de bloquear a fase:
+o domínio remetente existe e está verificado.
+
+**Edição de cliente.** `Velmont Patentes` editado às 19:24:51, `client.updated`
+gravado (`{"has_notes": true}` — se a nota mudou, nunca o que ela diz), e
+`created_at` preservado em 16:40:10 enquanto `updated_at` avançou. Persistiu
+após refresh.
+
+**Primeiro login pelo convite.** Três pessoas convidadas depois da correção do
+template entraram **pelo primeiro link recebido**, sem precisar pedir Magic Link:
+
+| Convite  | Entrada  | Δ    | Perfil                   |
+| -------- | -------- | ---- | ------------------------ |
+| 20:12:53 | 20:13:59 | 66 s | `client_user` · `active` |
+| 20:15:03 | 20:16:03 | 60 s | `client_user` · `active` |
+| 20:29:18 | 20:30:06 | 48 s | `client_user` · `active` |
+
+Cada uma gerou `user.joined` com `status_from: invited → status_to: active`, que
+é a promoção de `promote_invited_profile()` acontecendo no caminho real. O
+`type=invite` chegou ao callback como `token_hash`, `verifyOtp` criou a sessão,
+e o portal abriu direto.
+
+**Nenhuma elevação indevida.** Os quatro convidados são `client_user`. O único
+`boop_admin` continua sendo o original — o convite não cria administrador, e a
+recusa é do zod, do workflow e de `assign_invited_profile_role()`.
+
+**Conferido depois, contra um `client_user` que entrou de verdade:**
+
+- vê 1 cliente (o seu), 0 eventos do log, 1 perfil (o dele);
+- o outro tenant: 0 linhas;
+- projeção client-facing sobre o cliente real **não** traz `notes`;
+- editar o próprio cliente: 0 linhas, filtrado pela policy;
+- auto-concessão de vínculo: `42501`;
+- reescrever `created_at` ou reatribuir `created_by`, como `boop_admin`: `23514`.
+
+Ledger do staging e arquivos do repo com as mesmas 17 versões; fingerprint
+idêntico nas nove partes.
+
+### Os dois passos que a rodada anterior não exercitou (resolvidos)
 
 Registrado porque o log não mente e o documento não deve maquiar:
 
-- **Editar o cliente (passos 4 e 7).** Não há `client.updated` no log, e
-  `updated_at = created_at` na linha. O trigger de `updated_at` funciona — foi
-  verificado em transação desfeita, e o `profiles.updated_at` do desligamento
-  bumpou normalmente —, então a ausência é do gesto, não do mecanismo. **A
-  persistência da edição após refresh continua não verificada em produção-like.**
+- **Editar o cliente (passos 4 e 7).** Ficou de fora daquela rodada; exercitado e
+  aprovado na final — ver acima.
 - **Primeiro login de quem foi convidado.** Exercitado numa rodada posterior, e
   **falhou** — por configuração, não por código. Ver abaixo.
 
@@ -344,8 +392,8 @@ listados acima.
 
 ## Decisões que dependem de uma pessoa
 
-- **D-01** continua aberta e agora bloqueia de verdade: domínio remetente
-  verificado no Resend. Sem ele o convite não sai.
+- ~~**D-01**~~ — **fechada.** `auth.deumboop.com.br` verificado no Resend, SMTP
+  customizado ligado, convite chegando e sendo aceito no primeiro link.
 - **D-13** — reativar quem foi desligado é operação de produto ou de
   infraestrutura? O default é infraestrutura, até a FASE 19.
 
