@@ -63,6 +63,14 @@ ver. Um teste que só verifica o caminho feliz não prova isolamento.
 - Paridade: `pg_enum` bate com `src/config/enums.ts` (`tests/rls/enums.test.ts`)
 - Paridade: `database.types.ts` bate com `src/config/enums.ts`, sem banco
   (`tests/unit/enums.test.ts`)
+- Projeção: nenhuma lista de colunas client-facing contém campo interno
+  (`tests/unit/projection.test.ts`), e o banco confirma por papel
+  (`tests/rls/phase5-admin-surface.test.ts`)
+- Tradução: todo código lançado por um workflow tem mensagem em pt-BR — o teste
+  LÊ o código-fonte dos `mutations.ts` em vez de repetir uma lista
+  (`tests/unit/phase5-messages.test.ts`)
+- Fronteira `security definer` nova: teste adversarial provando cada recusa do
+  corpo da função. A proteção não está numa policy que o catálogo mostre
 
 ## Regras
 

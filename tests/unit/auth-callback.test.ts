@@ -24,11 +24,13 @@ vi.mock('next/headers', () => ({
 }))
 
 const exchangeCodeForSession = vi.fn()
+const verifyOtp = vi.fn()
 const signOut = vi.fn()
 const recordFirstLogin = vi.fn()
 
 vi.mock('@/lib/supabase/server', () => ({
-  createSupabaseServerClient: () => Promise.resolve({ auth: { exchangeCodeForSession, signOut } }),
+  createSupabaseServerClient: () =>
+    Promise.resolve({ auth: { exchangeCodeForSession, verifyOtp, signOut } }),
 }))
 
 vi.mock('@/lib/auth/first-login', () => ({
@@ -177,5 +179,98 @@ describe('GET /auth/callback', () => {
 
     expect(signOut).toHaveBeenCalled()
     expect(location).toBe('https://boop.example/login?erro=activation_pending')
+  })
+})
+
+/**
+ * A SEGUNDA PORTA — `?token_hash=&type=`, o link nascido no servidor (FASE 5).
+ *
+ * O convite (`inviteUserByEmail`) e disparado pelo servidor, entao nao existe
+ * verifier PKCE no navegador de quem foi convidado: a pessoa nunca chamou
+ * `signInWithOtp`. Sem esta porta o GoTrue cai no fluxo implicito e devolve a
+ * sessao no FRAGMENTO da URL, que nunca chega ao servidor — e o convite morre
+ * com "link invalido".
+ *
+ * `verifyOtp` resolve inteiramente no servidor e grava o cookie pelo mesmo
+ * caminho da primeira porta.
+ */
+describe('GET /auth/callback — link de convite', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    cookieStore.clear()
+    deleted.length = 0
+    recordFirstLogin.mockResolvedValue('promoted')
+  })
+
+  it('troca o token do convite por sessao e leva ao portal', async () => {
+    verifyOtp.mockResolvedValue({ data: { user: USER }, error: null })
+
+    const { location } = await get('?token_hash=abc123&type=invite')
+
+    expect(verifyOtp).toHaveBeenCalledWith({ type: 'invite', token_hash: 'abc123' })
+    expect(location).toBe('https://boop.example/portal')
+  })
+
+  it('promove `invited -> active` como qualquer outra entrada', async () => {
+    verifyOtp.mockResolvedValue({ data: { user: USER }, error: null })
+
+    await get('?token_hash=abc123&type=invite')
+
+    expect(recordFirstLogin).toHaveBeenCalled()
+  })
+
+  it('⚠️ NAO usa o caminho do PKCE: `exchangeCodeForSession` fica intacto', async () => {
+    verifyOtp.mockResolvedValue({ data: { user: USER }, error: null })
+
+    await get('?token_hash=abc123&type=invite')
+
+    expect(exchangeCodeForSession).not.toHaveBeenCalled()
+  })
+
+  it('⚠️ `type` fora da lista de permissao e recusado sem chamar o Supabase', async () => {
+    /*
+     * Lista de permissao, e nao de recusa: `recovery` e `email_change` abririam
+     * fluxos que o produto nao tem — nao existe senha (D-06, ADR-0009).
+     */
+    const { location } = await get('?token_hash=abc123&type=recovery')
+
+    expect(verifyOtp).not.toHaveBeenCalled()
+    expect(location).toBe('https://boop.example/login?erro=link_invalid')
+  })
+
+  it('⚠️ `token_hash` sem `type` e recusado', async () => {
+    const { location } = await get('?token_hash=abc123')
+
+    expect(verifyOtp).not.toHaveBeenCalled()
+    expect(location).toBe('https://boop.example/login?erro=link_invalid')
+  })
+
+  it('convite expirado explica o que houve', async () => {
+    verifyOtp.mockResolvedValue({
+      data: { user: null },
+      error: { code: 'otp_expired', status: 401 },
+    })
+
+    const { location } = await get('?token_hash=abc123&type=invite')
+
+    expect(location).toBe('https://boop.example/login?erro=link_expired')
+  })
+
+  it('⚠️ quem foi desligado nao entra por um convite antigo', async () => {
+    verifyOtp.mockResolvedValue({ data: { user: USER }, error: null })
+    recordFirstLogin.mockResolvedValue('disabled')
+
+    const { location } = await get('?token_hash=abc123&type=invite')
+
+    expect(signOut).toHaveBeenCalled()
+    expect(location).toBe('https://boop.example/login?erro=access_revoked')
+  })
+
+  it('⚠️ sem `code` E sem `token_hash`, nada acontece', async () => {
+    const { location } = await get('')
+
+    expect(exchangeCodeForSession).not.toHaveBeenCalled()
+    expect(verifyOtp).not.toHaveBeenCalled()
+    expect(location).toBe('https://boop.example/login?erro=link_invalid')
   })
 })

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { AdminNav } from '@/components/layout/admin-nav'
 import { Shell } from '@/components/layout/shell'
 import { SignOutButton } from '@/components/patterns/sign-out-button'
 import { requireBoop } from '@/lib/auth/authorization'
@@ -17,7 +18,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   await requireBoop()
 
   return (
-    <Shell context="Admin" action={<SignOutButton />}>
+    <Shell context="Admin" action={<SignOutButton />} nav={<AdminNav />}>
       {children}
     </Shell>
   )

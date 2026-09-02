@@ -12,31 +12,37 @@ para ele.
 
 Percepção-alvo: _"Eu sei exatamente o que está acontecendo com minha marca."_
 
-**Status atual: FASE 4 concluída — o isolamento entre clientes está provado.**
-15 migrations, 19 tabelas com RLS **e políticas**, 11 funções `app.*`, `can()`
-puro, guards que consultam sob RLS, e 474 testes (267 contra Postgres real).
-Fingerprint local ↔ staging idêntico nas nove partes, policies e grants
-incluídos.
+**Status atual: FASE 5 concluída — a Boop administra clientes pelo produto.**
+16 migrations, 19 tabelas com RLS **e políticas**, 11 funções `app.*`, 4
+fronteiras `security definer`, e 622 testes (300 contra Postgres real).
+Fingerprint local ↔ staging idêntico nas nove partes.
 
-**As duas camadas de autorização valem agora.** `service_role` não tem mais
-chamador em `src/`: `getActor()` lê `profiles` pelo JWT, e as duas escritas que
-precisavam de privilégio viraram fronteiras nomeadas — `promote_invited_profile()`
-e `record_activity()`, ambas `security definer`, nenhuma aceitando identidade por
-parâmetro ([ADR-0022](docs/adr/0022-autorizacao-no-banco-e-fim-da-service-role-de-identidade.md),
-que substitui a 0021).
+**A superfície administrativa lê e escreve Supabase de verdade.** `/admin`
+(clientes, pessoas, atividade) não tem mock: `src/domains/clients` e
+`src/domains/people` consultam sob RLS, e sete workflows escrevem pelo JWT do
+ator. Os mocks do PORTAL continuam — eles são das FASES 6+.
+
+**As duas camadas de autorização valem agora.** `getActor()` lê `profiles` pelo
+JWT; as escritas que precisam de privilégio são fronteiras nomeadas, nenhuma
+aceitando a identidade de QUEM CHAMA por parâmetro
+([ADR-0022](docs/adr/0022-autorizacao-no-banco-e-fim-da-service-role-de-identidade.md)).
+
+**`service_role` tem exatamente um chamador**, e é o que a ADR-0022 previu:
+`inviteAuthUser()` criando a conta em `auth.users`. Nenhuma consulta de domínio
+passa por ela, e o cliente admin não é exportado — só operações nomeadas.
 
 **O Actor carrega identidade, não escopo.** `clientIds` não entrou e não vai
-entrar: escopo é estado do banco no instante do request, e uma cópia na aplicação
-seria uma segunda verdade competindo com a RLS. Quem responde escopo é
+entrar: escopo é estado do banco no instante do request. Quem responde escopo é
 `requireClientAccess()`/`requireProjectAccess()`, perguntando ao banco.
 
-**Uma lacuna que é preciso saber ler:** RLS é row-level, não column-level.
-`clients.notes` e `content_versions.internal_notes` viajam na linha que a policy
-concede. Hoje nada as expõe — o portal ainda lê mocks —, e fechar isso com
-projeção explícita é obrigação da FASE 5
-([`docs/security.md`](docs/security.md)).
+**A dívida column-level foi paga.** RLS continua row-level — `clients.notes`
+ainda viaja na linha que a policy concede —, mas agora existem três camadas
+entre ela e o cliente: a projeção não pede a coluna, o tipo não a carrega
+(`AssertClientFacing` quebra o `typecheck`), e a capacidade é conferida
+([`docs/security.md`](docs/security.md)). A convenção já cobre
+`content_versions.internal_notes`, que chega na FASE 10.
 
-A próxima fase é a 5 (admin e clientes), e é ela que liga as telas ao Supabase.
+A próxima fase é a 6 (projetos e jornada).
 
 ## Vocabulário
 
@@ -85,6 +91,7 @@ compatibilidade verificada com `typescript-eslint` e `eslint-config-next`.
 | Ambientes, variáveis, migrations, CI                  | [`docs/deployment.md`](docs/deployment.md)             |
 | O que construir agora                                 | [`docs/roadmap.md`](docs/roadmap.md)                   |
 | Por que decidimos assim                               | [`docs/adr/`](docs/adr/)                               |
+| Estado ao fim da FASE 5                               | [`docs/FASE5ESTADO.md`](docs/FASE5ESTADO.md)           |
 | Inconsistências e decisões pendentes                  | [`docs/spec-review.md`](docs/spec-review.md)           |
 
 Regras imperativas, curtas, para consulta durante o trabalho:
@@ -184,8 +191,15 @@ Regras de crescimento:
 
 - **`src/domains/<nome>` nasce na fase do domínio**, nunca como pasta vazia.
 - Rota canônica do portal é `/portal/[projectId]`; `/app` redireciona.
-- **Tela nunca importa `src/mocks`.** Fala com `src/lib/data`, que hoje lê dos
-  mocks e na FASE 5 passa a ler do Supabase — o contrato é `data/types.ts`.
+- **Tela nunca importa `src/mocks`.** O admin fala com `src/domains/*/queries`,
+  que lê do Supabase; o portal ainda fala com `src/lib/data/portal.ts`, que lê
+  dos mocks até a FASE 6.
+- **Projeção client-facing nunca carrega campo interno.** O tipo passa por
+  `AssertClientFacing` (`src/lib/data/projection.ts`) e o build quebra se
+  carregar. Campo interno novo entra em `INTERNAL_FIELDS`, e a partir daí toda
+  projeção que o carregue para de compilar.
+- **Escrita de domínio só por `defineWorkflow`.** Server Action adapta `FormData`
+  e delega; não decide nada.
 - Nenhum componente usa hexadecimal: cor vem de token em `src/app/globals.css`.
 - Nenhum `max-w-[Nch]` em wrapper: `ch` resolve no font-size do próprio
   elemento, então a largura vai no elemento que tem o tamanho.

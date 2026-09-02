@@ -10,13 +10,14 @@ import type { Database } from '@/lib/supabase/database.types'
  * Fala com o Supabase usando o JWT do usuario, entao a RLS continua valendo —
  * essa e a segunda camada de autorizacao (docs/security.md).
  *
- * FASE 3: serve a autenticacao (`signInWithOtp`, `exchangeCodeForSession`,
- * `getUser`, `signOut`), que fala com o GoTrue e nao depende de privilegio no
- * schema `public`. **Consulta de dominio por este cliente ainda devolve vazio**:
- * a RLS esta ligada e sem politicas, e `authenticated` nao tem privilegio
- * nenhum em `public` (migration 20260901140008). Isso muda na FASE 4, e e de
- * proposito: ate la nao existe caminho de leitura que dependa de policy que
- * ninguem escreveu.
+ * FASE 3: servia so a autenticacao (`signInWithOtp`, `exchangeCodeForSession`,
+ * `getUser`, `signOut`), porque a RLS estava ligada e sem politicas —
+ * consulta de dominio voltava vazia por desenho.
+ *
+ * FASE 4 escreveu as politicas. FASE 5 e a primeira que de fato le e escreve
+ * dominio por aqui: `src/domains/*` usa exclusivamente este cliente, e e o que
+ * faz a segunda camada de autorizacao existir na pratica. `service_role`
+ * continua fora — ela nao consulta dominio (ADR-0022).
  */
 export async function createSupabaseServerClient() {
   const { url, anonKey } = requireSupabaseEnv()
@@ -46,3 +47,12 @@ export async function createSupabaseServerClient() {
     },
   })
 }
+
+/**
+ * O tipo do cliente acima, para quem precisa recebe-lo como parametro.
+ *
+ * Inferido da funcao de proposito: escrever `SupabaseClient<Database>` a mao
+ * seria uma segunda declaracao do mesmo tipo, livre para divergir no dia em
+ * que a fabrica mudar.
+ */
+export type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>

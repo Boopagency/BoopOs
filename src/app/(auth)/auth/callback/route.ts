@@ -8,16 +8,41 @@ import { logger } from '@/lib/logging/logger'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
 /**
- * Volta do Magic Link — a troca do `code` do PKCE por sessao.
+ * Volta de um link de e-mail. Duas portas, porque existem dois tipos de link.
  *
- * O link do e-mail aponta para o `/auth/v1/verify` do Supabase, que redireciona
- * para ca com `?code=`. O `code` sozinho nao vale nada: so vira sessao junto do
- * verifier que o `signInWithOtp` gravou em cookie no navegador de quem pediu.
- * E o que faz um link encaminhado a terceiro nao entregar a conta.
+ * ## 1. `?code=` — PKCE (FASE 3, intacta)
+ *
+ * O Magic Link pedido no `/login`. O `code` sozinho nao vale nada: so vira
+ * sessao junto do verifier que o `signInWithOtp` gravou em cookie no navegador
+ * de quem pediu. E o que faz um link encaminhado a terceiro nao entregar a
+ * conta.
+ *
+ * ## 2. `?token_hash=&type=` — link iniciado no SERVIDOR (FASE 5)
+ *
+ * O convite (`inviteUserByEmail`) nasce no servidor, entao NAO existe verifier
+ * no navegador de quem foi convidado — a pessoa nunca chamou `signInWithOtp`.
+ * Sem esta porta o GoTrue cai no fluxo implicito e devolve a sessao no
+ * fragmento da URL (`#access_token=...`), que nunca chega ao servidor: o
+ * convite morreria aqui com "link invalido".
+ *
+ * `verifyOtp({ type, token_hash })` resolve inteiramente no servidor e grava o
+ * cookie pelo mesmo caminho da porta 1. Exige que o template de convite do
+ * Supabase aponte para ca com `{{ .TokenHash }}` — passo manual documentado em
+ * `docs/deployment.md`.
+ *
+ * As duas portas convergem: dai para baixo o codigo e o mesmo, inclusive a
+ * promocao `invited -> active` e o `signOut` de quem nao pode entrar.
  *
  * Route Handler, e nao pagina: aqui da para escrever cookie e devolver status
  * HTTP proprio.
  */
+
+/**
+ * Os tipos de link que esta rota aceita. Lista de permissao, e nao de recusa:
+ * `type` vem da URL, e `recovery` ou `email_change` chegando aqui abririam um
+ * fluxo que o produto nao tem (nao existe senha — D-06, ADR-0009).
+ */
+const ACCEPTED_OTP_TYPES = new Set(['invite', 'magiclink', 'signup', 'email'])
 export async function GET(request: NextRequest) {
   const params = new URL(request.url).searchParams
 
@@ -40,16 +65,36 @@ export async function GET(request: NextRequest) {
   }
 
   const code = params.get('code')
-  if (!code) {
-    logger.warn('auth.callback_without_code')
+  const tokenHash = params.get('token_hash')
+  const otpType = params.get('type')
+
+  if (!code && !tokenHash) {
+    logger.warn('auth.callback_without_credential')
     return failure('link_invalid')
   }
 
   const supabase = await createSupabaseServerClient()
-  const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+
+  /*
+   * Nem `code` nem `token_hash` sao logados em nenhum ramo: os dois SAO a
+   * credencial, e log nao e lugar para credencial (.claude/rules/security.md).
+   */
+  const { data, error } = code
+    ? await supabase.auth.exchangeCodeForSession(code)
+    : await (async () => {
+        if (!otpType || !ACCEPTED_OTP_TYPES.has(otpType)) {
+          logger.warn('auth.callback_unsupported_type', { type: (otpType ?? '').slice(0, 32) })
+          /* Forma do retorno do supabase-js, para os dois ramos convergirem. */
+          return { data: { user: null }, error: { code: 'validation_failed', status: 400 } }
+        }
+
+        return supabase.auth.verifyOtp({
+          type: otpType as 'invite' | 'magiclink' | 'signup' | 'email',
+          token_hash: tokenHash as string,
+        })
+      })()
 
   if (error || !data.user) {
-    /* Codigo do erro, jamais o `code` da URL: ele e credencial. */
     logger.warn('auth.exchange_failed', { code: error?.code, status: error?.status })
     return failure(callbackErrorCode(error?.code))
   }

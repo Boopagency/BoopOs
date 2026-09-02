@@ -1075,6 +1075,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      assign_invited_profile_role: {
+        Args: {
+          p_role: Database["public"]["Enums"]["user_role"]
+          p_user_id: string
+        }
+        Returns: string
+      }
+      disable_profile: { Args: { p_user_id: string }; Returns: string }
       promote_invited_profile: { Args: never; Returns: string }
       record_activity: {
         Args: {

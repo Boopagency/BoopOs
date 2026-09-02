@@ -45,6 +45,17 @@ export const approveContentVersion = defineWorkflow({
 teste. `ctx.after()` enfileira side-effects que rodam depois do commit e **nunca**
 derrubam o workflow: falha vira linha `failed` em `notifications`.
 
+**Existe desde a FASE 5**, em `src/lib/workflow/define.ts`, e nasceu ali porque é
+onde chegaram sete escritas de domínio de uma vez — bem mais que os três casos
+reais que a regra de abstração pede. A assinatura real difere do esboço acima em
+um ponto: `capability` é um campo próprio, e `authorize` cuida só do ESCOPO. São
+as duas perguntas separadas da FASE 4 — papel e escopo —, e juntá-las num
+`authorize` só faria a decisão de papel depender de I/O sem precisar.
+
+O resultado é `{ ok: true, data }` ou `{ ok: false, code }`. Nunca uma mensagem
+pronta: a tradução para pt-BR é da UI (`src/config/messages.ts`), e há teste que
+falha se um código lançado por um workflow não tiver tradução.
+
 ## Consistência: quando usar função SQL
 
 `supabase-js` não abre transação. Operações que tocam mais de uma linha e não

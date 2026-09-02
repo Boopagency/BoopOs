@@ -76,9 +76,10 @@ Duas armadilhas específicas deste projeto:
   essa variável apontar para outro lugar, o Magic Link volta para outro lugar.
 
 O e-mail de autenticação sai pelo Supabase, não pelo `EmailService`
-([ADR-0010](adr/0010-email-auth-vs-produto.md)). O SMTP customizado apontando
-para o Resend entra na FASE 5; até lá vale o remetente padrão do Supabase e o
-limite de envio do plano. Ver [`authentication.md`](authentication.md).
+([ADR-0010](adr/0010-email-auth-vs-produto.md)). O convite da FASE 5 é e-mail de
+autenticação e segue por esse mesmo caminho — a configuração que ele exige está
+em [Configuração do Auth para o convite](#configuração-do-auth-para-o-convite-fase-5),
+mais abaixo. Ver também [`authentication.md`](authentication.md).
 
 ## Toolchain
 
@@ -173,6 +174,48 @@ execução noturna. `pnpm audit --audit-level=high` entra na FASE 19.
 
 Localmente, `pnpm check` roda typecheck, lint, format e testes — é o portão
 antes de abrir PR.
+
+## Configuração do Auth para o convite (FASE 5)
+
+Duas coisas que **não** estão no repositório e precisam de uma pessoa no painel
+do Supabase. Sem elas o código do convite roda, mas ninguém consegue entrar pelo
+link — então trate como parte do deploy da FASE 5, não como opcional.
+
+### 1. SMTP customizado apontando para o Resend
+
+`Authentication → Emails → SMTP Settings`. Sem isso o convite sai pelo SMTP
+padrão do Supabase: remetente genérico, entregabilidade baixa e nenhuma
+identidade da Boop ([ADR-0010](adr/0010-email-auth-vs-produto.md)).
+
+### 2. O template de convite precisa usar `{{ .TokenHash }}`
+
+⚠️ **É o passo que quebra silenciosamente se for esquecido.**
+
+`Authentication → Emails → Templates → Invite user`. O corpo precisa apontar
+para o callback com `token_hash`, e não para o `.ConfirmationURL` padrão:
+
+```html
+<a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=invite">
+  Ativar meu acesso
+</a>
+```
+
+**Por quê.** O Magic Link do `/login` nasce no navegador de quem pede: o
+`signInWithOtp` grava um verifier PKCE em cookie, e o callback troca `?code=` por
+sessão com ele. O convite nasce no SERVIDOR — a pessoa convidada nunca chamou
+`signInWithOtp`, então não existe verifier no navegador dela.
+
+Com o template padrão, o GoTrue cai no fluxo implícito e devolve a sessão no
+**fragmento** da URL (`#access_token=…`), que nunca chega ao servidor. O
+resultado é a pessoa clicando no convite e caindo em `/login?erro=link_invalid`.
+
+Com `{{ .TokenHash }}`, o callback resolve por `verifyOtp` inteiramente no
+servidor e grava o cookie pelo mesmo caminho do Magic Link.
+
+### 3. Redirect URL do callback
+
+`Authentication → URL Configuration → Redirect URLs` precisa conter
+`https://<host>/auth/callback` para cada ambiente.
 
 ## Deploy
 

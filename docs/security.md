@@ -239,13 +239,33 @@ aprovar direto pela API, pulando a máquina de estados.
 
 Ignora toda a RLS. Tratada como chave de root.
 
-**Desde a FASE 4 ela não tem chamador em `src/`.** Os três usos da FASE 3
-(`getActor`, `recordFirstLogin`, `logActivity`) migraram para o caminho com RLS
-ou para fronteiras privilegiadas menores
+**A FASE 4 zerou os chamadores.** Os três usos da FASE 3 (`getActor`,
+`recordFirstLogin`, `logActivity`) migraram para o caminho com RLS ou para
+fronteiras privilegiadas menores
 ([ADR-0022](adr/0022-autorizacao-no-banco-e-fim-da-service-role-de-identidade.md)).
-`grep -rn createSupabaseAdminClient src/` devolve só o arquivo que a define. Ela
-volta a ter chamador quando houver uso legítimo — convite (FASE 5), Storage
-(FASE 12) —, nunca como atalho de autorização.
+
+**A FASE 5 devolveu UM chamador, e é o que a própria ADR previu:** criar a conta
+em `auth.users` no convite. Nenhum papel de aplicação escreve em `auth` — não é
+schema de domínio e não há policy que sirva.
+
+A diferença entre este uso e o que a FASE 4 removeu:
+
+| Removido na FASE 4                    | Aceito na FASE 5                                  |
+| ------------------------------------- | ------------------------------------------------- |
+| **autorização** — ler domínio sem RLS | **administração do Auth** — criar conta em `auth` |
+
+Três coisas mantêm isso pequeno:
+
+- `createAdminClient()` **não é exportado**. O que sai de `admin.ts` é
+  `inviteAuthUser()`, uma operação nomeada que faz uma coisa só. Exportar a
+  fábrica tornaria possível instanciá-la no meio de um workflow "só para essa
+  consulta", que é como um bypass volta.
+- **Nada em `admin.ts` consulta `clients`, `projects`, `profiles` ou
+  `client_memberships`.** Domínio se lê e se escreve pelo JWT do ator.
+- O grep continua servindo: `grep -rn "from '@/lib/supabase/admin'" src/` devolve
+  uma linha — `src/domains/people/mutations.ts`.
+
+Storage (FASE 12) é o próximo uso legítimo previsto.
 
 - Vive **exclusivamente** em `src/lib/supabase/admin.ts`, cujo primeiro import é
   `server-only` — importar no cliente quebra o build.
@@ -276,24 +296,51 @@ três personas, então não há como conceder `notes` a `boop_member` e negar a
 
 **A proteção efetiva é a projeção do lado do servidor** — nenhuma leitura
 client-facing seleciona essas colunas, e `select *` é proibido pela regra do
-repositório. Enquanto o portal lê mocks não existe caminho que as exponha.
+repositório.
 
-**Dívida datada: a FASE 5 é obrigada a fechar isso** ao ligar o dado real, com
-projeção explícita no `src/lib/data` ou uma view client-facing. Há teste em
-`tests/rls/internal-visibility.test.ts` que afirma a limitação: ele quebra no dia
-em que ela deixar de existir, obrigando a atualizar esta seção junto.
+### A dívida foi paga na FASE 5 — em três camadas
+
+A FASE 4 registrou isso como dívida datada, com prazo na FASE 5, porque enquanto
+o portal lia mocks não existia caminho que expusesse a coluna. Ligar o dado real
+abriu esse caminho, e a resposta é `src/lib/data/projection.ts` mais as
+projeções por audiência em `src/domains/*/types.ts`:
+
+| Camada                           | O que garante                                                        | Onde falha se alguém errar |
+| -------------------------------- | -------------------------------------------------------------------- | -------------------------- |
+| **1. A coluna não sai do banco** | `CLIENT_PUBLIC_COLUMNS` e `CLIENT_LIST_COLUMNS` não pedem `notes`    | teste de RLS               |
+| **2. O tipo não tem o campo**    | `AssertClientFacing<T>` recusa qualquer projeção com campo interno   | `pnpm typecheck`           |
+| **3. A capacidade é conferida**  | `getClientDetailForBoop()` exige `can('client.read_internal_notes')` | teste de unidade           |
+
+A separação é por **audiência**, e não por um parâmetro `includeNotes`: um
+argumento tem valor padrão, pode ser esquecido, pode ser invertido num refactor e
+não deixa rastro no tipo. `ClientPublic` simplesmente não tem `notes` para vazar.
+
+**Por que não uma view.** Uma view client-facing resolveria por outro caminho e
+traria `security_invoker`, GRANTs próprios, comportamento próprio no PostgREST e
+um segundo lugar onde a verdade sobre colunas mora. A projeção explícita resolve
+o mesmo com menos peças móveis.
+
+**O que continua verdade.** A LINHA ainda carrega `notes` para quem a policy
+concede — RLS é row-level, e isso não mudou. `tests/rls/internal-visibility.test.ts`
+e `tests/rls/phase5-admin-surface.test.ts` afirmam a limitação de propósito: se um
+deles falhar, a limitação deixou de existir e esta seção precisa ser reescrita.
+
+**Para as fases seguintes:** `content_versions.internal_notes` já está em
+`INTERNAL_FIELDS`. A primeira leitura client-facing de versão de conteúdo
+(FASE 10) já nasce sob a mesma trava — o compilador cobra antes da revisão.
 
 ## Achados do linter do Supabase — classificação
 
-Rodado em staging depois da FASE 4. **Zero achados de RLS**: nenhuma tabela sem
-política, nenhuma política sem RLS, nenhum GRANT indevido.
+Rodado em staging depois da FASE 4 e de novo depois da FASE 5. **Zero achados de
+RLS nas duas vezes**: nenhuma tabela sem política, nenhuma política sem RLS,
+nenhum GRANT indevido. Fingerprint local ↔ staging idêntico nas nove partes.
 
-| Achado                                                                                                | Nível | Classificação                                                                                                                                                                                                                                                               |
-| ----------------------------------------------------------------------------------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `authenticated_security_definer_function_executable` em `promote_invited_profile` e `record_activity` | WARN  | **Esperado.** É o desenho: as duas existem para ser chamadas por `rpc`. Ambas derivam identidade de `auth.uid()`, nenhuma aceita identidade por parâmetro, `anon` teve o EXECUTE revogado, e há teste adversarial para cada uma                                             |
-| `auth_leaked_password_protection`                                                                     | WARN  | **Não se aplica.** Não existe senha no produto: só Magic Link (D-06, [ADR-0009](adr/0009-autenticacao-magic-link-e-convites.md))                                                                                                                                            |
-| `unindexed_foreign_keys` (18)                                                                         | INFO  | **Um virou migration** — `onboarding_submissions.template_id`, medido por `explain` no caminho de `app.has_template_access()`. Os outros são `created_by`/`decided_by`/`author_id`: não estão em predicado de policy, e índice especulativo custa escrita sem pagar leitura |
-| `unused_index` (25)                                                                                   | INFO  | **Sem ação.** "Nunca usado" num staging sem tráfego não é sinal. Derrubar índice com base em banco ocioso é como apagar teste que nunca falhou                                                                                                                              |
+| Achado                                                                                                                                                  | Nível | Classificação                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `authenticated_security_definer_function_executable` em `promote_invited_profile`, `record_activity`, `assign_invited_profile_role` e `disable_profile` | WARN  | **Esperado.** É o desenho: as quatro existem para ser chamadas por `rpc`. Todas derivam a identidade de QUEM CHAMA de `auth.uid()` — as duas da FASE 5 recebem o ALVO por parâmetro e conferem o chamador por dentro com `app.is_boop_admin()`. `anon` teve o EXECUTE revogado nas quatro, e cada uma tem teste adversarial (`tests/rls/phase5-people-boundaries.test.ts`) |
+| `auth_leaked_password_protection`                                                                                                                       | WARN  | **Não se aplica.** Não existe senha no produto: só Magic Link (D-06, [ADR-0009](adr/0009-autenticacao-magic-link-e-convites.md))                                                                                                                                                                                                                                           |
+| `unindexed_foreign_keys` (18)                                                                                                                           | INFO  | **Um virou migration** — `onboarding_submissions.template_id`, medido por `explain` no caminho de `app.has_template_access()`. Os outros são `created_by`/`decided_by`/`author_id`: não estão em predicado de policy, e índice especulativo custa escrita sem pagar leitura                                                                                                |
+| `unused_index` (25)                                                                                                                                     | INFO  | **Sem ação.** "Nunca usado" num staging sem tráfego não é sinal. Derrubar índice com base em banco ocioso é como apagar teste que nunca falhou                                                                                                                                                                                                                             |
 
 ## Uploads e arquivos
 

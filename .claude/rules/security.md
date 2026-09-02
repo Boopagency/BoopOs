@@ -28,8 +28,10 @@ Raciocínio em [`docs/security.md`](../../docs/security.md). Aqui só o que é o
 - Magic Link com `shouldCreateUser: false`. Não existe cadastro público.
 - Erro do disparo nunca revela se a conta existe (`src/lib/auth/errors.ts`).
 - Logout é Server Action (POST). Nunca GET.
-- `service_role` **não tem chamador em `src/`** desde a FASE 4. `getActor()` lê
-  pelo JWT; o que precisa de privilégio passa por fronteira nomeada
+- `service_role` tem **um** chamador desde a FASE 5: `inviteAuthUser()`, que cria
+  a conta em `auth.users`. `createAdminClient()` **não é exportado** — o que sai
+  de `admin.ts` são operações nomeadas. Nada ali consulta `clients`, `projects`,
+  `profiles` ou `client_memberships`
   ([ADR-0022](../../docs/adr/0022-autorizacao-no-banco-e-fim-da-service-role-de-identidade.md)).
 
 ## Autorização (FASE 4)
@@ -52,6 +54,23 @@ Raciocínio em [`docs/security.md`](../../docs/security.md). Aqui só o que é o
 - **RLS é row-level, não column-level.** Coluna interna na linha concedida vem
   junto: `clients.notes` e `content_versions.internal_notes` dependem de
   projeção explícita no servidor. Nunca `select *` em leitura client-facing.
+
+## Projeção por audiência (FASE 5)
+
+- Campo interno novo entra em `INTERNAL_FIELDS` (`src/lib/data/projection.ts`).
+  A partir dali, toda projeção client-facing que o carregue **para de compilar**.
+- Toda projeção client-facing leva `AssertClientFacing<T>` ao lado da definição,
+  exportado (`noUnusedLocals` derruba o alias local).
+- **Duas formas com dois nomes, nunca uma com booleano.** `ClientPublic` e
+  `ClientDetail`, não `getClient({ includeNotes })`: argumento tem default, pode
+  ser esquecido e não deixa rastro no tipo.
+- Mapeador entre projeções copia **campo a campo**. Nunca
+  `const { notes, ...rest }`: rest spread diz "tudo menos o que eu lembrei de
+  tirar", e a coluna interna da próxima fase entra sozinha.
+- Loader carrega o próprio guard. Um loader seguro só porque a página que o
+  chama é segura deixa de ser seguro na segunda página.
+- Não buscar dado que a tela não usa. O que não sai do banco não vaza no payload
+  do RSC — e é por isso que a lista de clientes também não pede `notes`.
 
 ## Toda escrita
 
@@ -94,3 +113,5 @@ Se você escreveu uma query nova no portal, confira essa lista.
 - [ ] Nenhum log novo com PII, token ou signed URL
 - [ ] Rota nova protegida: o layout do grupo chama `requireActor()`
 - [ ] Bundle do cliente sem `service_role` e sem `createSupabaseAdminClient`
+- [ ] Projeção client-facing nova com `AssertClientFacing` e sem campo interno
+- [ ] `grep -rn "from '@/lib/supabase/admin'" src/` só devolve o convite

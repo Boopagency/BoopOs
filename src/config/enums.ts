@@ -187,6 +187,24 @@ export const PG_ENUMS_PENDENTES = {
  * "awaiting_client" (.claude/rules/frontend.md).
  */
 
+export const CLIENT_STATUS_LABEL: Record<ClientStatus, string> = {
+  active: 'Ativo',
+  paused: 'Pausado',
+  archived: 'Arquivado',
+}
+
+export const USER_ROLE_LABEL: Record<UserRole, string> = {
+  boop_admin: 'Admin Boop',
+  boop_member: 'Time Boop',
+  client_user: 'Cliente',
+}
+
+export const PROFILE_STATUS_LABEL: Record<ProfileStatus, string> = {
+  invited: 'Convidada',
+  active: 'Ativa',
+  disabled: 'Desligada',
+}
+
 export const CONTENT_STATUS_LABEL: Record<ContentStatus, string> = {
   idea: 'Ideia',
   planned: 'Planejado',

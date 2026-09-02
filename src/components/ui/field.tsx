@@ -1,6 +1,11 @@
 'use client'
 
-import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react'
+import type {
+  InputHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from 'react'
 import { useId } from 'react'
 import { cn } from '@/lib/cn'
 
@@ -73,4 +78,30 @@ export type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement>
 
 export function Textarea({ className, rows = 5, ...props }: TextareaProps) {
   return <textarea rows={rows} className={cn(CONTROL, 't-body py-3', className)} {...props} />
+}
+
+export type SelectProps = SelectHTMLAttributes<HTMLSelectElement>
+
+/**
+ * `select` nativo, e nao um combobox proprio.
+ *
+ * Sem biblioteca de UI (ADR-0018), e um `select` reimplementado a mao custaria
+ * teclado, leitor de tela e o seletor nativo do celular — que e melhor do que
+ * qualquer lista flutuante em uma tela de 5 polegadas.
+ *
+ * A seta e um SVG embutido em `data:` porque `appearance-none` apaga a nativa.
+ * Nao e biblioteca de icones: sao onze bytes de path, no proprio arquivo.
+ */
+export function Select({ className, ...props }: SelectProps) {
+  return (
+    <select
+      className={cn(
+        CONTROL,
+        't-body h-12 appearance-none bg-[length:0.65rem] bg-[right_1rem_center] bg-no-repeat pr-10',
+        "bg-[image:url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%234e6076' stroke-width='1.5'/></svg>\")]",
+        className,
+      )}
+      {...props}
+    />
+  )
 }

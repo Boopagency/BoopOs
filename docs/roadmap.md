@@ -119,7 +119,7 @@ decisão: escopo é estado do banco no instante do request.
 as expõe (o portal lê mocks); ligar o dado real exige projeção explícita.
 Registrado em [`security.md`](security.md).
 
-### FASE 5 — Admin e clientes
+### FASE 5 — Admin e clientes ✅
 
 `/admin/clientes` (listar, criar, editar, arquivar), `/admin/usuarios`, convite
 (`inviteUser` com service role), vínculos, activity log visível para a Boop.
@@ -127,6 +127,25 @@ Entra aqui o **`EmailService` mínimo** (`invite`, `welcome`) e o SMTP customiza
 do Supabase — antecipado da FASE 16 ([spec-review I-06](spec-review.md#i-06-a-o-primeiro-marco-exige-e-mail-que-só-aparece-na-fase-16)).
 **Pronto quando:** dá para criar o cliente Hartmann, convidar duas pessoas e elas
 receberem e-mail de verdade.
+
+**Pronto:** as cinco telas de `/admin` lendo e escrevendo Supabase de verdade,
+`defineWorkflow` com os oito passos do contrato, sete workflows de domínio, duas
+fronteiras SQL novas e 622 testes (baseline 474 → +148). Nenhum mock na
+superfície administrativa.
+
+**A dívida column-level da FASE 4 foi paga.** `clients.notes` é protegida em três
+camadas — a coluna não sai do banco, o tipo não a carrega, a capacidade é
+conferida — e a convenção vale para os campos internos das fases seguintes
+([`security.md`](security.md#a-dívida-foi-paga-na-fase-5--em-três-camadas)).
+
+**`service_role` voltou a ter exatamente um chamador**, e é o que a ADR-0022
+previa: criar a conta em `auth.users` no convite. Nenhuma consulta de domínio
+passa por ela.
+
+**Fica de dívida para depois:** o `welcome` (e-mail de produto) não entrou —
+`invite` sai pelo Auth com SMTP customizado, e o `EmailService` sobre a API do
+Resend continua na FASE 16. Reativar quem foi desligado não tem caminho pelo
+painel. As duas viraram D-13 e D-14 em [`spec-review.md`](spec-review.md).
 
 ### FASE 6 — Projetos e jornada
 

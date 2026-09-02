@@ -174,19 +174,40 @@ seria uma foto, e revogar vínculo no meio do request não teria efeito.
 
 ## Fronteiras privilegiadas
 
-Duas funções em `public`, `security definer`, chamadas por `rpc`. Existem porque
-a operação precisa de mais privilégio do que quem a executa deveria ter em
+Quatro funções em `public`, `security definer`, chamadas por `rpc`. Existem
+porque a operação precisa de mais privilégio do que quem a executa deveria ter em
 regime permanente — e a resposta foi reduzir o privilégio ao tamanho exato da
 operação, não manter `service_role`.
 
-| Função                      | Existe porque                                                    |
-| --------------------------- | ---------------------------------------------------------------- |
-| `promote_invited_profile()` | promover escreve `profiles.status`, e `role` mora na mesma linha |
-| `record_activity(...)`      | INSERT em `activity_log` permitiria `actor_id` forjado           |
+| Função                               | Fase | Existe porque                                                      |
+| ------------------------------------ | ---- | ------------------------------------------------------------------ |
+| `promote_invited_profile()`          | 4    | promover escreve `profiles.status`, e `role` mora na mesma linha   |
+| `record_activity(...)`               | 4    | INSERT em `activity_log` permitiria `actor_id` forjado             |
+| `assign_invited_profile_role(id, r)` | 5    | o convite define o papel, e `profiles` não tem UPDATE para ninguém |
+| `disable_profile(id)`                | 5    | desligar escreve `profiles.status`, mesma linha que `role`         |
 
-Nenhuma das duas aceita identidade por parâmetro: `promote_invited_profile()`
-não tem parâmetro nenhum, e `record_activity()` deriva `actor_id` de
-`auth.uid()` e confere `client_id`/`project_id` contra o vínculo de quem chama.
+**Quem chama nunca vem por parâmetro.** As quatro derivam a identidade do
+chamador de `(select auth.uid())`. As duas da FASE 5 recebem o **alvo** por
+parâmetro — sobre quem se opera — e conferem quem opera por dentro, com
+`app.is_boop_admin()`. É uma distinção que vale escrever: parâmetro que diz
+"sobre quem" é entrada; parâmetro que diz "quem sou eu" seria uma assinatura em
+branco.
+
+Cada uma faz **uma** transição, com o estado de origem no `where`, e por isso é
+idempotente sem precisar de trava.
+
+### O que as duas da FASE 5 recusam
+
+| Recusa                           | Por quê                                                                                                                                                                                                                      |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `boop_admin` como valor de papel | a matriz tem `user.invite_client_user` e `user.invite_boop_member`, e **não tem** a terceira linha. Criar administrador é provisionamento (`scripts/auth/provision-user.sh`), não produto — e `boop_admin` é global por D-08 |
+| alvo = quem chama                | em `disable_profile`, é o auto-desligamento: sem caminho de volta na V0, com um único administrador, é a porta trancada por dentro                                                                                           |
+| perfil que não está `invited`    | trocar o papel de quem já trabalha no sistema não está na matriz, então não tem caminho                                                                                                                                      |
+
+`profiles` continua **sem policy e sem GRANT de UPDATE para ninguém**, inclusive
+`boop_admin`: `update profiles set role = 'boop_admin' where id = auth.uid()`
+segue impossível pela Data API. Há teste adversarial para cada recusa em
+`tests/rls/phase5-people-boundaries.test.ts`.
 
 ## Como provar que o isolamento vale
 

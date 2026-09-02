@@ -420,6 +420,58 @@ tenant. O seed da FASE 2 já materializa os três casos — inclusive um
 | D-10 | Tipografia e paleta definitivas (§34)                                                                 | Sistema de tokens neutro, decidido junto com a marca                                                           | FASE 8      |
 | D-11 | LGPD: base legal, política de privacidade e prazo de retenção                                         | Fora da V0; registrar dívida antes de produção                                                                 | FASE 20     |
 | D-12 | Métricas obrigatórias por canal em Resultados (§26)                                                   | Alcance, seguidores, visualizações, compartilhamentos, salvamentos + `extra` livre                             | FASE 14     |
+| D-13 | Existe caminho para REATIVAR quem foi desligado, ou para desarquivar um convite?                      | **Não na V0.** Ver abaixo                                                                                      | FASE 19     |
+| D-14 | O e-mail `welcome` (produto) entra junto do `invite` (auth)?                                          | **Não.** Só o `invite`, pelo Auth. Ver abaixo                                                                  | FASE 16     |
+| D-15 | `clients.slug` pode ser editado depois da criação?                                                    | **Não.** Identificador não muda. Ver abaixo                                                                    | FASE 19     |
+
+### D-13 — desligar não tem inverso na V0
+
+`disable_profile()` move `invited | active → disabled`, e nada volta. A matriz de
+`permissions.md` tem `user.disable` e **não tem** o oposto, então implementar o
+retorno seria inventar uma capacidade — e uma que concede acesso.
+
+Duas consequências que quem administra precisa saber:
+
+- **auto-desligamento é recusado pelo banco.** Com um único `boop_admin`, ele
+  seria a porta trancada por dentro. A tela também esconde o botão.
+- **reconvidar não reativa.** `inviteUser` recusa e-mail de perfil `disabled`
+  com `invite.user_disabled`, em vez de deixar o convite virar a porta lateral
+  que a decisão acima fechou.
+
+O caminho de volta hoje é `scripts/auth/provision-user.sh` ou SQL com a chave de
+serviço, na mão de uma pessoa. **Default se ninguém decidir o contrário:** fica
+assim até a FASE 19, quando o endurecimento de segurança revisita o ciclo de
+vida de pessoas por inteiro.
+
+### D-14 — o `welcome` não entrou com o `invite`
+
+O roadmap da FASE 5 pedia "`EmailService` mínimo (`invite`, `welcome`)". Entrou
+metade, e a metade certa: a [ADR-0010](adr/0010-email-auth-vs-produto.md) separa
+os dois caminhos — **autenticação** pelo Supabase Auth com SMTP customizado,
+**produto** pelo `EmailService` sobre a API do Resend, registrado em
+`notifications`.
+
+O convite carrega um link de autenticação, então é e-mail de autenticação e sai
+inteiro pelo Auth. O `welcome` é e-mail de produto: exigiria o adapter do Resend,
+a escrita em `notifications` (que não tem policy nem GRANT de INSERT) e uma
+fronteira SQL nova só para ela. Construir isso para **um** template contraria
+tanto a regra dos três casos reais quanto o §33 do briefing da fase.
+
+**Consequência prática:** nenhuma linha em `notifications` para o convite. O
+registro de que a Boop convidou alguém é `client.invited` no activity log; o
+registro de que o e-mail saiu é do Auth. A FASE 16 traz o `EmailService`, a
+tabela e o `welcome` juntos, que é quando eles se pagam.
+
+### D-15 — `slug` é imutável
+
+`clients.slug` é identificador interno e não aparece em URL do portal
+(`data-model.md`). Ele entra no `createClientSchema` e **não** no
+`updateClientSchema`: identificador que muda é identificador que precisa de
+histórico, e nada no M1 pede isso.
+
+Um slug errado se resolve criando o certo e arquivando o outro — barato enquanto
+os clientes se contam nos dedos. A tela de edição mostra o slug como texto, e não
+como campo desabilitado: campo desabilitado parece quebrado.
 
 ---
 
