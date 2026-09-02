@@ -1075,7 +1075,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      promote_invited_profile: { Args: never; Returns: string }
+      record_activity: {
+        Args: {
+          p_action: string
+          p_client_id?: string
+          p_entity_id?: string
+          p_entity_type: string
+          p_metadata?: Json
+          p_project_id?: string
+          p_visibility?: Database["public"]["Enums"]["activity_visibility"]
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       activity_visibility: "internal" | "client"
