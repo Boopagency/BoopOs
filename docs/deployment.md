@@ -200,6 +200,19 @@ para o callback com `token_hash`, e não para o `.ConfirmationURL` padrão:
 </a>
 ```
 
+**Confirmado em produção-like no QA da FASE 5.** Com o template padrão, os logs
+de borda do staging mostram a diferença exata entre os dois cliques:
+
+```
+/auth/v1/verify?token=e4cf5fad…&type=invite         → 303   (convite: sem sessão)
+/auth/v1/verify?token=pkce_ddef0559…&type=magiclink → 303
+POST /auth/v1/token?grant_type=pkce                 → 200   (Magic Link: sessão)
+```
+
+O token do convite não tem o prefixo `pkce_`, e depois dele **não há**
+`POST /auth/v1/token`: a sessão foi para o fragmento e se perdeu. A pessoa
+convidada vê "esse link não funciona mais" com o link intacto.
+
 **Por quê.** O Magic Link do `/login` nasce no navegador de quem pede: o
 `signInWithOtp` grava um verifier PKCE em cookie, e o callback troca `?code=` por
 sessão com ele. O convite nasce no SERVIDOR — a pessoa convidada nunca chamou

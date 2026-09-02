@@ -246,9 +246,38 @@ Registrado porque o log não mente e o documento não deve maquiar:
   verificado em transação desfeita, e o `profiles.updated_at` do desligamento
   bumpou normalmente —, então a ausência é do gesto, não do mecanismo. **A
   persistência da edição após refresh continua não verificada em produção-like.**
-- **Primeiro login de quem foi convidado.** `last_seen_at` da pessoa convidada é
-  nulo: o e-mail saiu, ninguém entrou por ele. O fluxo `token_hash → verifyOtp`
-  tem teste de unidade, mas não foi exercitado de ponta a ponta.
+- **Primeiro login de quem foi convidado.** Exercitado numa rodada posterior, e
+  **falhou** — por configuração, não por código. Ver abaixo.
+
+### O convite não entrava pelo primeiro link (causa: template)
+
+O QA seguinte convidou `ramon@…`, clicou no link do e-mail e caiu em "esse link
+não funciona mais". Pedindo um Magic Link normal na mesma tela, entrou.
+
+Os logs de borda do staging deram a causa sem margem:
+
+```
+19:30:45  /auth/v1/verify?token=e4cf5fad…&type=invite         → 303
+19:31:23  /auth/v1/verify?token=pkce_ddef0559…&type=magiclink → 303
+19:31:24  POST /auth/v1/token?grant_type=pkce                 → 200 ✅
+```
+
+O token do convite não tem o prefixo `pkce_` — um link nascido no servidor não
+tem code challenge —, e depois dele **não existe** troca de token. O GoTrue
+devolveu a sessão no fragmento da URL, que nunca chega ao servidor: o callback
+pousou sem parâmetro nenhum e respondeu `link_invalid`.
+
+Ou seja: o template do "Invite user" continuava o padrão, com
+`{{ .ConfirmationURL }}`. É exatamente o passo manual registrado em
+`docs/deployment.md` como "quebra em silêncio", e que não tinha sido aplicado.
+
+**O código do callback estava certo o tempo todo** e já tinha teste para o
+caminho `token_hash → verifyOtp`. O que mudou foi só o log: um request que chega
+sem parâmetro nenhum agora carrega a dica de fragmento implícito, para a próxima
+investigação começar no lugar certo em vez de procurar token expirado.
+
+Os `HEAD → 405` que aparecem antes de cada `GET` são scanner de e-mail e não
+consomem o token — descartada a hipótese de consumo prévio.
 
 ### Achado de segurança, corrigido nesta validação
 

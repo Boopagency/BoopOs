@@ -69,7 +69,27 @@ export async function GET(request: NextRequest) {
   const otpType = params.get('type')
 
   if (!code && !tokenHash) {
-    logger.warn('auth.callback_without_credential')
+    /*
+     * Chegar aqui SEM NENHUM parametro tem uma causa provavel e uma so, e vale
+     * nomea-la: o template de e-mail do Supabase ainda aponta para
+     * `{{ .ConfirmationURL }}`, que passa pelo `/auth/v1/verify` do GoTrue.
+     *
+     * Para um link nascido no SERVIDOR — o convite — nao existe code challenge
+     * PKCE, entao o GoTrue devolve a sessao no FRAGMENTO da URL
+     * (`#access_token=...`), e fragmento nunca chega ao servidor. O request
+     * pousa aqui limpo, e a pessoa ve "esse link nao funciona mais" quando o
+     * link esta perfeito e a configuracao e que nao esta.
+     *
+     * A distincao existe porque a mensagem sozinha manda depurar o lugar
+     * errado: um `?type=` invalido cai no ramo de baixo e e outra coisa.
+     * Ver docs/deployment.md#configuracao-do-auth-para-o-convite-fase-5.
+     */
+    const semQuery = [...params.keys()].length === 0
+
+    logger.warn('auth.callback_without_credential', {
+      ...(semQuery ? { hint: 'provavel_fragmento_implicito_template_padrao' } : {}),
+    })
+
     return failure('link_invalid')
   }
 

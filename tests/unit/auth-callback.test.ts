@@ -274,3 +274,43 @@ describe('GET /auth/callback — link de convite', () => {
     expect(location).toBe('https://boop.example/login?erro=link_invalid')
   })
 })
+
+/**
+ * A assinatura do bug que o QA da FASE 5 encontrou.
+ *
+ * O template padrao do Supabase manda a pessoa por `/auth/v1/verify`, e para um
+ * link nascido no servidor o GoTrue devolve a sessao no FRAGMENTO — que nunca
+ * chega ao servidor. O callback pousa sem parametro nenhum.
+ *
+ * O comportamento correto ja era falhar fechado; o que faltava era o request
+ * saber se nomear no log, para a proxima investigacao comecar no lugar certo.
+ */
+describe('GET /auth/callback — request sem credencial nenhuma', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    cookieStore.clear()
+    deleted.length = 0
+  })
+
+  it('⚠️ falha fechado e NAO chama o Supabase', async () => {
+    const { location } = await get('')
+
+    expect(exchangeCodeForSession).not.toHaveBeenCalled()
+    expect(verifyOtp).not.toHaveBeenCalled()
+    expect(location).toBe('https://boop.example/login?erro=link_invalid')
+  })
+
+  it('⚠️ um `?type=` sozinho, sem token_hash, tambem falha fechado', async () => {
+    const { location } = await get('?type=invite')
+
+    expect(verifyOtp).not.toHaveBeenCalled()
+    expect(location).toBe('https://boop.example/login?erro=link_invalid')
+  })
+
+  it('⚠️ `?erro=` do proprio Supabase vence e nao vira link_invalid generico', async () => {
+    const { location } = await get('?error=access_denied&error_code=otp_expired')
+
+    expect(verifyOtp).not.toHaveBeenCalled()
+    expect(location).toBe('https://boop.example/login?erro=link_expired')
+  })
+})
