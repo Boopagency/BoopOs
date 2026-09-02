@@ -216,15 +216,25 @@ não tem como ler `profiles` com o JWT do usuário — nem por `rpc`, porque o
 schema `app` também está revogado. Sem essa leitura não existe identidade, e
 sem identidade não existe FASE 3.
 
-**Resolução adotada:** leitura de identidade pela `service_role`, server-side,
-com filtro sempre no `id` da sessão validada e projeção mínima
-([ADR-0021](adr/0021-service-role-para-resolver-identidade.md)). Vale para
+**Resolução adotada na FASE 3:** leitura de identidade pela `service_role`,
+server-side, com filtro sempre no `id` da sessão validada e projeção mínima
+([ADR-0021](adr/0021-service-role-para-resolver-identidade.md)). Valia para
 `getActor`, `recordFirstLogin` e `logActivity`, e para nada além disso.
 
-A consequência precisa ficar dita: **nesta janela a segunda camada de
-autorização não contribui.** É o motivo de a FASE 3 não ligar nenhuma tela a
-dado real — o portal continua nos mocks. A dívida é datada e a revisão é
-obrigatória na FASE 4.
+**FECHADA na FASE 4**, no prazo que a própria ADR-0021 marcou. Os três pontos
+foram reabertos um a um e nenhum sobrou com `service_role`
+([ADR-0022](adr/0022-autorizacao-no-banco-e-fim-da-service-role-de-identidade.md)):
+
+- `getActor()` lê `profiles` pelo JWT, sob a policy `profiles_select`;
+- `recordFirstLogin()` chama `public.promote_invited_profile()` — `security
+definer`, sem parâmetro, uma transição só. `profiles` **não** ganhou policy
+  nem GRANT de UPDATE, porque `role` mora na mesma linha que `status`;
+- `logActivity()` chama `public.record_activity()`, que deriva `actor_id` de
+  `auth.uid()` e confere `client_id`/`project_id` contra o vínculo.
+
+`grep -rn createSupabaseAdminClient src/` devolve apenas o arquivo que define a
+`service_role`. A segunda camada de autorização voltou a contribuir: toda
+leitura de domínio da aplicação passa pela RLS.
 
 ---
 

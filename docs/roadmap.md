@@ -91,7 +91,7 @@ além disso: sem `clientIds`, sem vínculo, sem projeto. Enquanto a RLS não
 tiver políticas, `getActor()` lê `profiles` pela `service_role` — fronteira
 temporária, com revisão **obrigatória** na FASE 4.
 
-### FASE 4 — Multi-tenancy e RLS ⚠️ fase crítica
+### FASE 4 — Multi-tenancy e RLS ✅ ⚠️ fase crítica
 
 Funções `app.*`, políticas nas quatro operações de todas as tabelas, guards
 (`requireClientAccess`, `requireProjectAccess`), `can()` e a matriz de permissões
@@ -99,6 +99,25 @@ em código, suíte `tests/rls` completa, teste que falha se existir tabela sem R
 **Pronto quando:** todos os casos da [`permissions.md`](permissions.md#testes-obrigatórios)
 passam — inclusive os que devem falhar.
 **Nenhuma fase seguinte começa antes desta estar verde.**
+
+**Pronto:** 11 funções `app.*` (as 6 do desenho + 5 resolvedores para as tabelas
+sem `client_id`), policies e GRANTS nas 19 tabelas, `can()` puro, guards que
+consultam sob RLS, e 474 testes — 267 deles contra Postgres real. Documentado em
+[`authorization.md`](authorization.md).
+
+**A dívida da FASE 3 foi paga.** `service_role` não tem mais chamador em `src/`:
+`getActor()` lê pelo JWT, e as duas escritas que precisavam de privilégio viraram
+fronteiras nomeadas e menores
+([ADR-0022](adr/0022-autorizacao-no-banco-e-fim-da-service-role-de-identidade.md),
+que substitui a 0021). I-15 fechada.
+
+**O Actor continua identidade-only.** `clientIds` não entrou, e agora por
+decisão: escopo é estado do banco no instante do request.
+
+**Fica de dívida para a FASE 5:** RLS é row-level, não column-level —
+`clients.notes` e `content_versions.internal_notes` viajam na linha. Hoje nada
+as expõe (o portal lê mocks); ligar o dado real exige projeção explícita.
+Registrado em [`security.md`](security.md).
 
 ### FASE 5 — Admin e clientes
 

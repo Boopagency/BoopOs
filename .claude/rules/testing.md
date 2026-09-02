@@ -52,8 +52,12 @@ ver. Um teste que só verifica o caminho feliz não prova isolamento.
 - Usuário `disabled` perde acesso no request seguinte
 - Aprovação duplicada gera **um** registro
 - Alterar `client_id` de uma linha existente **falha**
-- Varredura: nenhuma tabela em `public` sem RLS e sem as quatro políticas
-- Varredura: `anon` e `authenticated` sem privilégio nenhum em `public`
+- Varredura: nenhuma tabela em `public` sem RLS e sem policy; policies e grants
+  batendo com a matriz declarada em `tests/rls/policy-matrix.test.ts`
+- Varredura: `anon` sem privilégio nenhum em `public`; `authenticated` só onde
+  há policy para acompanhar
+- Varredura: nenhuma policy `using (true)`; toda policy de UPDATE com `USING` e
+  `WITH CHECK`; toda policy mirando `authenticated` e decidindo por `app.*`
 - Varredura: toda tabela com `updated_at` tem o trigger; toda folha com
   `client_id` tem a derivação
 - Paridade: `pg_enum` bate com `src/config/enums.ts` (`tests/rls/enums.test.ts`)

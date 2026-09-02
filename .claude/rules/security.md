@@ -28,8 +28,30 @@ Raciocínio em [`docs/security.md`](../../docs/security.md). Aqui só o que é o
 - Magic Link com `shouldCreateUser: false`. Não existe cadastro público.
 - Erro do disparo nunca revela se a conta existe (`src/lib/auth/errors.ts`).
 - Logout é Server Action (POST). Nunca GET.
-- `service_role` para identidade é temporário e tem prazo: revisão obrigatória
-  na FASE 4 ([ADR-0021](../../docs/adr/0021-service-role-para-resolver-identidade.md)).
+- `service_role` **não tem chamador em `src/`** desde a FASE 4. `getActor()` lê
+  pelo JWT; o que precisa de privilégio passa por fronteira nomeada
+  ([ADR-0022](../../docs/adr/0022-autorizacao-no-banco-e-fim-da-service-role-de-identidade.md)).
+
+## Autorização (FASE 4)
+
+- Duas perguntas, duas camadas: `can(actor, capability)` responde por **papel**
+  (puro, `src/lib/auth/policy.ts`); `requireClientAccess`/`requireProjectAccess`
+  respondem por **escopo**, consultando sob RLS.
+- Guard não compara vínculo em TypeScript: **tenta ler o recurso pelo JWT**. A
+  mesma policy que protege a tabela responde ao guard.
+- O Actor **não** carrega `clientIds`. Escopo não vira estado de request.
+- Toda função `app.*`: `security definer`, `stable`, `search_path = ''`,
+  identidade de `(select auth.uid())` — **nunca** de argumento.
+- Tabela sem `client_id` ganha **uma** função que resolve o seu escopo. Nunca
+  subquery direta na policy: ela é filtrada pela RLS da tabela consultada.
+- Policy e GRANT nascem juntos. Operação impossível: sem policy **e** sem GRANT.
+- `strategy_approvals` e `content_approvals` não têm INSERT para **ninguém**,
+  `boop_admin` incluído. Aprovação é RPC validado (FASE 11).
+- `client_id` nulo (`activity_log`, `notifications`) exige decisão explícita no
+  predicado. Fail closed.
+- **RLS é row-level, não column-level.** Coluna interna na linha concedida vem
+  junto: `clients.notes` e `content_versions.internal_notes` dependem de
+  projeção explícita no servidor. Nunca `select *` em leitura client-facing.
 
 ## Toda escrita
 

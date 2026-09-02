@@ -90,9 +90,16 @@ existe.
 
 ## Row Level Security
 
+**Implementada na FASE 4.** A matriz por tabela, as funções e os guards estão em
+[`authorization.md`](authorization.md); aqui fica o desenho e o que é obrigatório.
+
 RLS habilitada em **todas** as tabelas de `public`, sem exceção. Políticas
 declaradas separadamente para `select`, `insert`, `update` e `delete`. Uma policy
 de SELECT **não** cobre UPDATE.
+
+Onde uma operação deve ser impossível, **não há policy e não há GRANT** — a
+ausência é decisão registrada, não esquecimento, e o teste de varredura confere
+a matriz inteira contra o catálogo do Postgres.
 
 ### Funções auxiliares
 
@@ -232,6 +239,14 @@ aprovar direto pela API, pulando a máquina de estados.
 
 Ignora toda a RLS. Tratada como chave de root.
 
+**Desde a FASE 4 ela não tem chamador em `src/`.** Os três usos da FASE 3
+(`getActor`, `recordFirstLogin`, `logActivity`) migraram para o caminho com RLS
+ou para fronteiras privilegiadas menores
+([ADR-0022](adr/0022-autorizacao-no-banco-e-fim-da-service-role-de-identidade.md)).
+`grep -rn createSupabaseAdminClient src/` devolve só o arquivo que a define. Ela
+volta a ter chamador quando houver uso legítimo — convite (FASE 5), Storage
+(FASE 12) —, nunca como atalho de autorização.
+
 - Vive **exclusivamente** em `src/lib/supabase/admin.ts`, cujo primeiro import é
   `server-only` — importar no cliente quebra o build.
 - **Nunca** `NEXT_PUBLIC_`. **Nunca** em Client Component. **Nunca** em log.
@@ -241,6 +256,44 @@ Ignora toda a RLS. Tratada como chave de root.
   admin no meio de um workflow.
 - Teste de lint falha se `SUPABASE_SERVICE_ROLE_KEY` aparecer fora daquele
   arquivo. Secret scanning e push protection ligados no GitHub.
+
+## O que a RLS **não** faz: coluna
+
+Registrado porque é a lacuna mais fácil de ler errado.
+
+**RLS é row-level, não column-level.** Quando a policy concede a linha, ela
+concede a linha inteira — todas as colunas. Duas colunas internas viajam nessa
+carona:
+
+| Coluna                            | Quem não pode ler | Por que a RLS não resolve                      |
+| --------------------------------- | ----------------- | ---------------------------------------------- |
+| `clients.notes`                   | `client_user`     | nota interna da Boop na mesma linha do cliente |
+| `content_versions.internal_notes` | `client_user`     | idem, na versão que o cliente precisa ver      |
+
+GRANT de coluna também não resolve: `authenticated` é **um papel só** para as
+três personas, então não há como conceder `notes` a `boop_member` e negar a
+`client_user` por privilégio.
+
+**A proteção efetiva é a projeção do lado do servidor** — nenhuma leitura
+client-facing seleciona essas colunas, e `select *` é proibido pela regra do
+repositório. Enquanto o portal lê mocks não existe caminho que as exponha.
+
+**Dívida datada: a FASE 5 é obrigada a fechar isso** ao ligar o dado real, com
+projeção explícita no `src/lib/data` ou uma view client-facing. Há teste em
+`tests/rls/internal-visibility.test.ts` que afirma a limitação: ele quebra no dia
+em que ela deixar de existir, obrigando a atualizar esta seção junto.
+
+## Achados do linter do Supabase — classificação
+
+Rodado em staging depois da FASE 4. **Zero achados de RLS**: nenhuma tabela sem
+política, nenhuma política sem RLS, nenhum GRANT indevido.
+
+| Achado                                                                                                | Nível | Classificação                                                                                                                                                                                                                                                               |
+| ----------------------------------------------------------------------------------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `authenticated_security_definer_function_executable` em `promote_invited_profile` e `record_activity` | WARN  | **Esperado.** É o desenho: as duas existem para ser chamadas por `rpc`. Ambas derivam identidade de `auth.uid()`, nenhuma aceita identidade por parâmetro, `anon` teve o EXECUTE revogado, e há teste adversarial para cada uma                                             |
+| `auth_leaked_password_protection`                                                                     | WARN  | **Não se aplica.** Não existe senha no produto: só Magic Link (D-06, [ADR-0009](adr/0009-autenticacao-magic-link-e-convites.md))                                                                                                                                            |
+| `unindexed_foreign_keys` (18)                                                                         | INFO  | **Um virou migration** — `onboarding_submissions.template_id`, medido por `explain` no caminho de `app.has_template_access()`. Os outros são `created_by`/`decided_by`/`author_id`: não estão em predicado de policy, e índice especulativo custa escrita sem pagar leitura |
+| `unused_index` (25)                                                                                   | INFO  | **Sem ação.** "Nunca usado" num staging sem tráfego não é sinal. Derrubar índice com base em banco ocioso é como apagar teste que nunca falhou                                                                                                                              |
 
 ## Uploads e arquivos
 

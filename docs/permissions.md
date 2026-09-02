@@ -134,14 +134,28 @@ Três lugares, nesta ordem. Nenhum deles é opcional.
 3. **RLS** — nega de novo no banco, mesmo que 1 e 2 tenham bug.
 
 ```ts
-// src/domains/content/content.policy.ts
-export function canApproveContentVersion(actor: Actor, v: ContentVersion): Result {
-  if (actor.role !== 'client_user') return deny('content.approve.only_client')
-  if (!actor.clientIds.includes(v.clientId)) return deny('content.access.denied')
-  if (v.status !== 'awaiting_client') return deny('content.version_not_pending')
-  return allow()
-}
+// src/lib/auth/policy.ts — a decisão de PAPEL, pura e em tabela
+can(actor, 'content.approve')
+// → { allowed: false, code: 'content.approve.denied' } para boop_admin
+
+// src/lib/auth/authorization.ts — a decisão de ESCOPO, contra o banco
+await requireClientAccess(clientId) // 404 se não alcança
 ```
+
+**O Actor não carrega `clientIds`.** Versões anteriores deste documento
+escreviam `actor.clientIds.includes(v.clientId)`, e isso mudou na FASE 4 por
+[ADR-0022](adr/0022-autorizacao-no-banco-e-fim-da-service-role-de-identidade.md):
+escopo é estado do banco no instante do request, e uma lista montada no início
+dele seria uma foto — revogar um vínculo no meio não teria efeito, e a aplicação
+passaria a ter uma segunda verdade sobre acesso competindo com a RLS.
+
+Quem responde escopo são `requireClientAccess()` e `requireProjectAccess()`, que
+perguntam **tentando ler o recurso pelo JWT**: se a RLS devolve a linha, o acesso
+existe. Ver [`authorization.md`](authorization.md).
+
+A validação de ESTADO (`v.status !== 'awaiting_client'`) pertence ao workflow de
+aprovação, que é a FASE 11 — e não existe policy de INSERT nas tabelas de
+aprovação justamente para que ela não possa ser pulada.
 
 Funções de policy são **puras**: sem I/O, sem banco. Isso as torna testáveis em
 tabela e rápidas.
@@ -170,3 +184,9 @@ Além dos casos da §38 da especificação:
 A matriz acima é executada como teste guiado por tabela: cada célula vira um caso
 em `tests/unit/permissions.matrix.test.ts`, e os caminhos de dado viram teste de
 RLS em `tests/rls/`. Ver [`../.claude/rules/testing.md`](../.claude/rules/testing.md).
+
+**Desde a FASE 4 isso é literal.** `tests/unit/permissions.matrix.test.ts`
+transcreve a tabela acima linha a linha — deliberadamente transcrita, e não
+importada de `policy.ts`: são duas escritas independentes da mesma regra, e o
+teste falha quando divergem. As linhas de `file.*`, `meeting.*`, `metrics.*` e
+`review.*` ainda não estão lá porque as tabelas não existem; entram com elas.

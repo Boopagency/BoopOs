@@ -12,25 +12,31 @@ para ele.
 
 Percepção-alvo: _"Eu sei exatamente o que está acontecendo com minha marca."_
 
-**Status atual: FASE 3 concluída e validada em staging — dá para entrar.**
-Magic Link com PKCE,
-sessão SSR em cookie, `proxy.ts` renovando o token, `getActor`/`requireActor`,
-rotas protegidas e logout. O banco da FASE 2 continua de pé: 19 tabelas, 16
-enums, 10 migrations, seed com dois tenants e 64 testes contra Postgres real.
-As onze telas do portal continuam lendo mocks: a troca para Supabase é a FASE 5.
+**Status atual: FASE 4 concluída — o isolamento entre clientes está provado.**
+15 migrations, 19 tabelas com RLS **e políticas**, 11 funções `app.*`, `can()`
+puro, guards que consultam sob RLS, e 474 testes (267 contra Postgres real).
+Fingerprint local ↔ staging idêntico nas nove partes, policies e grants
+incluídos.
 
-**A RLS está LIGADA e SEM POLÍTICAS.** Isso é negação por padrão — o baseline
-seguro —, não autorização. As políticas, as funções `app.has_client_access()` e
-a suíte de isolamento são a FASE 4.
+**As duas camadas de autorização valem agora.** `service_role` não tem mais
+chamador em `src/`: `getActor()` lê `profiles` pelo JWT, e as duas escritas que
+precisavam de privilégio viraram fronteiras nomeadas — `promote_invited_profile()`
+e `record_activity()`, ambas `security definer`, nenhuma aceitando identidade por
+parâmetro ([ADR-0022](docs/adr/0022-autorizacao-no-banco-e-fim-da-service-role-de-identidade.md),
+que substitui a 0021).
 
-**Autenticado não é autorizado.** A FASE 3 responde _quem é a pessoa_; a FASE 4
-responde _o que ela pode ver_. O Actor carrega identidade e não carrega
-`clientIds`, e enquanto não há políticas a leitura de identidade sai pela
-`service_role` — fronteira temporária, server-side, com revisão obrigatória na
-FASE 4 ([ADR-0021](docs/adr/0021-service-role-para-resolver-identidade.md)).
-Não leia "login funciona" como "seguro para multi-tenant".
+**O Actor carrega identidade, não escopo.** `clientIds` não entrou e não vai
+entrar: escopo é estado do banco no instante do request, e uma cópia na aplicação
+seria uma segunda verdade competindo com a RLS. Quem responde escopo é
+`requireClientAccess()`/`requireProjectAccess()`, perguntando ao banco.
 
-A próxima fase é a 4 (multi-tenancy e RLS) — o gargalo real.
+**Uma lacuna que é preciso saber ler:** RLS é row-level, não column-level.
+`clients.notes` e `content_versions.internal_notes` viajam na linha que a policy
+concede. Hoje nada as expõe — o portal ainda lê mocks —, e fechar isso com
+projeção explícita é obrigação da FASE 5
+([`docs/security.md`](docs/security.md)).
+
+A próxima fase é a 5 (admin e clientes), e é ela que liga as telas ao Supabase.
 
 ## Vocabulário
 
@@ -73,6 +79,7 @@ compatibilidade verificada com `typescript-eslint` e `eslint-config-next`.
 | Migrations, seed, triggers, rodar e testar o banco    | [`docs/database.md`](docs/database.md)                 |
 | RLS, uploads, secrets, ameaças                        | [`docs/security.md`](docs/security.md)                 |
 | Quem pode o quê                                       | [`docs/permissions.md`](docs/permissions.md)           |
+| Funções `app.*`, policies, guards, `can()`            | [`docs/authorization.md`](docs/authorization.md)       |
 | Contrato de workflow e catálogo de eventos            | [`docs/workflows.md`](docs/workflows.md)               |
 | Resend, Notion, calendário                            | [`docs/integrations.md`](docs/integrations.md)         |
 | Ambientes, variáveis, migrations, CI                  | [`docs/deployment.md`](docs/deployment.md)             |
@@ -160,7 +167,8 @@ src/app/          (auth) login · bem-vindo   (portal) portal/[projectId]/…   
 src/components/   ui/ (primitivos) · layout/ (cascas) · brand/ (logo, olhos, nuvens)
                   patterns/ (composições de produto)
 src/config/       app.ts (produto) · enums.ts (taxonomias) · env.ts (environment)
-src/lib/          auth/ (actor, actions, first-login, errors, routes) · data/ (acesso)
+src/lib/          auth/ (actor, actions, first-login, errors, routes, policy, authorization)
+                  data/ (acesso)
                   activity/ · logging/ · supabase/ (fronteira) · cn.ts · format.ts
 src/proxy.ts      renova a sessão. NÃO autoriza (ADR-0020)
 src/mocks/        dados fictícios — a ÚNICA fonte, e nenhum componente a importa
@@ -206,8 +214,10 @@ Uma tarefa só está pronta quando **tudo** abaixo é verdade:
 
 1. **Uma fase por vez.** Não avance sem terminar a anterior. O roadmap é ordem,
    não sugestão.
-2. **Segurança antes de tela.** A FASE 4 (multi-tenancy + RLS) é o gargalo real:
-   nada depois dela começa antes de a suíte de isolamento estar verde.
+2. **Segurança antes de tela.** A FASE 4 (multi-tenancy + RLS) era o gargalo
+   real, e está verde. Toda tabela nova daqui em diante nasce com RLS, quatro
+   decisões de policy (ainda que a decisão seja "não existe") e teste de
+   isolamento aos pares — o teste de varredura falha se faltar.
 3. **Diante de duas soluções válidas, escolha a mais simples, mais segura e mais
    fácil de manter** — sem fechar a porta para a evolução.
 4. **Antes de criar abstração, pergunte se existem três casos reais.** Ver a lista

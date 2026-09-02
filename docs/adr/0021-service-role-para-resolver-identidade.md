@@ -1,7 +1,14 @@
 # ADR-0021 — `service_role` para resolver identidade até a FASE 4
 
-**Status:** aceito, **temporário** · **Data:** 2026-09-02 · **Fase:** 3
-**Revisão obrigatória:** FASE 4
+**Status:** ~~aceito, temporário~~ → **substituída** por
+[ADR-0022](0022-autorizacao-no-banco-e-fim-da-service-role-de-identidade.md)
+· **Data:** 2026-09-02 · **Fase:** 3
+**Revisão obrigatória:** FASE 4 — **feita.** Os três pontos migraram para o
+caminho com RLS; `service_role` não tem mais chamador em `src/`.
+
+> O texto abaixo fica como estava: ADR aceita não se reescreve, substitui-se
+> (CLAUDE.md). Ele descreve com precisão a janela entre as FASES 3 e 4 e a
+> razão de ela ter existido.
 
 ## Contexto
 
