@@ -12,7 +12,8 @@ para ele.
 
 Percepção-alvo: _"Eu sei exatamente o que está acontecendo com minha marca."_
 
-**Status atual: FASE 3 concluída — dá para entrar.** Magic Link com PKCE,
+**Status atual: FASE 3 concluída e validada em staging — dá para entrar.**
+Magic Link com PKCE,
 sessão SSR em cookie, `proxy.ts` renovando o token, `getActor`/`requireActor`,
 rotas protegidas e logout. O banco da FASE 2 continua de pé: 19 tabelas, 16
 enums, 10 migrations, seed com dois tenants e 64 testes contra Postgres real.

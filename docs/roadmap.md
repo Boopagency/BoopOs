@@ -78,8 +78,10 @@ logout, `getActor`/`requireActor`, `recordFirstLogin`, signup público desligado
 redireciona para `/login`.
 
 **Pronto:** o fluxo inteiro existe — link, callback PKCE, sessão em cookie,
-Actor, guard, logout — com 90 testes de autenticação e o bundle do cliente
-conferido (nem service role, nem cliente administrativo). Documentado em
+Actor, guard, logout — com 66 testes de autenticação e o bundle do cliente
+conferido (nem service role, nem cliente administrativo). **Validado no
+ambiente hospedado** em 2026-09-02: Vercel contra o `boop-os-staging`, com
+e-mail real, do pedido do link ao logout. Documentado em
 [`authentication.md`](authentication.md); as duas decisões da fase viraram
 [ADR-0020](adr/0020-proxy-renova-sessao-e-nao-autoriza.md) e
 [ADR-0021](adr/0021-service-role-para-resolver-identidade.md).

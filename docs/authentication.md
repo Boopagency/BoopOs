@@ -13,8 +13,31 @@ A promessa desta camada cabe em uma frase:
 
 ## Estado atual
 
-**FASE 3 concluída.** Magic Link com PKCE, sessão SSR em cookie, `proxy.ts`
-renovando o token, `getActor()`/`requireActor()`, rotas protegidas e logout.
+**FASE 3 concluída e validada no ambiente hospedado** (2026-09-02). Magic Link
+com PKCE, sessão SSR em cookie, `proxy.ts` renovando o token,
+`getActor()`/`requireActor()`, rotas protegidas e logout.
+
+O ciclo completo foi exercitado contra o `boop-os-staging`, pela Vercel, com
+uma caixa de entrada real: link pedido, link aberto, `code` trocado por sessão,
+perfil promovido de `invited` para `active`, `user.joined` registrado, rota
+protegida acessada, logout, e rota protegida negada depois dele.
+
+### Como conferir que um login realmente aconteceu
+
+Útil para depurar sem depender do que a tela disse. Três lugares, nesta ordem:
+
+| Onde                         | O que prova                                          |
+| ---------------------------- | ---------------------------------------------------- |
+| `auth.audit_log_entries`     | o rastro do GoTrue: envio do link, `login`, `logout` |
+| `auth.users.last_sign_in_at` | a sessão foi de fato emitida                         |
+| `public.activity_log`        | `user.joined` — o primeiro login, e só o primeiro    |
+
+Um detalhe do rastro que vale reconhecer: o PKCE aparece como **dois** eventos
+`login` com centenas de milissegundos entre eles — o `/auth/v1/verify` e a
+troca do `code` por sessão. Um único evento indicaria outro fluxo.
+
+Depois de um logout limpo, `auth.sessions`, `auth.refresh_tokens` e
+`auth.flow_state` ficam em zero: sessão encerrada, e nenhum fluxo PKCE pendurado.
 
 **A autorização multi-tenant NÃO está pronta.** A RLS continua ligada e sem
 políticas, e o Actor desta fase carrega identidade — não carrega escopo. Saber
