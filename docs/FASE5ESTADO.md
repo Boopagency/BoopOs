@@ -121,7 +121,9 @@ enumeraria tenants pela diferença entre as duas respostas.
 
 ## Banco
 
-**Uma migration nova:** `20260902160001_people_administration_boundaries.sql`.
+**Duas migrations novas.**
+
+`20260902160001_people_administration_boundaries.sql`
 
 Duas funções `security definer`, que são o gatilho de revisão que a ADR-0022
 deixou marcado — "uma operação de administração de pessoas (FASE 5) que exija
@@ -131,7 +133,14 @@ escrever `profiles` fora da promoção":
 - `disable_profile(uuid)` — o desligamento
 
 `profiles` continua **sem policy e sem GRANT de UPDATE para ninguém**, inclusive
-`boop_admin`. Nenhuma tabela nova, nenhuma policy alterada, nenhum GRANT novo.
+`boop_admin`.
+
+`20260902170001_immutable_authorship.sql` — o achado da validação hospedada. Duas
+funções de trigger em 19 gatilhos, cobrindo `created_at` e as colunas de autoria
+em 12 tabelas. Ver a seção da validação acima.
+
+Nenhuma tabela nova, nenhuma policy alterada, nenhum GRANT novo em nenhuma das
+duas.
 
 **As três recusas que estão no corpo das funções**, e não em policy: `boop_admin`
 como valor de papel; alvo igual a quem chama; perfil que não está `invited`. Cada
@@ -142,7 +151,9 @@ um `if` que sumisse num refactor não quebraria nenhum outro teste.
 
 ## Testes
 
-**474 → 622** (+148). Todos os 474 anteriores continuam verdes, sem edição.
+**474 → 628** (+154). Todos os 474 anteriores continuam verdes, sem edição — e
+um deles, `quem deixou rastro no log não pode ser apagado` (FASE 2), foi quem
+apontou que a primeira versão da correção de autoria estava larga demais.
 
 | Arquivo                                      | Casos | O que prende no lugar                             |
 | -------------------------------------------- | ----: | ------------------------------------------------- |
@@ -198,17 +209,94 @@ Dois testes merecem nota:
 - Estado após a validação: 0 clientes, 1 pessoa (o usuário de teste da FASE 3).
   Nada foi deixado para trás.
 
+### Validação hospedada — concluída
+
+O QA na Vercel contra o `boop-os-staging` foi executado e o activity log guarda o
+rastro completo. O que ele exercitou, na ordem em que aconteceu:
+
+| #   | Evento               | Quando   | O que provou                                           |
+| --- | -------------------- | -------- | ------------------------------------------------------ |
+| 1   | `user.joined`        | 02:50    | primeiro login do admin, promoção `invited → active`   |
+| 2   | `client.created`     | 16:40:11 | criação pela UI, com `notes` preenchida no mesmo gesto |
+| 3   | `membership.granted` | 16:40:46 | vínculo criado pelo JWT do admin                       |
+| 4   | `client.invited`     | 16:40:46 | `email_sent: true`, `role_applied: true`               |
+| 5   | `user.disabled`      | 16:43:05 | `disable_profile()` no caminho real                    |
+
+O `email_sent: true` é a confirmação de que as ações manuais do painel (SMTP
+customizado e template com `{{ .TokenHash }}`) foram feitas e funcionam: o
+convite saiu de verdade.
+
+**O caminho HTTP do PostgREST está validado.** Foi ele que executou tudo acima —
+o que esta sessão não conseguiu exercitar diretamente, o QA hospedado exercitou.
+
+Conferido depois, contra os dados reais que o QA deixou:
+
+- projeção client-facing sobre o cliente real **não** traz `notes`;
+- `client_user` vê 1 cliente (o próprio), **0** eventos do log, **1** perfil (o
+  dele) e **1** vínculo (o dele);
+- `client_user` editando o próprio cliente: **0 linhas**, filtrado pela policy;
+- auto-concessão de vínculo: recusada com `42501`.
+
+### Dois passos do checklist que o QA não exercitou
+
+Registrado porque o log não mente e o documento não deve maquiar:
+
+- **Editar o cliente (passos 4 e 7).** Não há `client.updated` no log, e
+  `updated_at = created_at` na linha. O trigger de `updated_at` funciona — foi
+  verificado em transação desfeita, e o `profiles.updated_at` do desligamento
+  bumpou normalmente —, então a ausência é do gesto, não do mecanismo. **A
+  persistência da edição após refresh continua não verificada em produção-like.**
+- **Primeiro login de quem foi convidado.** `last_seen_at` da pessoa convidada é
+  nulo: o e-mail saiu, ninguém entrou por ele. O fluxo `token_hash → verifyOtp`
+  tem teste de unidade, mas não foi exercitado de ponta a ponta.
+
+### Achado de segurança, corrigido nesta validação
+
+Ao conferir os invariantes contra o staging, apareceu uma lacuna que a FASE 5
+tornou alcançável: **a policy decide quais LINHAS podem ser escritas, nunca
+quais COLUNAS**. Reproduzido pelo papel `authenticated`, com a identidade de um
+`boop_admin` real:
+
+```
+update public.clients set created_at = '2000-01-01' → 1 linha
+update public.clients set created_by = null         → 1 linha
+```
+
+Não é isolamento entre tenants nem escalada de privilégio — quem consegue já
+alcançava a linha. É **integridade de auditoria**: falsificar quem criou uma
+conta e quando. A varredura encontrou o mesmo padrão em 12 tabelas, todas com
+GRANT de UPDATE desde a FASE 4.
+
+Corrigido em `20260902170001_immutable_authorship.sql`, com duas regras porque
+há dois comportamentos legítimos:
+
+| Regra                                 | Colunas                   | Por quê                                                         |
+| ------------------------------------- | ------------------------- | --------------------------------------------------------------- |
+| estrita (`enforce_immutable_columns`) | `created_at`              | nada a altera, nunca                                            |
+| não-reatribuível (função nova)        | `created_by`, `author_id` | `alguém → null` é o `on delete set null` da FK e precisa passar |
+
+A segunda regra só apareceu porque a suíte da FASE 2 quebrou: um trigger estrito
+em `created_by` tornaria impossível apagar qualquer pessoa que já tivesse criado
+alguma coisa, e trocaria o `23503` que a ADR-0019 afirma por um `23514` de outra
+causa. A regra certa é mais precisa do que "imutável" — autoria pode ser limpa,
+nunca reatribuída.
+
+`onboarding_submissions.submitted_by` ficou de fora de propósito: nasce nulo e é
+preenchido no UPDATE que submete o onboarding (FASE 7).
+
+Sete casos novos em `tests/rls/phase5-immutable-authorship.test.ts`, incluindo
+uma varredura que falha sozinha se uma tabela futura ganhar UPDATE sem o trigger.
+
 ### O que NÃO foi validado, e por quê
 
-**O caminho HTTP do PostgREST não foi exercitado desta sessão.** Duas razões
-somadas: não há daemon Docker (o banco local caiu no plano B — Postgres nu, sem
-PostgREST), e a política de rede deste ambiente recusa CONNECT para
-`njlkuzrppnwkgrdacmos.supabase.co` (403 no proxy).
+**Nada de PostgREST, a partir DESTA SESSÃO.** Não há daemon Docker (o banco
+local cai no plano B — Postgres nu, sem PostgREST) e a política de rede deste
+ambiente recusa CONNECT para `njlkuzrppnwkgrdacmos.supabase.co` (403 no proxy).
 
-O que ficou provado sem ele: as policies, os grants, os predicados e as
-projeções, contra o Postgres do staging. O que fica para o QA manual: a
-serialização do `supabase-js`, o embed de `profiles` em `client_memberships`, e o
-fluxo de sessão ponta a ponta. É o item 1 do checklist.
+Isso deixou de ser um buraco: o QA hospedado percorreu o caminho HTTP inteiro, e
+os cinco eventos do activity log são a prova. O que resta descoberto são os dois
+passos que o QA não fez — editar um cliente e entrar pelo link do convite —,
+listados acima.
 
 ---
 

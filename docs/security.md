@@ -329,6 +329,41 @@ deles falhar, a limitação deixou de existir e esta seção precisa ser reescri
 `INTERNAL_FIELDS`. A primeira leitura client-facing de versão de conteúdo
 (FASE 10) já nasce sob a mesma trava — o compilador cobra antes da revisão.
 
+## Coluna, de novo: a policy não decide quais colunas (FASE 5)
+
+Achado na validação hospedada da FASE 5, e o irmão do problema acima — só que do
+lado da ESCRITA.
+
+`authenticated` tem GRANT de UPDATE nas tabelas de domínio, e a policy decide
+QUAIS LINHAS. Nenhuma delas diz nada sobre colunas. Quem passa por
+`clients_update` reescrevia a linha inteira, `created_at` e `created_by`
+incluídos — e a única coisa entre isso e a Data API era a aplicação não pedir.
+
+Não é isolamento entre tenants nem escalada: quem consegue já alcançava a linha.
+É **integridade de auditoria**, e num sistema cujo valor está em registrar
+decisões, um `created_by` que aceita ser reescrito vale menos que nenhum.
+
+Corrigido com trigger, em duas regras — porque há dois comportamentos legítimos:
+
+| Regra                                                        | Colunas                   | Por quê                                                         |
+| ------------------------------------------------------------ | ------------------------- | --------------------------------------------------------------- |
+| estrita — `app.enforce_immutable_columns()`                  | `created_at`              | nada a altera, nunca                                            |
+| não-reatribuível — `app.enforce_authorship_not_reassigned()` | `created_by`, `author_id` | `alguém → null` é o `on delete set null` da FK e precisa passar |
+
+A segunda regra existe porque a primeira versão da correção quebrou a suíte da
+FASE 2: um trigger estrito em `created_by` tornaria impossível apagar qualquer
+pessoa que já tivesse criado alguma coisa, e trocaria o `23503` que a ADR-0019
+afirma por um `23514` de outra causa. Autoria pode ser **limpa**, nunca
+**reatribuída**.
+
+`onboarding_submissions.submitted_by` fica fora: nasce nulo e é preenchido no
+UPDATE que submete o onboarding (FASE 7).
+
+**A regra geral, para as fases seguintes:** tabela que ganhe GRANT de UPDATE
+ganha junto o trigger de autoria. A varredura em
+`tests/rls/phase5-immutable-authorship.test.ts` falha sozinha se alguém
+esquecer.
+
 ## Achados do linter do Supabase — classificação
 
 Rodado em staging depois da FASE 4 e de novo depois da FASE 5. **Zero achados de

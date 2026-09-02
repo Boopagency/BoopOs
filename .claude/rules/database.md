@@ -13,6 +13,10 @@ Raciocínio em [`docs/data-model.md`](../../docs/data-model.md) e
   - políticas explícitas para `select`, `insert`, `update` e `delete`;
   - `created_at`/`updated_at` + trigger de `updated_at`;
   - `client_id` (quando for tabela de domínio) + trigger que o deriva do pai;
+  - trigger de autoria quando houver `created_at`/`created_by`: `created_at` é
+    estrito, autoria é **não-reatribuível** (pode virar nula pelo
+    `on delete set null` da FK, nunca apontar para outra pessoa). Policy decide
+    LINHA, nunca COLUNA — há varredura que cobra;
   - índices para os caminhos de leitura reais.
 - Depois de mexer no schema: `pnpm db:reset && pnpm db:types` e commite
   `database.types.ts`. Ele é **gerado**: não edite, não formate, não linte.
