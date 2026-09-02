@@ -4,6 +4,13 @@ import { defineConfig } from 'vitest/config'
 
 const alias = {
   '@': fileURLToPath(new URL('./src', import.meta.url)),
+  /*
+   * `server-only` existe para quebrar o build quando um modulo de servidor e
+   * importado do browser. Fora do Next nao ha condicao `react-server`, entao
+   * ele lancaria em todo teste que toca a camada de auth. O proprio pacote
+   * publica o stub vazio que o Next usa nesse caso.
+   */
+  'server-only': fileURLToPath(new URL('./node_modules/server-only/empty.js', import.meta.url)),
 }
 
 /**

@@ -69,13 +69,25 @@ funciona ponta a ponta, e a impressão digital do schema local bate com a do
 seguro, não a autorização. As políticas são a FASE 4, e nada antes disso deve
 ser lido como "o banco está protegido para multi-tenant".
 
-### FASE 3 — Autenticação
+### FASE 3 — Autenticação ✅
 
 Magic Link com PKCE, `@supabase/ssr`, renovação de sessão no `proxy.ts`,
 `/login`, callback,
 logout, `getActor`/`requireActor`, `recordFirstLogin`, signup público desligado.
 **Pronto quando:** dá para entrar por link e sair; rota protegida sem sessão
 redireciona para `/login`.
+
+**Pronto:** o fluxo inteiro existe — link, callback PKCE, sessão em cookie,
+Actor, guard, logout — com 90 testes de autenticação e o bundle do cliente
+conferido (nem service role, nem cliente administrativo). Documentado em
+[`authentication.md`](authentication.md); as duas decisões da fase viraram
+[ADR-0020](adr/0020-proxy-renova-sessao-e-nao-autoriza.md) e
+[ADR-0021](adr/0021-service-role-para-resolver-identidade.md).
+
+**O Actor carrega identidade, não escopo.** Ele responde "quem é", e nada
+além disso: sem `clientIds`, sem vínculo, sem projeto. Enquanto a RLS não
+tiver políticas, `getActor()` lê `profiles` pela `service_role` — fronteira
+temporária, com revisão **obrigatória** na FASE 4.
 
 ### FASE 4 — Multi-tenancy e RLS ⚠️ fase crítica
 

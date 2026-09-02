@@ -4,6 +4,8 @@ import { Container } from '@/components/layout/container'
 export interface ShellProps {
   /** Contexto em que o usuario esta: "Client Portal", "Admin". */
   context: string
+  /** Acao do canto direito — hoje "Sair", passada pelo layout autenticado. */
+  action?: ReactNode
   children: ReactNode
 }
 
@@ -15,7 +17,7 @@ export interface ShellProps {
  * e decidida na FASE 2 — ver docs/product.md. Cada contexto tem seu proprio
  * layout, entao divergir daqui depois nao exige refatorar o outro.
  */
-export function Shell({ context, children }: ShellProps) {
+export function Shell({ context, action, children }: ShellProps) {
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="border-border bg-surface border-b">
@@ -25,6 +27,7 @@ export function Shell({ context, children }: ShellProps) {
             /
           </span>
           <span className="text-muted text-sm">{context}</span>
+          {action && <div className="ml-auto">{action}</div>}
         </Container>
       </header>
 

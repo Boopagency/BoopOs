@@ -4,6 +4,7 @@ import { BoopEyes } from '@/components/brand/boop-eyes'
 import { BoopMark } from '@/components/brand/boop-mark'
 import { CloudLayer } from '@/components/brand/cloud-layer'
 import { portalHref } from '@/config/app'
+import { requireActor } from '@/lib/auth/actor'
 import { DEMO_PROJECT_ID, getProject } from '@/lib/data/portal'
 
 export const metadata: Metadata = { title: 'Bem-vindas' }
@@ -19,6 +20,9 @@ export const metadata: Metadata = { title: 'Bem-vindas' }
  * reaparece quando tem função: atenção, espera, vazio, aprovação.
  */
 export default async function WelcomePage() {
+  /* Primeiro acesso e uma tela de dentro do produto: exige sessao. */
+  await requireActor()
+
   const project = await getProject(DEMO_PROJECT_ID)
 
   return (

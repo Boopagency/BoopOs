@@ -1,7 +1,11 @@
 import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
+import { LoginForm } from '@/app/(auth)/login/login-form'
 import { BoopMark } from '@/components/brand/boop-mark'
 import { CloudLayer } from '@/components/brand/cloud-layer'
-import { LoginForm } from '@/app/(auth)/login/login-form'
+import { getActor } from '@/lib/auth/actor'
+import { loginErrorFromParam } from '@/lib/auth/errors'
+import { AFTER_LOGIN_PATH, safeNextPath } from '@/lib/auth/routes'
 
 export const metadata: Metadata = { title: 'Entrar' }
 
@@ -13,9 +17,24 @@ export const metadata: Metadata = { title: 'Entrar' }
  * off-white encostada na direita, como a lombada de um impresso.
  *
  * Nao ha senha, e isso e arquitetura, nao economia de tela: a autenticacao do
- * Boop OS e Magic Link (ADR-0009). O formulario ja reflete o produto real.
+ * Boop OS e Magic Link (ADR-0009).
  */
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string; erro?: string }>
+}) {
+  const { next, erro } = await searchParams
+  const safeNext = safeNextPath(next)
+
+  /*
+   * Quem ja esta dentro nao ve a tela de login. Perfil `disabled` ou
+   * `invited` nao entra nesta condicao: para essas pessoas o login e
+   * justamente onde a mensagem aparece, e nao um redirect em circulo.
+   */
+  const actor = await getActor()
+  if (actor?.status === 'active') redirect(safeNext ?? AFTER_LOGIN_PATH)
+
   return (
     <main id="main" className="on-inverse bg-navy relative isolate min-h-dvh overflow-hidden">
       <CloudLayer density="horizon" className="opacity-30 mix-blend-screen" />
@@ -43,7 +62,7 @@ export default function LoginPage() {
 
         {/* Formulario */}
         <div className="bg-background relative flex items-center px-6 py-16 sm:px-10 lg:px-14">
-          <LoginForm />
+          <LoginForm next={safeNext ?? undefined} initialError={loginErrorFromParam(erro)} />
         </div>
       </div>
     </main>

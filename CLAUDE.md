@@ -12,18 +12,24 @@ para ele.
 
 Percepção-alvo: _"Eu sei exatamente o que está acontecendo com minha marca."_
 
-**Status atual: FASE 2 concluída — o banco existe.** 19 tabelas, 16 enums, 10
-migrations, seed com dois tenants fictícios e 64 testes contra Postgres real.
-`boop-os-staging` está em `sa-east-1` e tem o mesmo schema, conferido hash a
-hash. As onze telas do portal continuam lendo mocks: a troca para Supabase é a
-FASE 5.
+**Status atual: FASE 3 concluída — dá para entrar.** Magic Link com PKCE,
+sessão SSR em cookie, `proxy.ts` renovando o token, `getActor`/`requireActor`,
+rotas protegidas e logout. O banco da FASE 2 continua de pé: 19 tabelas, 16
+enums, 10 migrations, seed com dois tenants e 64 testes contra Postgres real.
+As onze telas do portal continuam lendo mocks: a troca para Supabase é a FASE 5.
 
 **A RLS está LIGADA e SEM POLÍTICAS.** Isso é negação por padrão — o baseline
 seguro —, não autorização. As políticas, as funções `app.has_client_access()` e
-a suíte de isolamento são a FASE 4. Até lá o acesso é só server-side por
-`service_role`. Não leia "RLS em 19/19 tabelas" como "seguro para multi-tenant".
+a suíte de isolamento são a FASE 4.
 
-A próxima fase é a 3 (autenticação).
+**Autenticado não é autorizado.** A FASE 3 responde _quem é a pessoa_; a FASE 4
+responde _o que ela pode ver_. O Actor carrega identidade e não carrega
+`clientIds`, e enquanto não há políticas a leitura de identidade sai pela
+`service_role` — fronteira temporária, server-side, com revisão obrigatória na
+FASE 4 ([ADR-0021](docs/adr/0021-service-role-para-resolver-identidade.md)).
+Não leia "login funciona" como "seguro para multi-tenant".
+
+A próxima fase é a 4 (multi-tenancy e RLS) — o gargalo real.
 
 ## Vocabulário
 
@@ -92,8 +98,10 @@ vive em `.claude/rules/`. Ao mudar uma decisão, atualize os dois no mesmo PR.
   `delete`. Policy de UPDATE sempre com `USING` **e** `WITH CHECK`.
 - `client_id` nunca vem do input: é derivado do pai por trigger e é imutável.
 - Recurso inacessível responde **404**, não 403.
-- `proxy.ts` renova sessão. Não decide autorização. (No Next 16 o antigo
-  `middleware.ts` está depreciado — ver [I-14](docs/spec-review.md).)
+- `proxy.ts` renova sessão. Não decide autorização ([ADR-0020](docs/adr/0020-proxy-renova-sessao-e-nao-autoriza.md)).
+  Quem protege rota é `requireActor()` no servidor de render.
+- Identidade vem sempre de `supabase.auth.getUser()`. `userId`, `role` ou
+  `clientId` vindos do navegador não têm autoridade sobre nada.
 
 **Domínio**
 
@@ -151,12 +159,14 @@ src/app/          (auth) login · bem-vindo   (portal) portal/[projectId]/…   
 src/components/   ui/ (primitivos) · layout/ (cascas) · brand/ (logo, olhos, nuvens)
                   patterns/ (composições de produto)
 src/config/       app.ts (produto) · enums.ts (taxonomias) · env.ts (environment)
-src/lib/          data/ (camada de acesso) · logging/ · supabase/ (fronteira)
-                  cn.ts · format.ts
+src/lib/          auth/ (actor, actions, first-login, errors, routes) · data/ (acesso)
+                  activity/ · logging/ · supabase/ (fronteira) · cn.ts · format.ts
+src/proxy.ts      renova a sessão. NÃO autoriza (ADR-0020)
 src/mocks/        dados fictícios — a ÚNICA fonte, e nenhum componente a importa
 supabase/         migrations/ (forward-only, a fonte do schema) · seed.sql · config.toml
 scripts/db/       dev-db.sh (escolhe o motor) · local-postgres.sh + auth-shim.sql
                   (plano B sem Docker) · fingerprint.sql (comparar dois bancos)
+scripts/auth/     provision-user.sh — cria pessoa pela Admin API (sem signup público)
 tests/unit/       lógica pura       tests/component/  Testing Library
 tests/rls/        o que exige Postgres de verdade: schema, enums, invariantes, seed
 ```

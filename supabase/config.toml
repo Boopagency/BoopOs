@@ -155,11 +155,16 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+site_url = "http://localhost:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# FASE 3: o callback do PKCE. Lista exata, sem curinga — um wildcard aqui
+# aceitaria qualquer host que o atacante conseguisse fazer o Supabase chamar.
+additional_redirect_urls = [
+  "http://localhost:3000/auth/callback",
+  "http://127.0.0.1:3000/auth/callback",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -171,8 +176,10 @@ enable_refresh_token_rotation = true
 # Allows refresh tokens to be reused after expiry, up to the specified interval in seconds.
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
-# Allow/disallow new user signups to your project.
-enable_signup = true
+# Nao existe cadastro publico no Boop OS: todo acesso nasce de convite
+# (ADR-0009). Desligado aqui e, obrigatoriamente, tambem no painel do
+# projeto hospedado — este arquivo governa apenas o ambiente local.
+enable_signup = false
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
@@ -195,7 +202,9 @@ password_requirements = ""
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
-email_sent = 2
+# 2/h e o default do CLI e inviabiliza testar o fluxo localmente. Vale so aqui:
+# o limite do projeto hospedado e o do painel do Supabase.
+email_sent = 30
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
@@ -216,8 +225,8 @@ web3 = 30
 # secret = ""
 
 [auth.email]
-# Allow/disallow new user signups via email to your project.
-enable_signup = true
+# Idem: sem cadastro publico por e-mail (ADR-0009).
+enable_signup = false
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
@@ -230,7 +239,9 @@ max_frequency = "1s"
 # Number of characters used in the email OTP.
 otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
-otp_expiry = 3600
+# 15 minutos. A tela de login diz isso em texto; divergir seria mentir para
+# o cliente e alargar a janela de um link encaminhado (docs/spec-review.md R-12).
+otp_expiry = 900
 
 # Use a production-ready SMTP server
 # [auth.email.smtp]

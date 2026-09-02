@@ -200,12 +200,31 @@ inalterada. Vale para os dois lados do par: `docs/` e `.claude/rules/`. Nenhum
 arquivo foi criado — só os nomes foram acertados, para que a FASE 3 não nasça
 escrevendo um arquivo depreciado.
 
-**Fica em aberto para a FASE 3, por ADR:** se esse arquivo deve existir. O
-`@supabase/ssr` precisa renovar a sessão em algum lugar, e o padrão documentado
-pelo Supabase usa exatamente este ponto — mas o Next agora empurra na direção
-contrária. A alternativa é renovar dentro de cada rota, o que espalha a
-responsabilidade e é fácil de esquecer numa rota nova. A decisão, com o
-trade-off escrito, é da fase que criar o arquivo.
+**Fechada na FASE 3 por [ADR-0020](adr/0020-proxy-renova-sessao-e-nao-autoriza.md):**
+o arquivo existe, com escopo mínimo — renova a sessão e redireciona quem não
+tem sessão. Não autoriza. Pesou um detalhe da própria documentação do Next 16:
+uma Server Function é um POST para a rota onde ela vive, então um `matcher` que
+exclua um caminho deixa de cobrir as actions dali — e uma refatoração pode
+remover a cobertura sem ninguém perceber. Um arquivo com essa fragilidade
+renova sessão; não decide acesso.
+
+### I-15 [A] A FASE 3 precisa ler `profiles`, e a FASE 4 é quem abre a porta
+
+A migration `20260901140008` revoga todos os privilégios de `anon` e
+`authenticated` em `public`, e a RLS está ligada sem políticas. `getActor()`
+não tem como ler `profiles` com o JWT do usuário — nem por `rpc`, porque o
+schema `app` também está revogado. Sem essa leitura não existe identidade, e
+sem identidade não existe FASE 3.
+
+**Resolução adotada:** leitura de identidade pela `service_role`, server-side,
+com filtro sempre no `id` da sessão validada e projeção mínima
+([ADR-0021](adr/0021-service-role-para-resolver-identidade.md)). Vale para
+`getActor`, `recordFirstLogin` e `logActivity`, e para nada além disso.
+
+A consequência precisa ficar dita: **nesta janela a segunda camada de
+autorização não contribui.** É o motivo de a FASE 3 não ligar nenhuma tela a
+dado real — o portal continua nos mocks. A dívida é datada e a revisão é
+obrigatória na FASE 4.
 
 ---
 

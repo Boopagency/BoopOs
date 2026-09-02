@@ -42,6 +42,10 @@ funciona apenas por causa de uma delas.
   [`spec-review.md` I-14](spec-review.md).
 - Toda página e todo workflow refazem a checagem no servidor.
 
+O fluxo completo — PKCE, callback, cookies, primeiro login, logout, redirect
+seguro e configuração do projeto — está em
+[`authentication.md`](authentication.md).
+
 ### O `actor`
 
 Carregado uma vez por request e passado adiante. Nunca reconstruído a partir de
@@ -58,6 +62,14 @@ type Actor = {
 
 `status = 'disabled'` derruba o acesso no request seguinte, sem esperar o token
 expirar.
+
+> **Estado na FASE 3.** O Actor implementado carrega identidade — `userId`,
+> `email`, `fullName`, `role`, `status` — e **não** carrega `clientIds`.
+> Vínculo é escopo, escopo é autorização, e autorização é a FASE 4: até lá o
+> campo viria de uma consulta que ignora RLS, o que é exatamente o contrário
+> do que ele deveria provar. Ver
+> [`authentication.md`](authentication.md#o-actor) e
+> [ADR-0021](adr/0021-service-role-para-resolver-identidade.md).
 
 ## Autorização
 

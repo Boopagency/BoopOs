@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { BoopMark } from '@/components/brand/boop-mark'
 import { PortalBottomNav } from '@/components/layout/portal-bottom-nav'
 import { PortalNav } from '@/components/layout/portal-nav'
+import { SignOutButton } from '@/components/patterns/sign-out-button'
 import { portalHref } from '@/config/app'
 
 export interface PortalShellProps {
@@ -45,13 +46,23 @@ export function PortalShell({
               </span>
             </Link>
 
-            <p className="t-meta text-muted text-right">
-              <span className="text-foreground">Ciclo {cycle}</span>
-              <span aria-hidden="true" className="text-rule-strong mx-2">
-                /
-              </span>
-              <span title="Todos os dados desta tela são fictícios">Protótipo</span>
-            </p>
+            <div className="flex items-center gap-4">
+              <p className="t-meta text-muted text-right">
+                <span className="text-foreground">Ciclo {cycle}</span>
+                {/* O rotulo de prototipo cede espaco no celular, como ja
+                    acontece com o nome do cliente ao lado da marca. */}
+                <span aria-hidden="true" className="text-rule-strong mx-2 max-sm:hidden">
+                  /
+                </span>
+                <span title="Todos os dados desta tela são fictícios" className="max-sm:hidden">
+                  Protótipo
+                </span>
+              </p>
+
+              <span aria-hidden="true" className="bg-rule-strong h-5 w-px" />
+
+              <SignOutButton />
+            </div>
           </div>
 
           <PortalNav projectId={projectId} />

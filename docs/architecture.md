@@ -56,9 +56,9 @@ nega de novo no banco. Nenhuma das duas é considerada suficiente sozinha. Ver
 
 **Leitura** (`/portal/[projectId]/conteudo`)
 
-1. `proxy.ts` renova o cookie de sessão. Sem sessão → redirect para
-   `/login`. _Não decide autorização._ (Next 16: era `middleware.ts` —
-   [I-14](spec-review.md).)
+1. `proxy.ts` (na raiz de `src/`) renova o cookie de sessão. Sem sessão →
+   redirect para `/login`, com o destino preservado em `?next=`. _Não decide
+   autorização_ — [ADR-0020](adr/0020-proxy-renova-sessao-e-nao-autoriza.md).
 2. O layout do segmento chama `requireProjectAccess(projectId)`, que carrega
    `actor` (`profiles` + vínculos) e devolve 404 se não houver acesso — 404, não
    403, para não confirmar a existência do recurso.
@@ -111,7 +111,7 @@ nega de novo no banco. Nenhuma das duas é considerada suficiente sozinha. Ver
 │   │   └── reviews/
 │   ├── lib/
 │   │   ├── supabase/         # server.ts · admin.ts · proxy.ts · database.types.ts
-│   │   ├── auth/             # getActor, requireActor, requireClientAccess…
+│   │   ├── auth/             # actor.ts · actions.ts · first-login.ts · errors.ts · routes.ts
 │   │   ├── permissions/      # can(), definição do actor, erros
 │   │   ├── validation/       # helpers zod compartilhados
 │   │   ├── audit/            # logActivity()

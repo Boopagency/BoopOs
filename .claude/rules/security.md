@@ -15,6 +15,22 @@ Raciocínio em [`docs/security.md`](../../docs/security.md). Aqui só o que é o
    16 o arquivo se chama `proxy.ts` e a função exportada é `proxy`;
    `middleware.ts` está depreciado ([I-14](../../docs/spec-review.md)).
 
+## Autenticação (FASE 3)
+
+- Identidade vem de `supabase.auth.getUser()`. **Nunca** de `getSession()` onde
+  a resposta decide acesso: `getSession` só decodifica o cookie que o navegador
+  mandou.
+- `userId`, `profileId`, `role`, `clientId`, `actorId` vindos do cliente não são
+  autoridade. O filtro é sempre o `id` da sessão validada.
+- Fail closed: sem sessão, sem perfil, perfil `disabled` ou `invited` → bloqueia.
+  Perfil inexistente **nunca** vira perfil novo.
+- Todo `?next=` passa por `safeNextPath()` antes de virar redirect.
+- Magic Link com `shouldCreateUser: false`. Não existe cadastro público.
+- Erro do disparo nunca revela se a conta existe (`src/lib/auth/errors.ts`).
+- Logout é Server Action (POST). Nunca GET.
+- `service_role` para identidade é temporário e tem prazo: revisão obrigatória
+  na FASE 4 ([ADR-0021](../../docs/adr/0021-service-role-para-resolver-identidade.md)).
+
 ## Toda escrita
 
 - Input por zod `.strict()`. Campo desconhecido é rejeitado.
@@ -54,3 +70,5 @@ Se você escreveu uma query nova no portal, confira essa lista.
 - [ ] Action nova passando por `defineWorkflow`
 - [ ] Teste de isolamento cobrindo o caminho novo
 - [ ] Nenhum log novo com PII, token ou signed URL
+- [ ] Rota nova protegida: o layout do grupo chama `requireActor()`
+- [ ] Bundle do cliente sem `service_role` e sem `createSupabaseAdminClient`

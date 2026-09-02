@@ -50,6 +50,36 @@ Em preview, o e-mail sai apenas para domínios da Boop — nenhum e-mail de test
 pode alcançar um cliente real. Garantido por allowlist no `EmailService` quando
 `NEXT_PUBLIC_APP_ENV !== 'production'`.
 
+### Autenticação do projeto hospedado
+
+A partir da FASE 3 a validação manual acontece no ambiente hospedado — Vercel
+apontando para o `boop-os-staging`. O `supabase/config.toml` governa **apenas o
+ambiente local**: o projeto hospedado é configurado no painel, e as duas
+configurações precisam combinar.
+
+| Item                  | Valor                                  | Onde                 |
+| --------------------- | -------------------------------------- | -------------------- |
+| Signup público        | **desligado**                          | Auth → Providers     |
+| Expiração do link     | **900 s** (15 min)                     | Auth → Email         |
+| Site URL              | URL estável da aplicação               | Auth → URL Config    |
+| Redirect URLs         | `<APP_URL>/auth/callback`, sem curinga | Auth → URL Config    |
+| `NEXT_PUBLIC_APP_URL` | a mesma URL estável                    | Vercel → Environment |
+
+Duas armadilhas específicas deste projeto:
+
+- **Preview da Vercel muda de URL a cada deployment.** Cadastrar
+  `*.vercel.app` como redirect aceitaria qualquer preview — inclusive de outro
+  projeto na mesma conta — como destino de uma sessão. Use a URL estável do
+  ambiente e mantenha a lista exata.
+- **`NEXT_PUBLIC_APP_URL` é a origem de todo link de retorno.** O `Host` do
+  request não é usado para isso de propósito: é controlável pelo cliente. Se
+  essa variável apontar para outro lugar, o Magic Link volta para outro lugar.
+
+O e-mail de autenticação sai pelo Supabase, não pelo `EmailService`
+([ADR-0010](adr/0010-email-auth-vs-produto.md)). O SMTP customizado apontando
+para o Resend entra na FASE 5; até lá vale o remetente padrão do Supabase e o
+limite de envio do plano. Ver [`authentication.md`](authentication.md).
+
 ## Toolchain
 
 Node 22 (`.nvmrc`) e **pnpm 10 como package manager único** — `npm` e `yarn`
