@@ -48,29 +48,67 @@ describe('varredura de schema', () => {
   })
 
   /**
-   * O estado da FASE 2 é deny-by-default: RLS ligada, nenhuma policy. A FASE 4
-   * escreve as políticas e INVERTE esta asserção — de "nenhuma" para "quatro
-   * por tabela". Falhar aqui na FASE 4 é o comportamento desejado: obriga a
-   * atualizar o teste junto com as policies, no mesmo PR.
+   * A FASE 2 afirmava aqui "nenhuma policy": RLS ligada sem política nega
+   * tudo, que era o baseline seguro de um banco sem autorização escrita. A
+   * FASE 4 inverteu a asserção, como o próprio comentário anterior previa.
+   *
+   * O detalhe — quais operações, em qual tabela, para qual papel — vive em
+   * `policy-matrix.test.ts`, que declara a matriz e a confere célula a célula.
+   * Aqui fica só o que é varredura: nenhuma tabela sem política.
    */
-  it('FASE 2: nenhuma policy ainda — RLS ligada sem policy nega tudo', async () => {
-    const { rows } = await db.query<{ total: string }>(
-      `select count(*)::text as total from pg_policies where schemaname = 'public'`,
-    )
+  it('FASE 4: nenhuma tabela de public ficou sem policy', async () => {
+    const { rows } = await db.query<{ tabela: string }>(`
+      select c.relname as tabela
+        from pg_class c
+        join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'public'
+         and c.relkind = 'r'
+         and not exists (select 1 from pg_policy p where p.polrelid = c.oid)
+       order by 1
+    `)
 
-    expect(rows[0]?.total).toBe('0')
+    expect(
+      rows.map((r) => r.tabela),
+      'tabela com RLS e sem policy nega tudo em silêncio',
+    ).toEqual([])
   })
 
-  it('anon e authenticated não têm privilégio nenhum em public', async () => {
-    const { rows } = await db.query<{ tabela: string; papel: string; privilegio: string }>(`
-      select table_name as tabela, grantee as papel, privilege_type as privilegio
+  /**
+   * `anon` continua com zero, e isso não muda em fase nenhuma: quem não tem
+   * sessão não fala com o banco. `authenticated` passou a ter privilégio na
+   * FASE 4 — o quanto exatamente está declarado em `policy-matrix.test.ts`,
+   * junto da policy que o acompanha.
+   */
+  it('anon continua sem privilégio nenhum em public', async () => {
+    const { rows } = await db.query<{ tabela: string; privilegio: string }>(`
+      select table_name as tabela, privilege_type as privilegio
         from information_schema.role_table_grants
        where table_schema = 'public'
-         and grantee in ('anon', 'authenticated')
-       order by 1, 2, 3
+         and grantee = 'anon'
+       order by 1, 2
     `)
 
     expect(rows).toEqual([])
+  })
+
+  it('authenticated só tem privilégio onde há policy para acompanhar', async () => {
+    /* A invariante das duas fechaduras, vista pelo outro lado: um GRANT em
+     * tabela sem policy seria uma porta com uma tranca só. */
+    const { rows } = await db.query<{ tabela: string }>(`
+      select distinct g.table_name as tabela
+        from information_schema.role_table_grants g
+        join pg_class c on c.relname = g.table_name
+        join pg_namespace n on n.oid = c.relnamespace and n.nspname = 'public'
+       where g.table_schema = 'public'
+         and g.grantee = 'authenticated'
+         and not exists (select 1 from pg_policy p where p.polrelid = c.oid)
+       order by 1
+    `)
+
+    expect(
+      rows.map((r) => r.tabela),
+      'GRANT sem policy',
+    ).toEqual([])
   })
 
   /**
@@ -187,11 +225,31 @@ describe('varredura de schema', () => {
       ).toBe(true)
     }
 
+    /*
+     * A lista é explícita, e não um "pelo menos N": `security definer` ignora
+     * RLS por definição, então cada nome aqui é uma função que decide sem ser
+     * filtrada. Acrescentar uma sem passar por esta lista é acrescentar
+     * superfície sensível em silêncio.
+     *
+     * As três primeiras são maquinário da FASE 2; as demais, a autorização da
+     * FASE 4 (ADR-0004).
+     */
     const definers = rows.filter((r) => r.definer).map((r) => r.funcao)
     expect(definers.sort()).toEqual([
+      'actor_role',
+      'can_answer_submission',
       'derive_client_id',
       'handle_auth_user_email_change',
       'handle_new_auth_user',
+      'has_client_access',
+      'has_profile_access',
+      'has_project_access',
+      'has_section_access',
+      'has_submission_access',
+      'has_template_access',
+      'is_boop',
+      'is_boop_admin',
+      'is_client_user',
     ])
   })
 })

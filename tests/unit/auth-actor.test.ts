@@ -7,11 +7,16 @@ import type * as EnvModule from '@/config/env'
  *   - identidade vem SEMPRE da sessao validada, nunca de entrada do cliente;
  *   - fail closed: sem sessao, sem perfil, perfil desligado ou perfil ainda
  *     nao ativo, ninguem entra;
- *   - o Actor carrega identidade — e nao escopo (vinculo e FASE 4).
+ *   - o Actor carrega identidade — e nao escopo. Escopo mora no banco.
  *
  * Supabase nao e mockado para testar RLS aqui (isso testaria o mock, e RLS se
  * testa contra Postgres real — ADR-0015). O que se testa e a maquina de
  * decisao da aplicacao em volta da resposta do Auth.
+ *
+ * FASE 4: a leitura de `profiles` deixou de sair pela service role e passou a
+ * sair pelo MESMO cliente que valida a sessao, sob RLS. Por isso o mock do
+ * cliente de servidor agora responde `auth` E `from` — e o mock do cliente
+ * administrativo sumiu, porque nao ha mais quem o chame (ADR-0021 revisada).
  */
 
 const getUser = vi.fn()
@@ -21,11 +26,7 @@ const select = vi.fn(() => ({ eq }))
 const from = vi.fn(() => ({ select }))
 
 vi.mock('@/lib/supabase/server', () => ({
-  createSupabaseServerClient: () => Promise.resolve({ auth: { getUser } }),
-}))
-
-vi.mock('@/lib/supabase/admin', () => ({
-  createSupabaseAdminClient: () => ({ from }),
+  createSupabaseServerClient: () => Promise.resolve({ auth: { getUser }, from }),
 }))
 
 const supabaseConfigured = { value: true }
@@ -148,7 +149,7 @@ describe('getActor', () => {
     expect(select).not.toHaveBeenCalledWith('*')
   })
 
-  it('nao carrega escopo — vinculo e projeto sao FASE 4', async () => {
+  it('nao carrega escopo — vinculo e projeto ficam no banco', async () => {
     getUser.mockResolvedValue({ data: { user: SESSION_USER }, error: null })
     maybeSingle.mockResolvedValue({ data: PROFILE, error: null })
 

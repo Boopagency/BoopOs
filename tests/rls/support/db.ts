@@ -139,3 +139,39 @@ function makeTx(client: Client): Tx {
     },
   }
 }
+
+/**
+ * Troca de identidade DENTRO de uma transacao ja aberta.
+ *
+ * Existe para um caso especifico e legitimo: preparar estado como
+ * `service_role` e depois provar a regra como usuario comum, sem sair da
+ * transacao — porque sair dela e perder o rollback, e o estado preparado
+ * vazaria para o proximo caso.
+ *
+ * Isso NAO enfraquece a regra de que `service_role` nao testa RLS
+ * (.claude/rules/testing.md): o papel privilegiado monta o cenario, a operacao
+ * sob teste roda como `authenticated`. Quem prova continua sendo o papel comum.
+ */
+export async function switchIdentity(tx: Tx, identity: Identity): Promise<void> {
+  /* `reset role` primeiro: `authenticated` e `noinherit` e nao pode assumir
+   * outro papel por conta propria. Quem pode e o usuario da sessao. */
+  await tx.query('reset role')
+
+  switch (identity.kind) {
+    case 'anonymous':
+      await tx.query('set local role anon')
+      await tx.query('select set_config($1, $2, true)', ['request.jwt.claims', ''])
+      break
+    case 'service_role':
+      await tx.query('set local role service_role')
+      await tx.query('select set_config($1, $2, true)', ['request.jwt.claims', ''])
+      break
+    case 'user':
+      await tx.query('set local role authenticated')
+      await tx.query('select set_config($1, $2, true)', [
+        'request.jwt.claims',
+        JSON.stringify({ sub: identity.userId, role: 'authenticated' }),
+      ])
+      break
+  }
+}

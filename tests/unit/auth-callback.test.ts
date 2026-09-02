@@ -32,8 +32,9 @@ vi.mock('@/lib/supabase/server', () => ({
 }))
 
 vi.mock('@/lib/auth/first-login', () => ({
-  recordFirstLogin: (userId: string): Promise<string> =>
-    recordFirstLogin(userId) as Promise<string>,
+  /* Sem argumento desde a FASE 4: quem a fronteira do banco promove e sempre
+   * `auth.uid()`, entao nao ha `userId` para o callback passar adiante. */
+  recordFirstLogin: (): Promise<string> => recordFirstLogin() as Promise<string>,
 }))
 
 vi.mock('@/config/env', async (importOriginal) => {
@@ -70,7 +71,9 @@ describe('GET /auth/callback', () => {
     const { status, location } = await get('?code=abc')
 
     expect(exchangeCodeForSession).toHaveBeenCalledWith('abc')
-    expect(recordFirstLogin).toHaveBeenCalledWith(USER.id)
+    /* A ausencia de argumento E a asserção: se um `userId` voltasse a
+     * atravessar essa fronteira, voltaria junto a pergunta "de onde ele veio". */
+    expect(recordFirstLogin).toHaveBeenCalledWith()
     expect(status).toBe(303)
     expect(location).toBe('https://boop.example/portal')
   })
