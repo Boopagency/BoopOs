@@ -123,7 +123,7 @@ enumeraria tenants pela diferença entre as duas respostas.
 
 **Duas migrations novas.**
 
-`20260902160001_people_administration_boundaries.sql`
+`20260902101850_people_administration_boundaries.sql`
 
 Duas funções `security definer`, que são o gatilho de revisão que a ADR-0022
 deixou marcado — "uma operação de administração de pessoas (FASE 5) que exija
@@ -135,7 +135,7 @@ escrever `profiles` fora da promoção":
 `profiles` continua **sem policy e sem GRANT de UPDATE para ninguém**, inclusive
 `boop_admin`.
 
-`20260902170001_immutable_authorship.sql` — o achado da validação hospedada. Duas
+`20260902165421_immutable_authorship.sql` — o achado da validação hospedada. Duas
 funções de trigger em 19 gatilhos, cobrindo `created_at` e as colunas de autoria
 em 12 tabelas. Ver a seção da validação acima.
 
@@ -267,7 +267,7 @@ alcançava a linha. É **integridade de auditoria**: falsificar quem criou uma
 conta e quando. A varredura encontrou o mesmo padrão em 12 tabelas, todas com
 GRANT de UPDATE desde a FASE 4.
 
-Corrigido em `20260902170001_immutable_authorship.sql`, com duas regras porque
+Corrigido em `20260902165421_immutable_authorship.sql`, com duas regras porque
 há dois comportamentos legítimos:
 
 | Regra                                 | Colunas                   | Por quê                                                         |
