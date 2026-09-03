@@ -56,6 +56,7 @@ export const CAPABILITIES = [
   'project.create',
   'project.update',
   'project.advance_stage',
+  'project.change_status',
   /* Onboarding */
   'onboarding.template.manage',
   'onboarding.start',
@@ -114,7 +115,22 @@ const PERMITIDO: Record<Capability, readonly UserRole[]> = {
   'project.read': ['boop_admin', 'boop_member', 'client_user'],
   'project.create': ['boop_admin'],
   'project.update': ['boop_admin', 'boop_member'],
+  /*
+   * `advance_stage` e a autoridade sobre a JORNADA inteira na V0 — avancar e
+   * tambem corrigir (`setStageState`). Nao ha capacidade separada para a
+   * correcao manual: e a mesma decisao, tomada pela mesma pessoa, sobre a
+   * mesma linha. Vocabulario novo sem caso novo so aumenta o que precisa ser
+   * mantido em duas listas (docs/permissions.md, FASE 6).
+   */
   'project.advance_stage': ['boop_admin', 'boop_member'],
+  /*
+   * Estava na matriz de docs/permissions.md desde a FASE 0 e nao estava aqui.
+   * O banco ja cobria o caso — `projects_update` exige `is_boop()` e vinculo —,
+   * entao nao houve brecha aberta; o que faltava era a linha da matriz ter
+   * representacao em `can()`. Ver a nota sobre paridade em
+   * `tests/unit/permissions.matrix.test.ts` (FASE 6).
+   */
+  'project.change_status': ['boop_admin', 'boop_member'],
 
   'onboarding.template.manage': ['boop_admin'],
   'onboarding.start': ['boop_admin', 'boop_member'],

@@ -36,6 +36,22 @@ export const WORKFLOW_MESSAGE: Record<string, string> = {
   'client.update.denied': 'Você não tem permissão para editar este cliente.',
   'client.archive.denied': 'Só um admin da Boop arquiva clientes.',
 
+  /* ── Projetos ──────────────────────────────────────────────────────────── */
+  'project.create_failed': 'Não foi possível criar o projeto.',
+  'project.update_failed': 'Não foi possível salvar as alterações.',
+  'project.advance_failed': 'Não foi possível avançar a etapa.',
+  'project.stage_update_failed': 'Não foi possível corrigir a jornada.',
+  'project.immutable_field':
+    'O tipo e a jornada de um projeto são definidos na criação e não mudam. Crie um projeto novo e arquive este.',
+  'project.no_current_stage':
+    'Este projeto não tem etapa em andamento. Escolha por onde retomar antes de avançar.',
+  'project.archived_is_final':
+    'Este projeto está arquivado. Reabrir não é possível pelo painel — crie um projeto novo.',
+  'project.create.denied': 'Só um admin da Boop cria projetos.',
+  'project.update.denied': 'Você não tem permissão para editar este projeto.',
+  'project.advance_stage.denied': 'Você não tem permissão para mover a jornada deste projeto.',
+  'project.change_status.denied': 'Você não tem permissão para mudar o status deste projeto.',
+
   /* ── Pessoas ───────────────────────────────────────────────────────────── */
   'user.invite.denied': 'Só um admin da Boop convida pessoas.',
   'user.disable.denied': 'Só um admin da Boop desliga pessoas.',

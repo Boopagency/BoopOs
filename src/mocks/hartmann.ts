@@ -14,77 +14,25 @@ import type {
   ContentItem,
   Delivery,
   Insight,
-  JourneyStage,
   Meeting,
   OnboardingSection,
   ProjectFile,
-  ProjectSummary,
   ResultsPeriod,
   Strategy,
 } from '@/lib/data/types'
 
-export const PROJECT: ProjectSummary = {
-  id: 'hartmann-social',
-  clientName: 'Hartmann',
-  name: 'Social Media',
-  type: 'social',
-  cycle: 1,
-  startedOn: '2026-07-14',
-  scope: [
-    'Imersão de marca e pesquisa de categoria',
-    'Direção editorial trimestral',
-    '12 conteúdos por mês para Instagram',
-    'Review mensal de resultados e aprendizados',
-  ],
-  team: [
-    { name: 'Ana', role: 'Estratégia' },
-    { name: 'Rafa', role: 'Conteúdo' },
-    { name: 'Dani', role: 'Design' },
-  ],
-}
-
-export const JOURNEY: JourneyStage[] = [
-  {
-    key: 'immersion',
-    label: 'Imersão',
-    state: 'done',
-    summary: 'Entendemos o negócio, a história e o que a Hartmann quer construir.',
-    completedOn: '2026-07-24',
-  },
-  {
-    key: 'research',
-    label: 'Pesquisa',
-    state: 'done',
-    summary: 'Estudamos a categoria, as concorrentes e como as pessoas compram joia hoje.',
-    completedOn: '2026-08-07',
-  },
-  {
-    key: 'strategy',
-    label: 'Estratégia',
-    state: 'done',
-    summary: 'Definimos posicionamento, territórios editoriais e o que vamos medir.',
-    completedOn: '2026-08-26',
-  },
-  {
-    key: 'production',
-    label: 'Produção',
-    state: 'current',
-    summary: 'Estamos criando o primeiro ciclo editorial. Parte já está com você.',
-  },
-  {
-    key: 'publishing',
-    label: 'Publicação',
-    state: 'pending',
-    summary: 'O que for aprovado entra no ar na ordem combinada.',
-  },
-  {
-    key: 'review',
-    label: 'Review',
-    state: 'pending',
-    summary: 'Olhamos os números juntas e decidimos o que muda no próximo ciclo.',
-  },
-]
-
+/*
+ * `PROJECT` e `JOURNEY` sairam na FASE 6.
+ *
+ * Eles nao foram substituidos por outro mock: projeto e jornada passaram a vir
+ * do Supabase, sob RLS, por `src/domains/projects/queries.ts`. Enquanto
+ * existiam, eram eles que decidiam a IDENTIDADE do portal — `DEMO_PROJECT_ID`
+ * era `PROJECT.id`, e qualquer pessoa autenticada caia no mesmo projeto.
+ *
+ * O resto deste arquivo continua, e continua sendo a unica fonte de dado
+ * ficticio do repositorio: conteudo, estrategia, arquivos, reunioes,
+ * resultados, onboarding, atencao e insight sao das FASES 7+.
+ */
 export const ATTENTION: AttentionItem[] = [
   {
     id: 'content-awaiting',

@@ -193,6 +193,22 @@ export const CLIENT_STATUS_LABEL: Record<ClientStatus, string> = {
   archived: 'Arquivado',
 }
 
+export const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {
+  draft: 'Rascunho',
+  active: 'Ativo',
+  paused: 'Pausado',
+  completed: 'Concluído',
+  archived: 'Arquivado',
+}
+
+export const PROJECT_TYPE_LABEL: Record<ProjectType, string> = {
+  social: 'Social media',
+  website: 'Site',
+  branding: 'Marca',
+  automation: 'Automação',
+  custom: 'Sob medida',
+}
+
 export const USER_ROLE_LABEL: Record<UserRole, string> = {
   boop_admin: 'Admin Boop',
   boop_member: 'Time Boop',

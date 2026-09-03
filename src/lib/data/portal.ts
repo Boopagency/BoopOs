@@ -1,5 +1,6 @@
-import { notFound } from 'next/navigation'
 import { isClientVisible } from '@/config/enums'
+import { getClientPublic } from '@/domains/clients/queries'
+import { getPortalJourney, requireVisiblePortalProject } from '@/domains/projects/queries'
 import * as hartmann from '@/mocks/hartmann'
 import type {
   AttentionItem,
@@ -18,38 +19,84 @@ import type {
 /**
  * Camada de acesso a dados do portal.
  *
- * É a única fronteira entre as telas e a origem dos dados. Hoje a origem é
- * `src/mocks/hartmann.ts`; na FASE 5 passa a ser um repository sobre o
- * Supabase e nenhuma tela precisa mudar — o contrato é `./types.ts`.
+ * É a única fronteira entre as telas e a origem dos dados. **A partir da FASE 6
+ * ela tem duas origens**, e a divisão é exata:
  *
- * Três decisões que deixam essa troca limpa:
+ *   projeto e jornada  →  Supabase, sob RLS, por `domains/projects/queries`
+ *   todo o resto       →  `src/mocks/hartmann.ts`, até a fase de cada domínio
  *
- * 1. Toda função é `async`. Hoje resolve na hora; amanhã faz I/O. Nenhum
- *    componente precisa virar assíncrono depois.
- * 2. Toda função recebe `projectId` e valida. É onde `requireProjectAccess()`
- *    vai entrar na FASE 4 — a autorização já tem lugar reservado.
- * 3. A visibilidade de conteúdo já é filtrada aqui, com a mesma regra que a
- *    RLS vai aplicar no banco (docs/security.md). O protótipo já não mostra
- *    rascunho nem backlog.
+ * Nenhuma tela mudou por causa disso, que era o contrato prometido na FASE 1:
+ * `MOCK → DATA LAYER → SUPABASE`, com `./types.ts` no meio.
+ *
+ * ## O que mudou de verdade, e é o ponto da fase
+ *
+ * `assertProject()` comparava uma string com `DEMO_PROJECT_ID` e chamava
+ * `notFound()`. Era a única barreira do portal — e não era barreira nenhuma:
+ * não consultava o banco, não sabia quem estava pedindo, e teria devolvido o
+ * projeto do mock para qualquer pessoa autenticada.
+ *
+ * No lugar dela entrou `requireVisiblePortalProject()`, que faz DUAS perguntas
+ * ao banco: o vínculo (RLS, via `has_project_access`) e a visibilidade de
+ * produto (um `draft` não existe para o `client_user`). As três recusas
+ * possíveis — não existe, não é seu, não está visível — produzem exatamente a
+ * mesma resposta.
+ *
+ * ## Por que as funções mockadas continuam recebendo `projectId`
+ *
+ * Elas passaram a receber um uuid REAL, conferido pelo mesmo guard das outras.
+ * Nenhuma delas usa `DEMO_PROJECT_ID` como atalho: o id é validado primeiro, e
+ * só então o mock responde. Assim, quando a FASE 7 trocar `getOnboarding()` por
+ * uma consulta de verdade, a autorização já está no lugar certo — e o que
+ * mudou foi só de onde vieram as linhas.
  */
 
-/** Único projeto do protótipo. Na FASE 6 vem do banco. */
-export const DEMO_PROJECT_ID = hartmann.PROJECT.id
-
-function assertProject(projectId: string): void {
-  // FASE 4: aqui entra requireProjectAccess(projectId), que responde 404
-  // para recurso inacessível — nunca 403 (docs/security.md).
-  if (projectId !== DEMO_PROJECT_ID) notFound()
+/**
+ * O guard de todas as funções deste arquivo.
+ *
+ * Cada uma o chama, inclusive as que ainda respondem com mock. Um loader seguro
+ * só porque a página que o chama é segura deixa de ser seguro na segunda
+ * página (docs/security.md).
+ */
+async function assertProject(projectId: string): Promise<void> {
+  await requireVisiblePortalProject(projectId)
 }
 
+/**
+ * O projeto, do banco.
+ *
+ * Duas leituras, e não um embed: o nome do cliente sai de `getClientPublic()`,
+ * que carrega o próprio guard e a própria projeção — a que NÃO tem `notes`.
+ * Pedir `clients(name)` embutido aqui funcionaria e deixaria a decisão sobre
+ * quais colunas de `clients` atravessam a fronteira em dois lugares.
+ */
 export async function getProject(projectId: string): Promise<ProjectSummary> {
-  assertProject(projectId)
-  return hartmann.PROJECT
+  const project = await requireVisiblePortalProject(projectId)
+  const client = await getClientPublic(project.clientId)
+
+  return {
+    id: project.id,
+    clientName: client.name,
+    name: project.name,
+    type: project.type,
+    cycle: project.cycle,
+    startedOn: project.startedOn,
+  }
 }
 
+/**
+ * A jornada, do banco — ordem, rótulo e estado — com o `summary` resolvido do
+ * template em código (ADR-0006).
+ */
 export async function getJourney(projectId: string): Promise<JourneyStage[]> {
-  assertProject(projectId)
-  return hartmann.JOURNEY
+  const stages = await getPortalJourney(projectId)
+
+  return stages.map((stage) => ({
+    key: stage.key,
+    label: stage.label,
+    state: stage.state,
+    summary: stage.summary,
+    completedOn: stage.completedOn,
+  }))
 }
 
 export async function getCurrentStage(projectId: string): Promise<JourneyStage | undefined> {
@@ -62,17 +109,17 @@ export async function getCurrentStage(projectId: string): Promise<JourneyStage |
  * card de "nenhum item" (CLAUDE.md).
  */
 export async function getAttention(projectId: string): Promise<AttentionItem[]> {
-  assertProject(projectId)
+  await assertProject(projectId)
   return hartmann.ATTENTION.filter((item) => item.count > 0)
 }
 
 export async function getNextDelivery(projectId: string): Promise<Delivery | null> {
-  assertProject(projectId)
+  await assertProject(projectId)
   return hartmann.NEXT_DELIVERY
 }
 
 export async function getMeetings(projectId: string): Promise<Meeting[]> {
-  assertProject(projectId)
+  await assertProject(projectId)
   return [...hartmann.MEETINGS].sort((a, b) => a.startAt.localeCompare(b.startAt))
 }
 
@@ -82,7 +129,7 @@ export async function getNextMeeting(projectId: string): Promise<Meeting | null>
 }
 
 export async function getDashboardInsight(projectId: string): Promise<Insight | null> {
-  assertProject(projectId)
+  await assertProject(projectId)
   return hartmann.DASHBOARD_INSIGHT
 }
 
@@ -91,7 +138,7 @@ export async function getDashboardInsight(projectId: string): Promise<Insight | 
  * `idea`, `planned`, `in_production` e `internal_review` nunca chegam aqui.
  */
 export async function getContentList(projectId: string): Promise<ContentItem[]> {
-  assertProject(projectId)
+  await assertProject(projectId)
   return hartmann.CONTENT.filter((item) => isClientVisible(item.status))
 }
 
@@ -109,21 +156,21 @@ export async function getAwaitingContent(projectId: string): Promise<ContentItem
 }
 
 export async function getStrategy(projectId: string): Promise<Strategy> {
-  assertProject(projectId)
+  await assertProject(projectId)
   return hartmann.STRATEGY
 }
 
 export async function getOnboarding(projectId: string): Promise<OnboardingSection[]> {
-  assertProject(projectId)
+  await assertProject(projectId)
   return hartmann.ONBOARDING
 }
 
 export async function getResults(projectId: string): Promise<ResultsPeriod | null> {
-  assertProject(projectId)
+  await assertProject(projectId)
   return hartmann.RESULTS
 }
 
 export async function getFiles(projectId: string): Promise<ProjectFile[]> {
-  assertProject(projectId)
+  await assertProject(projectId)
   return hartmann.FILES
 }

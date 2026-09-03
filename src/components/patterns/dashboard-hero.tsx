@@ -34,7 +34,9 @@ export function DashboardHero({
           {greeting()}, {project.clientName}.
         </h1>
 
-        {currentStage && (
+        {/* Sem etapa corrente — jornada concluida — ou sem texto de apoio, a
+            linha desaparece em vez de virar um paragrafo vazio. */}
+        {currentStage?.summary && (
           <p className="t-lead rise rise-3 text-navy mt-8 max-w-[34ch]">{currentStage.summary}</p>
         )}
       </div>

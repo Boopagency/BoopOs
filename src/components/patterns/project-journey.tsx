@@ -17,6 +17,10 @@ import { cn } from '@/lib/cn'
  * Não existe percentual (docs/design-direction.md). "67%" não responde "em que
  * etapa estamos" — o bloco responde.
  *
+ * `summary` é opcional e pode ser `null`: um projeto criado com um template
+ * depois aposentado perde o texto de apoio, e não a etapa. A linha some; o
+ * bloco, o rótulo e o estado continuam (`src/config/journeys.ts`).
+ *
  * Duas composições, não uma redimensionada: no desktop os blocos ficam em
  * fileira, no celular viram uma trilha vertical contínua. No celular os olhos
  * ficam à direita da linha, nunca por cima do rótulo.
@@ -80,7 +84,9 @@ export function ProjectJourney({
                   <span className="sr-only">{STATE_LABEL[stage.state]}. </span>
                   {stageMeta(stage)}
                 </p>
-                {detailed && <p className="t-body text-muted mt-2">{stage.summary}</p>}
+                {detailed && stage.summary && (
+                  <p className="t-body text-muted mt-2">{stage.summary}</p>
+                )}
               </div>
             </li>
           )
@@ -111,7 +117,9 @@ export function ProjectJourney({
                 <span className="sr-only">{STATE_LABEL[stage.state]}. </span>
                 {stageMeta(stage)}
               </p>
-              {detailed && <p className="t-body text-muted mt-3 max-w-[32ch]">{stage.summary}</p>}
+              {detailed && stage.summary && (
+                <p className="t-body text-muted mt-3 max-w-[32ch]">{stage.summary}</p>
+              )}
             </li>
           )
         })}

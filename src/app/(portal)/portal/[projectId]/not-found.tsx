@@ -1,7 +1,5 @@
 import Link from 'next/link'
 import { EmptyState } from '@/components/patterns/empty-state'
-import { DEMO_PROJECT_ID } from '@/lib/data/portal'
-import { portalHref } from '@/config/app'
 
 /**
  * 404 dentro do portal.
@@ -18,7 +16,7 @@ export default function PortalNotFound() {
       </EmptyState>
       <p className="pb-16 text-center">
         <Link
-          href={portalHref(DEMO_PROJECT_ID, '')}
+          href="/portal"
           className="t-meta text-muted decoration-rule-strong hover:text-foreground hover:decoration-accent underline underline-offset-[6px]"
         >
           Voltar ao início

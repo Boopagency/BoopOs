@@ -8,9 +8,16 @@
  * docs/workflows.md listado aqui hoje seria uma lista de acoes que nenhum
  * codigo emite, e ninguem saberia quais ja valem.
  *
- * FASE 3 emitiu uma. FASE 5 acrescenta as seis de `docs/workflows.md#clientes-
- * e-usuarios`, e nenhuma alem delas — nome de evento inventado polui auditoria
- * e nunca mais sai, porque a tabela e append-only.
+ * FASE 3 emitiu uma. FASE 5 acrescentou as seis de `docs/workflows.md#clientes-
+ * e-usuarios`. FASE 6 acrescenta as quatro de projeto, e nenhuma alem delas —
+ * nome de evento inventado polui auditoria e nunca mais sai, porque a tabela e
+ * append-only.
+ *
+ * ⚠️ Tres das quatro de projeto NAO sao emitidas por `logActivity()`: quem as
+ * grava sao as funcoes SQL de `20260903010440_project_journey_boundaries.sql`,
+ * de dentro da transacao que muda o dominio. O catalogo vale igual — o formato
+ * e conferido pelo `check` da tabela, e o vocabulario, por este arquivo e pelo
+ * teste que le as duas pontas.
  *
  * Duas ausencias deliberadas:
  *
@@ -31,6 +38,35 @@ export const ACTIVITY_ACTIONS = [
   'membership.granted',
   'membership.revoked',
   'user.disabled',
+  /*
+   * FASE 6 — projetos e jornada. Quatro verbos, e a escolha de cada um:
+   *
+   *   `project.created`         cria o projeto E materializa a jornada. Um
+   *                             evento, porque é uma transacao (a funcao SQL
+   *                             grava esta linha de dentro dela).
+   *   `project.updated`         nome e periodo.
+   *   `project.status_changed`  draft -> active -> paused -> completed ->
+   *                             archived. Verbo proprio, e nao `updated` com
+   *                             metadata, porque status e a mudanca que o
+   *                             cliente sente: e a que decide se o projeto
+   *                             aparece no portal.
+   *   `project.stage_changed`   avanco E correcao manual. Um verbo para os
+   *                             dois: o que aconteceu com a jornada e o mesmo
+   *                             fato — uma etapa mudou de estado —, e a
+   *                             diferenca vive em `metadata.correction`.
+   *
+   * Nao existe `project.archived` separado: arquivar e uma transicao de status
+   * como as outras, e sai como `project.status_changed`. A mesma decisao de
+   * `client.restored`, escrita acima.
+   *
+   * Nao existe `project.stage_advanced` + `project.stage_corrected`: seria
+   * dobrar o vocabulario sem dobrar a informacao, e o log e append-only — nome
+   * de evento inventado nunca mais sai.
+   */
+  'project.created',
+  'project.updated',
+  'project.status_changed',
+  'project.stage_changed',
 ] as const
 
 export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number]
@@ -39,7 +75,13 @@ export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number]
  * `entity_type` e texto livre no banco. Aqui ele e fechado, para que duas
  * fases nao escrevam "profile" e "user" para a mesma coisa.
  */
-export const ACTIVITY_ENTITY_TYPES = ['profile', 'client', 'client_membership'] as const
+export const ACTIVITY_ENTITY_TYPES = [
+  'profile',
+  'client',
+  'client_membership',
+  'project',
+  'project_stage',
+] as const
 export type ActivityEntityType = (typeof ACTIVITY_ENTITY_TYPES)[number]
 
 /**
@@ -58,4 +100,8 @@ export const ACTIVITY_ACTION_LABEL: Record<ActivityAction, string> = {
   'membership.granted': 'deu acesso a',
   'membership.revoked': 'removeu o acesso de',
   'user.disabled': 'desligou',
+  'project.created': 'criou o projeto',
+  'project.updated': 'editou o projeto',
+  'project.status_changed': 'mudou o status do projeto',
+  'project.stage_changed': 'moveu a jornada de',
 }

@@ -10,6 +10,8 @@ import { getClientDetailForBoop } from '@/domains/clients/queries'
 import { InviteForm } from '@/domains/people/components/invite-form'
 import { MemberList } from '@/domains/people/components/member-list'
 import { listAssignablePeopleForBoop, listClientMembersForBoop } from '@/domains/people/queries'
+import { ProjectList } from '@/domains/projects/components/project-list'
+import { listProjectsForClientForBoop } from '@/domains/projects/queries'
 import { requireBoop } from '@/lib/auth/authorization'
 import { can } from '@/lib/auth/policy'
 import { formatDateTime } from '@/lib/format'
@@ -33,11 +35,17 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  * `can('client.read_internal_notes')`. Trocar o uuid na barra de endereços dá
  * 404, igual a um uuid inventado (docs/security.md, §16-17 do briefing).
  *
- * ## O que NÃO está aqui
+ * ## O que a FASE 6 acrescentou
  *
- * Projetos, jornada, estratégia, conteúdo, arquivos. São FASE 6 em diante, e a
- * tela não finge que existem: nenhum bloco vazio, nenhum "em breve". Bloco sem
- * conteúdo desaparece (.claude/rules/frontend.md).
+ * A seção **Projetos**, que é o trabalho que a Boop executa para este cliente.
+ * Ela vem primeiro porque é a pergunta que se faz ao abrir um cliente — "o que
+ * estamos fazendo aqui?" —, antes de dados cadastrais e de quem acessa.
+ *
+ * ## O que continua NÃO estando aqui
+ *
+ * Estratégia, conteúdo e arquivos. São FASE 10 em diante, e a tela não finge
+ * que existem: nenhum bloco vazio, nenhum "em breve". Bloco sem conteúdo
+ * desaparece (.claude/rules/frontend.md).
  */
 export default async function ClientDetailPage({ params }: Params) {
   const { clientId } = await params
@@ -55,6 +63,9 @@ export default async function ClientDetailPage({ params }: Params) {
   const [members, assignable] = canManageMembers
     ? await Promise.all([listClientMembersForBoop(clientId), listAssignablePeopleForBoop(clientId)])
     : [[], []]
+
+  const projects = await listProjectsForClientForBoop(clientId)
+  const canCreateProject = can(actor, 'project.create').allowed
 
   return (
     <Container>
@@ -79,6 +90,27 @@ export default async function ClientDetailPage({ params }: Params) {
       </p>
 
       <div className="mt-16 space-y-16">
+        <section aria-labelledby="projetos">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3">
+            <h2 id="projetos" className="t-title text-foreground">
+              Projetos
+            </h2>
+            {/* Só quem cria vê o link. Conveniência, não segurança: a rota
+                chama `requireCapability` e o workflow nega de novo. */}
+            {canCreateProject && (
+              <Link
+                href={`/admin/clientes/${client.id}/projetos/novo`}
+                className="t-meta text-muted decoration-rule-strong hover:text-foreground hover:decoration-accent underline underline-offset-[6px]"
+              >
+                Novo projeto →
+              </Link>
+            )}
+          </div>
+          <div className="mt-8">
+            <ProjectList projects={projects} />
+          </div>
+        </section>
+
         <section aria-labelledby="dados">
           <h2 id="dados" className="t-title text-foreground">
             Dados da conta

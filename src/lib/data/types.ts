@@ -21,6 +21,21 @@ import type {
   StageState,
 } from '@/config/enums'
 
+/**
+ * O projeto, como o portal precisa dele. Preenchido pelo banco desde a FASE 6.
+ *
+ * ## Dois campos sairam daqui na FASE 6, e a ausencia e decisao (D-16)
+ *
+ * `scope: string[]` — "o que combinamos" — **nao tem origem**. Nenhuma coluna
+ * do schema o guarda, e `docs/data-model.md` nao o lista nem entre as tabelas
+ * adiadas. Enquanto o portal lia mock ele existia como texto ilustrativo; com
+ * dado real, mante-lo exigiria inventar o conteudo de um acordo comercial na
+ * tela do cliente. O bloco saiu inteiro — bloco sem origem nao aparece.
+ *
+ * `team` saiu daqui, mas NAO do produto: ele passou a ser carregado a parte,
+ * por `listClientTeam()`, porque vem de outra tabela e tem outra fronteira de
+ * autorizacao. Compor os dois e papel da tela, nao deste tipo.
+ */
 export interface ProjectSummary {
   id: string
   clientName: string
@@ -28,18 +43,30 @@ export interface ProjectSummary {
   type: ProjectType
   /** Ciclo editorial corrente. A jornada e ciclica (docs/product.md). */
   cycle: number
-  startedOn: string
-  scope: string[]
-  team: { name: string; role: string }[]
+  /**
+   * `projects.starts_on` e nullable, e o tipo nao finge o contrario.
+   *
+   * Um projeto pode ser cadastrado antes de a data de inicio estar combinada.
+   * A tela omite a linha quando nao ha data — nunca inventa "hoje" para
+   * satisfazer o TypeScript.
+   */
+  startedOn: string | null
 }
 
 export interface JourneyStage {
   key: string
   label: string
   state: StageState
-  /** Uma linha explicando o que acontece nesta etapa. Visivel ao cliente. */
-  summary: string
-  completedOn?: string
+  /**
+   * Uma linha explicando o que acontece nesta etapa. Visivel ao cliente.
+   *
+   * `null` quando a `stage_key` do projeto nao existe mais no template — um
+   * projeto criado com uma jornada depois aposentada. A etapa continua com
+   * rotulo, posicao e estado, que vem do banco; some so o texto de apoio
+   * (`src/config/journeys.ts#stageSummary`).
+   */
+  summary: string | null
+  completedOn?: string | null
 }
 
 /** O bloco mais importante do dashboard: o que depende do cliente. */
