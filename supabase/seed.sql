@@ -178,54 +178,16 @@ on conflict (id) do update
       completed_at = excluded.completed_at;
 
 -- ───────────────────────────────────────────────────────────────────────────
--- Onboarding — o template é da Boop, não de um cliente
+-- Onboarding — o CATÁLOGO saiu daqui na FASE 7
 -- ───────────────────────────────────────────────────────────────────────────
--- Diferença que o banco impõe sobre o protótipo: no mock as perguntas dizem
--- "Por que a Hartmann precisa existir?". Aqui não podem. O mesmo template é
--- servido a todo cliente, então o texto é da marca em abstrato, e o nome
--- concreto entra na renderização (FASE 7).
-insert into public.onboarding_templates (id, key, name, project_type, version, is_active)
-values
-  ('40000000-0000-4000-8000-000000000001', 'social', 'Imersão — Social Media', 'social', 1, true)
-on conflict (key, version) do update
-  set name      = excluded.name,
-      is_active = excluded.is_active;
-
-insert into public.onboarding_sections (id, template_id, key, title, description, position)
-values
-  ('41000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'brand',       'A marca',      'Antes de falar sobre conteúdo, queremos entender uma coisa.', 1),
-  ('41000000-0000-4000-8000-000000000002', '40000000-0000-4000-8000-000000000001', 'business',    'O negócio',    'Agora a parte prática. Sem isso, a estratégia vira palpite.', 2),
-  ('41000000-0000-4000-8000-000000000003', '40000000-0000-4000-8000-000000000001', 'customer',    'O cliente',    'Quem já compra costuma explicar melhor a marca do que qualquer pesquisa.', 3),
-  ('41000000-0000-4000-8000-000000000004', '40000000-0000-4000-8000-000000000001', 'perception',  'Percepção',    'O que as pessoas acham hoje é o ponto de partida do que vamos construir.', 4),
-  ('41000000-0000-4000-8000-000000000005', '40000000-0000-4000-8000-000000000001', 'references',  'Referências',  'Referência não é para copiar. É para calibrar o que vocês gostam.', 5),
-  ('41000000-0000-4000-8000-000000000006', '40000000-0000-4000-8000-000000000001', 'materials',   'Materiais',    'Por último, o que vocês já têm pronto.', 6)
-on conflict (template_id, key) do update
-  set title       = excluded.title,
-      description = excluded.description,
-      position    = excluded.position;
-
-insert into public.onboarding_questions (id, section_id, key, label, help_text, type, is_required, options, position)
-values
-  ('42000000-0000-4000-8000-000000000001', '41000000-0000-4000-8000-000000000001', 'why',       'Por que a marca precisa existir?',                    'Sem discurso de marketing. Do jeito que vocês contariam para uma amiga.', 'long_text',     true,  null, 1),
-  ('42000000-0000-4000-8000-000000000002', '41000000-0000-4000-8000-000000000001', 'refuse',    'O que vocês se recusam a fazer?',                     'O que está fora de questão, mesmo que dê dinheiro.',                      'long_text',     false, null, 2),
-  ('42000000-0000-4000-8000-000000000003', '41000000-0000-4000-8000-000000000002', 'revenue',   'De onde vem a maior parte da receita hoje?',          null, 'single_select', true,
-   '["Loja física","Instagram","Site próprio","Encomendas diretas","Revenda"]'::jsonb, 1),
-  ('42000000-0000-4000-8000-000000000004', '41000000-0000-4000-8000-000000000002', 'goal',      'O que precisa acontecer nos próximos seis meses?',    'O resultado concreto, não a intenção.', 'long_text', true,  null, 2),
-  ('42000000-0000-4000-8000-000000000005', '41000000-0000-4000-8000-000000000003', 'who',       'Descreva a última pessoa que comprou de vocês.',      'Quem era, o que levou, por quê.',       'long_text', true,  null, 1),
-  ('42000000-0000-4000-8000-000000000006', '41000000-0000-4000-8000-000000000003', 'objection', 'Qual é a objeção que mais aparece?',                  'A frase que vocês mais ouvem antes do "vou pensar".', 'short_text', false, null, 2),
-  ('42000000-0000-4000-8000-000000000007', '41000000-0000-4000-8000-000000000004', 'said',      'Qual elogio vocês mais escutam?',                     null, 'short_text', false, null, 1),
-  ('42000000-0000-4000-8000-000000000008', '41000000-0000-4000-8000-000000000004', 'wrong',     'O que as pessoas entendem errado sobre a marca?',     null, 'long_text',  false, null, 2),
-  ('42000000-0000-4000-8000-000000000009', '41000000-0000-4000-8000-000000000005', 'admire',    'Três marcas que vocês admiram — de qualquer categoria.', null, 'long_text', false, null, 1),
-  ('42000000-0000-4000-8000-00000000000a', '41000000-0000-4000-8000-000000000005', 'avoid',     'Uma marca que vocês não querem parecer.',             null, 'short_text', false, null, 2),
-  ('42000000-0000-4000-8000-00000000000b', '41000000-0000-4000-8000-000000000006', 'drive',     'Link para fotos, catálogo ou manual de marca',        null, 'url',        false, null, 1),
-  ('42000000-0000-4000-8000-00000000000c', '41000000-0000-4000-8000-000000000006', 'anything',  'Alguma coisa que a gente não perguntou e deveria ter perguntado?', null, 'long_text', false, null, 2)
-on conflict (section_id, key) do update
-  set label       = excluded.label,
-      help_text   = excluded.help_text,
-      type        = excluded.type,
-      is_required = excluded.is_required,
-      options     = excluded.options,
-      position    = excluded.position;
+-- Template, seções e perguntas agora nascem em
+-- `20260903125056_onboarding_social_catalog.sql`. O formulário é produto da
+-- Boop, não dado de cliente — e o seed não roda em staging nem em produção,
+-- onde o onboarding precisa existir. Os ids são os mesmos, então tudo abaixo
+-- continua apontando para as mesmas linhas.
+--
+-- O que continua aqui é o que é de fato dado de tenant: as submissões e as
+-- respostas dos dois clientes fictícios.
 
 -- Submissões: client_id NÃO aparece no insert. Vem do trigger, derivado de
 -- project_id (app.derive_client_id). É a regra central de multi-tenancy.
@@ -436,7 +398,7 @@ select
   v.visibility::public.activity_visibility, v.created_at::timestamptz
 from (values
   ('10000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 'project',          '30000000-0000-4000-8000-000000000001', 'project.created',           '{}',                                                  'internal', '2026-07-14 09:00-03'),
-  ('10000000-0000-4000-8000-000000000005', '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 'onboarding',       '43000000-0000-4000-8000-000000000001', 'onboarding.submitted',      '{"answered":7}',                                      'client',   '2026-07-22 16:40-03'),
+  ('10000000-0000-4000-8000-000000000005', '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 'onboarding_submission', '43000000-0000-4000-8000-000000000001', 'onboarding.completed',      '{"answered":7}',                                      'client',   '2026-07-22 16:40-03'),
   ('10000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 'strategy_version', '51000000-0000-4000-8000-000000000001', 'strategy.sent',             '{"version":1,"to":"awaiting_client"}',                'client',   '2026-08-20 11:00-03'),
   ('10000000-0000-4000-8000-000000000005', '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 'strategy_version', '51000000-0000-4000-8000-000000000001', 'strategy.approved',         '{"version":1,"from":"awaiting_client","to":"approved"}', 'client', '2026-08-26 15:20-03'),
   ('10000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 'content_version',  '61000000-0000-4000-8000-000000000004', 'content.sent_for_approval', '{"item":"60000000-0000-4000-8000-000000000004","version":2}', 'client', '2026-08-30 11:30-03'),

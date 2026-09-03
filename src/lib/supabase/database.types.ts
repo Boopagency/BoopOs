@@ -1114,6 +1114,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      reopen_onboarding: { Args: { p_project_id: string }; Returns: string }
       set_project_stage_state: {
         Args: {
           p_project_id: string
@@ -1122,6 +1123,8 @@ export type Database = {
         }
         Returns: string
       }
+      start_onboarding: { Args: { p_project_id: string }; Returns: string }
+      submit_onboarding: { Args: { p_project_id: string }; Returns: string }
     }
     Enums: {
       activity_visibility: "internal" | "client"
