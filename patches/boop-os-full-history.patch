@@ -1,7 +1,7 @@
 From 604407e1c575e52b6df1b009c86a7a3b4bd3279f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 1 Sep 2026 03:02:20 +0000
-Subject: [PATCH 01/36] =?UTF-8?q?docs:=20phase=200=20=E2=80=94=20architect?=
+Subject: [PATCH 01/37] =?UTF-8?q?docs:=20phase=200=20=E2=80=94=20architect?=
  =?UTF-8?q?ure=20and=20engineering=20foundation?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -3751,7 +3751,7 @@ index 0000000..a2349a4
 From afc49ca33d32ad2315a0464ca2cd1ec32f1dffed Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 1 Sep 2026 03:31:10 +0000
-Subject: [PATCH 02/36] chore: normalize markdown formatting with prettier
+Subject: [PATCH 02/37] chore: normalize markdown formatting with prettier
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -5685,7 +5685,7 @@ index a2349a4..8e8d8ea 100644
 From 2d78eac719418cb291b0a7e9441db6ac81980754 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 1 Sep 2026 03:31:31 +0000
-Subject: [PATCH 03/36] =?UTF-8?q?feat:=20phase=201=20=E2=80=94=20technical?=
+Subject: [PATCH 03/37] =?UTF-8?q?feat:=20phase=201=20=E2=80=94=20technical?=
  =?UTF-8?q?=20foundation?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -14663,7 +14663,7 @@ index 0000000..e87ca3f
 From e0a5222d864411abd412fc652bfaced5d23052ab Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 1 Sep 2026 03:37:52 +0000
-Subject: [PATCH 04/36] fix: classify supabase and server-only as runtime
+Subject: [PATCH 04/37] fix: classify supabase and server-only as runtime
  dependencies
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -14777,7 +14777,7 @@ index 512db15..da0d15d 100644
 From e2801c8077a93e85d36f8e469e528c00b92c2a58 Mon Sep 17 00:00:00 2001
 From: Boopagency <contato@deumboop.com.br>
 Date: Tue, 1 Sep 2026 08:24:12 -0300
-Subject: [PATCH 05/36] Add files via upload
+Subject: [PATCH 05/37] Add files via upload
 
 ---
  ...senta\303\247\303\243o (1)_compressed.pdf" | Bin 0 -> 2357707 bytes
@@ -82524,7 +82524,7 @@ index 0000000..63d124f
 From 34cbb6414f7a2133a2658a7a9a15c7b5e31869ab Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 1 Sep 2026 12:14:29 +0000
-Subject: [PATCH 06/36] =?UTF-8?q?feat:=20phase=201.5=20=E2=80=94=20Boop=20?=
+Subject: [PATCH 06/37] =?UTF-8?q?feat:=20phase=201.5=20=E2=80=94=20Boop=20?=
  =?UTF-8?q?visual=20system=20and=20navigable=20prototype?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -94074,7 +94074,7 @@ index 0000000..9ed0d6d
 From 2327810d615f2047a2951d9beacae80983d90b25 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 1 Sep 2026 12:27:58 +0000
-Subject: [PATCH 07/36] docs: close each phase with a patch and a state note
+Subject: [PATCH 07/37] docs: close each phase with a patch and a state note
 
 Standing convention, requested after phase 1.5: when a phase closes, produce
 the format-patch for that phase and for the full history, plus a short note
@@ -94111,7 +94111,7 @@ index 941cc75..6c960ad 100644
 From eb1bd8883f69ffec2d22f9ff050588d5e6ba525b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 1 Sep 2026 20:34:18 +0000
-Subject: [PATCH 08/36] chore(db): database tooling that works with and without
+Subject: [PATCH 08/37] chore(db): database tooling that works with and without
  Docker
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -95700,7 +95700,7 @@ index 0000000..01bc142
 From 5de9b47d9f9885f0860fad9e58feb52192697079 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 1 Sep 2026 20:34:31 +0000
-Subject: [PATCH 09/36] feat(db): Milestone 1 schema as forward-only migrations
+Subject: [PATCH 09/37] feat(db): Milestone 1 schema as forward-only migrations
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -96975,7 +96975,7 @@ index 0000000..904f813
 From 23b9bbc9c5b640a4689303ce855d58156dd71829 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 1 Sep 2026 20:34:42 +0000
-Subject: [PATCH 10/36] feat(db): seed with two fictional tenants
+Subject: [PATCH 10/37] feat(db): seed with two fictional tenants
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -97517,7 +97517,7 @@ index 0000000..0b45882
 From 5f927b7101243c7a8b056952ac7cad6191380e4a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 1 Sep 2026 20:34:52 +0000
-Subject: [PATCH 11/36] fix(db): act on the Supabase linter findings from
+Subject: [PATCH 11/37] fix(db): act on the Supabase linter findings from
  staging
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -97629,7 +97629,7 @@ index 0000000..562af81
 From a53731849e99e5582e2ad83bbd80fa00266f77e2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 1 Sep 2026 20:35:02 +0000
-Subject: [PATCH 12/36] feat(db): generated types and an explicit enum parity
+Subject: [PATCH 12/37] feat(db): generated types and an explicit enum parity
  contract
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -99164,7 +99164,7 @@ index 0000000..20859f2
 From 919ab9931992dbcf7f4691f4f4a26b4799ab301d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 1 Sep 2026 20:35:15 +0000
-Subject: [PATCH 13/36] test(db): 64 cases against a real Postgres
+Subject: [PATCH 13/37] test(db): 64 cases against a real Postgres
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -100369,7 +100369,7 @@ index ca6c231..c63aa4c 100644
 From 358677b68ff41e576ee57fcefe9a6fa7c520dccc Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 1 Sep 2026 20:35:30 +0000
-Subject: [PATCH 14/36] =?UTF-8?q?docs:=20phase=202=20=E2=80=94=20the=20dat?=
+Subject: [PATCH 14/37] =?UTF-8?q?docs:=20phase=202=20=E2=80=94=20the=20dat?=
  =?UTF-8?q?abase,=20ADR-0019,=20D-08=20settled?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -101222,7 +101222,7 @@ index da7281f..b9a83e8 100644
 From d3f116efa0ad8d481db93752dd841266ed9c6af3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 1 Sep 2026 21:13:07 +0000
-Subject: [PATCH 15/36] =?UTF-8?q?docs:=20middleware.ts=20is=20gone=20in=20?=
+Subject: [PATCH 15/37] =?UTF-8?q?docs:=20middleware.ts=20is=20gone=20in=20?=
  =?UTF-8?q?Next=2016=20=E2=80=94=20the=20file=20is=20proxy.ts?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -101436,7 +101436,7 @@ index b9a83e8..1c936b0 100644
 From 7426ee8b71e06bb41c6a176add0c049752c462f2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 2 Sep 2026 01:43:25 +0000
-Subject: [PATCH 16/36] =?UTF-8?q?feat(auth):=20phase=203=20=E2=80=94=20Mag?=
+Subject: [PATCH 16/37] =?UTF-8?q?feat(auth):=20phase=203=20=E2=80=94=20Mag?=
  =?UTF-8?q?ic=20Link,=20SSR=20session=20and=20a=20trustworthy=20Actor?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -104893,7 +104893,7 @@ index c63aa4c..a8cb9ef 100644
 From dc386903eac96c9fa52c25dbb2a3765c1b0a85cb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 2 Sep 2026 02:54:27 +0000
-Subject: [PATCH 17/36] docs: phase 3 validated against the hosted environment
+Subject: [PATCH 17/37] docs: phase 3 validated against the hosted environment
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -105003,7 +105003,7 @@ index 362f82f..0b02012 100644
 From 47fc61138a89f8b096090b6bc511f7cd7453607d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 2 Sep 2026 09:37:27 +0000
-Subject: [PATCH 18/36] =?UTF-8?q?feat(db):=20phase=204=20=E2=80=94=20RLS?=
+Subject: [PATCH 18/37] =?UTF-8?q?feat(db):=20phase=204=20=E2=80=94=20RLS?=
  =?UTF-8?q?=20policies,=20grants=20and=20the=20app.*=20authorization=20fun?=
  =?UTF-8?q?ctions?=
 MIME-Version: 1.0
@@ -106332,7 +106332,7 @@ index 0000000..b2422eb
 From 5e5b59e102f91c15fc97b172835f1fb975591fd1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 2 Sep 2026 09:37:55 +0000
-Subject: [PATCH 19/36] feat(auth): can(), scope guards, and service_role
+Subject: [PATCH 19/37] feat(auth): can(), scope guards, and service_role
  leaves the application
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -107068,7 +107068,7 @@ index 0000000..9774f74
 From 63e8889f171c38f2cb43855c2f8bf621b3cb0645 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 2 Sep 2026 09:37:55 +0000
-Subject: [PATCH 20/36] test: 267 cases against a real Postgres, written in
+Subject: [PATCH 20/37] test: 267 cases against a real Postgres, written in
  pairs
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -109715,7 +109715,7 @@ index 0000000..32c9d64
 From 3f28b65106537185e305c322818c58b1369dfad6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 2 Sep 2026 09:38:10 +0000
-Subject: [PATCH 21/36] =?UTF-8?q?docs:=20phase=204=20=E2=80=94=20ADR-0022?=
+Subject: [PATCH 21/37] =?UTF-8?q?docs:=20phase=204=20=E2=80=94=20ADR-0022?=
  =?UTF-8?q?=20replaces=20ADR-0021,=20I-15=20closed?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -110497,7 +110497,7 @@ index eabc33c..f20d83c 100644
 From 112c41dbc9f1f9e8126bc14a6dd191ce7ee1b5ff Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 2 Sep 2026 14:36:45 +0000
-Subject: [PATCH 22/36] =?UTF-8?q?feat:=20phase=205=20=E2=80=94=20admin=20a?=
+Subject: [PATCH 22/37] =?UTF-8?q?feat:=20phase=205=20=E2=80=94=20admin=20a?=
  =?UTF-8?q?nd=20clients=20on=20real=20data,=20with=20column-level=20debt?=
  =?UTF-8?q?=20paid?=
 MIME-Version: 1.0
@@ -117805,7 +117805,7 @@ index 0000000..0c24b8b
 From 7bd9b0baf3235337fee3cabde2cca1fcebd6bcbc Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 2 Sep 2026 16:58:12 +0000
-Subject: [PATCH 23/36] =?UTF-8?q?fix(db):=20authorship=20cannot=20be=20rea?=
+Subject: [PATCH 23/37] =?UTF-8?q?fix(db):=20authorship=20cannot=20be=20rea?=
  =?UTF-8?q?ssigned=20=E2=80=94=20found=20validating=20the=20hosted=20QA?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -118460,7 +118460,7 @@ index 0000000..45ce2dc
 From 2d7fdfbe599853aaa724ddef5d2288788bc7fbc2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 2 Sep 2026 19:15:04 +0000
-Subject: [PATCH 24/36] chore(db): align migration filenames with the staging
+Subject: [PATCH 24/37] chore(db): align migration filenames with the staging
  ledger
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -118543,7 +118543,7 @@ rename to supabase/migrations/20260902165421_immutable_authorship.sql
 From d4a05e88c9915dd53341095f3975072e563204de Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 2 Sep 2026 19:40:03 +0000
-Subject: [PATCH 25/36] fix(auth): name the invite-callback failure instead of
+Subject: [PATCH 25/37] fix(auth): name the invite-callback failure instead of
  blaming the link
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -118750,7 +118750,7 @@ index 80a7c2a..250bedb 100644
 From a2f855dfef02e11e66cec7166587416da4717d5e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 2 Sep 2026 20:51:35 +0000
-Subject: [PATCH 26/36] =?UTF-8?q?docs:=20phase=205=20closed=20=E2=80=94=20?=
+Subject: [PATCH 26/37] =?UTF-8?q?docs:=20phase=205=20closed=20=E2=80=94=20?=
  =?UTF-8?q?hosted=20QA=20complete,=20invite=20accepted=20on=20the=20first?=
  =?UTF-8?q?=20link?=
 MIME-Version: 1.0
@@ -118881,7 +118881,7 @@ index 66175db..fa12916 100644
 From a38ce9d1ab2a188218f9b3f9d02bd8c03d409980 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 3 Sep 2026 01:41:24 +0000
-Subject: [PATCH 27/36] fix(db): the plan B without Docker did not reproduce
+Subject: [PATCH 27/37] fix(db): the plan B without Docker did not reproduce
  the real auth grants
 
 `scripts/db/auth-shim.sql` granted EXECUTE on `auth.uid()` to `anon` and
@@ -118936,7 +118936,7 @@ index 8180544..18b32e1 100644
 From 1bd90d05bc5eb8abfd8d42a36970eccecc18c787 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 3 Sep 2026 01:41:39 +0000
-Subject: [PATCH 28/36] =?UTF-8?q?feat(db):=20phase=206=20=E2=80=94=20trans?=
+Subject: [PATCH 28/37] =?UTF-8?q?feat(db):=20phase=206=20=E2=80=94=20trans?=
  =?UTF-8?q?actional=20boundaries=20and=20an=20immutable=20journey=20bindin?=
  =?UTF-8?q?g?=
 MIME-Version: 1.0
@@ -119685,7 +119685,7 @@ index 0000000..878e837
 From 550af94f24e56b6849815bfc48227a9725266759 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 3 Sep 2026 01:41:58 +0000
-Subject: [PATCH 29/36] =?UTF-8?q?feat:=20phase=206=20=E2=80=94=20projects,?=
+Subject: [PATCH 29/37] =?UTF-8?q?feat:=20phase=206=20=E2=80=94=20projects,?=
  =?UTF-8?q?=20journey,=20and=20a=20portal=20that=20stops=20pretending?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -123428,7 +123428,7 @@ index 25fa8a6..27d5afc 100644
 From 43fe5ab8d9347d27a26e3aeddfa396d69242a923 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 3 Sep 2026 01:42:17 +0000
-Subject: [PATCH 30/36] test: 157 cases against the phase 6 surface, most of
+Subject: [PATCH 30/37] test: 157 cases against the phase 6 surface, most of
  them trying to break it
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -125518,7 +125518,7 @@ index 045242e..d3d9844 100644
 From fc461cabd908875085fb963c118e742f12c5502b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 3 Sep 2026 01:42:17 +0000
-Subject: [PATCH 31/36] =?UTF-8?q?docs:=20phase=206=20=E2=80=94=20ADR-0023,?=
+Subject: [PATCH 31/37] =?UTF-8?q?docs:=20phase=206=20=E2=80=94=20ADR-0023,?=
  =?UTF-8?q?=20D-16=20to=20D-19=20settled,=20and=20the=20state=20document?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -126695,7 +126695,7 @@ index 9e60729..eb31ab2 100644
 From fa91c937ddf8b1310ca3a28b1984d8699e01cbe2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 3 Sep 2026 12:02:10 +0000
-Subject: [PATCH 32/36] docs: phase 6 validated on the hosted environment, with
+Subject: [PATCH 32/37] docs: phase 6 validated on the hosted environment, with
  no issues found
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -126852,7 +126852,7 @@ index 45aefd5..3f05846 100644
 From fa2e1bf40c3ebb49be287b1e346220ec450de49a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 3 Sep 2026 18:15:32 +0000
-Subject: [PATCH 33/36] =?UTF-8?q?feat(db):=20phase=207=20=E2=80=94=20the?=
+Subject: [PATCH 33/37] =?UTF-8?q?feat(db):=20phase=207=20=E2=80=94=20the?=
  =?UTF-8?q?=20onboarding=20catalog,=20answer=20integrity,=20and=20one=20do?=
  =?UTF-8?q?or=20for=20the=20lifecycle?=
 MIME-Version: 1.0
@@ -127736,7 +127736,7 @@ index 0b45882..0b5ba0b 100644
 From 5e39041826a6adf2ecd6f2922218765dbfd0299f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 3 Sep 2026 18:15:47 +0000
-Subject: [PATCH 34/36] =?UTF-8?q?feat:=20phase=207=20=E2=80=94=20an=20onbo?=
+Subject: [PATCH 34/37] =?UTF-8?q?feat:=20phase=207=20=E2=80=94=20an=20onbo?=
  =?UTF-8?q?arding=20that=20saves,=20and=20a=20form=20that=20comes=20from?=
  =?UTF-8?q?=20the=20database?=
 MIME-Version: 1.0
@@ -130517,7 +130517,7 @@ index 27d5afc..20f6d8e 100644
 From 3340bb3585b6e9a08a65bb5fb4446913ce820d0e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 3 Sep 2026 18:16:05 +0000
-Subject: [PATCH 35/36] test: 146 cases against the phase 7 surface, most of
+Subject: [PATCH 35/37] test: 146 cases against the phase 7 surface, most of
  them trying to break it
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -132760,7 +132760,7 @@ index 0000000..68ecdbe
 From ac514908bd503bca2622ffd420773c45a909cb34 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 3 Sep 2026 18:16:05 +0000
-Subject: [PATCH 36/36] =?UTF-8?q?docs:=20phase=207=20=E2=80=94=20ADR-0024,?=
+Subject: [PATCH 36/37] =?UTF-8?q?docs:=20phase=207=20=E2=80=94=20ADR-0024,?=
  =?UTF-8?q?=20D-20=20to=20D-24,=20and=20the=20state=20document?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -133603,6 +133603,177 @@ index eb31ab2..b90400b 100644
  
  ### Estratégia
  
+-- 
+2.43.0
+
+
+From 143de337f566cf48490d2043500e5bda2701792d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 3 Sep 2026 23:29:34 +0000
+Subject: [PATCH 37/37] docs: phase 7 validated on the hosted environment, with
+ no issues found
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The human QA ran the whole cycle against staging — open, answer, autosave,
+close and return, required validation, submit, refresh, admin read, journey
+advance, reopen, resubmit, cross-tenant, mobile — and passed every step.
+
+What makes this more than a report is that staging's activity_log corroborates
+it without depending on anyone's account of what happened. Four rows, with
+timestamps and authorship: `onboarding.started` by the admin, `completed` by the
+client with outcome `advanced` (onboarding → immersion), `reopened` by the
+admin, and a second `completed` by the client with outcome
+`submitted_no_advance` and current_stage `immersion`.
+
+That is D-21 and D-22 observed with real people rather than fixtures: the
+resubmit did not push the project from immersion to research, authorship landed
+on the right actor each time, one event per submission, and no answer content in
+the metadata.
+
+The final adversarial pass was re-run from scratch rather than trusting the
+earlier one: the database was rebuilt from the migrations, the lifecycle bypass
+was probed again column by column as `authenticated`, the foreign-template
+question spoof was refused for both the submission's owner and `service_role`,
+rollback was proven by injecting a failure into the stage update and watching
+the submission stay `draft`, and three simultaneous connections submitting the
+same onboarding produced one `advanced`, two `already_submitted`, one activity
+row, and a journey that advanced exactly once.
+
+Fingerprint 9/9 against staging, zero ledger drift across 22 migrations, and no
+new advisor class.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018oK4rvj1mYjUcJY54csxCy
+---
+ docs/FASE7ESTADO.md                           | 67 +++++++++++++++++--
+ ...pc-e-fim-da-escrita-direta-na-submissao.md | 11 +++
+ docs/roadmap.md                               |  2 +-
+ 3 files changed, 72 insertions(+), 8 deletions(-)
+
+diff --git a/docs/FASE7ESTADO.md b/docs/FASE7ESTADO.md
+index cb9efdb..ae69809 100644
+--- a/docs/FASE7ESTADO.md
++++ b/docs/FASE7ESTADO.md
+@@ -5,6 +5,9 @@ o envio é uma transação que fecha a etapa e abre a próxima.
+ 
+ Base: `4c88baf` (fim da FASE 6, validada em ambiente hospedado).
+ 
++**Status: CONCLUÍDA e VALIDADA EM AMBIENTE HOSPEDADO.** QA humano sem problemas;
++validação adversarial final refeita do zero contra Postgres real e staging.
++
+ ---
+ 
+ ## O que a fase respondeu
+@@ -254,15 +257,65 @@ Varreduras atualizadas: `policy-matrix` (`onboarding_submissions` de `SIU` para
+   seções, 12 perguntas, 4 obrigatórias.
+ - `onboarding_submissions` em staging: `SELECT` e nada mais para `authenticated`.
+ 
+-### QA hospedado — PENDENTE
++### QA hospedado — CONCLUÍDO, sem problemas
++
++O QA humano no ambiente hospedado foi executado e **passou em todos os passos**.
++Projeto: **Velmont Patentes · Social Media** (`social`, `active`), que já estava
++na etapa `onboarding` — nenhum avanço manual foi necessário.
++
++| #   | Passo                                         | Resultado |
++| --- | --------------------------------------------- | --------- |
++| 1   | A Boop abriu o onboarding                     | PASS      |
++| 2   | O `client_user` respondeu no portal           | PASS      |
++| 3   | Autosave gravou                               | PASS      |
++| 4   | Fechar e voltar preservou as respostas        | PASS      |
++| 5   | Obrigatória vazia bloqueou o envio            | PASS      |
++| 6   | Envio funcionou                               | PASS      |
++| 7   | Refresh manteve `submitted`                   | PASS      |
++| 8   | O admin leu as respostas reais                | PASS      |
++| 9   | A jornada avançou para `immersion`            | PASS      |
++| 10  | Reabertura funcionou                          | PASS      |
++| 11  | As respostas foram preservadas na reabertura  | PASS      |
++| 12  | Autosave voltou a funcionar depois de reabrir | PASS      |
++| 13  | Reenvio funcionou                             | PASS      |
++| 14  | A jornada **permaneceu** em `immersion`       | PASS      |
++| 15  | Cross-tenant devolveu 404                     | PASS      |
++| 16  | Celular                                       | PASS      |
++
++**Problemas encontrados: nenhum.**
++
++#### O banco corrobora o QA, sem depender do relato
++
++O `activity_log` de staging conta a mesma história, com carimbo de tempo e
++autoria — e é a prova independente de que D-21 e D-22 se comportam em produção
++como no teste:
++
++```
++19:38  onboarding.started    boop_admin   {"template_id": "40000000-…-01"}
++20:01  onboarding.completed  client_user  {"outcome":"advanced", "onboarding"→"immersion"}
++20:02  onboarding.reopened   boop_admin   {"previous_submitted_at": "20:01"}
++20:03  onboarding.completed  client_user  {"outcome":"submitted_no_advance", "current_stage":"immersion"}
++```
++
++Quatro fatos que essas quatro linhas fixam:
++
++- **a autoria é a certa** — a Boop abriu e reabriu; quem enviou, as duas vezes,
++  foi o cliente. `submitted_by` aponta para ele, não para quem abriu;
++- **o reenvio não empurrou a jornada** — o segundo envio saiu
++  `submitted_no_advance` e o projeto continuou em `immersion`, sem ir para
++  `research`. É D-21 acontecendo com gente de verdade;
++- **um envio, um evento** — nenhuma duplicata;
++- **nenhuma resposta no metadata** — só identificadores e transições, como a
++  regra de log exige.
++
++Estado final em staging: 1 submissão `submitted`, 12 respostas, jornada
++`kickoff=done onboarding=done immersion=current`.
+ 
+-Não foi executado: exige uma pessoa com sessão real no navegador. O checklist
+-está no fim deste documento e no relatório da fase.
++#### O que este QA NÃO cobriu
+ 
+-O projeto para o QA já está no estado certo, e isso foi **lido**, não presumido:
+-**Velmont Patentes · Social Media**, `type = social`, `status = active`, etapa
+-corrente **`onboarding`**, 8 etapas, 0 submissões. Nenhum avanço manual é
+-necessário.
++O caso `boop_member` no ambiente hospedado — o staging não tem um. A célula
++está provada contra Postgres real (a suíte cobre member vinculado, member de
++outro tenant e member sem vínculo), e é a mesma lacuna registrada na FASE 6.
+ 
+ ## Débito técnico assumido
+ 
+diff --git a/docs/adr/0024-ciclo-de-vida-por-rpc-e-fim-da-escrita-direta-na-submissao.md b/docs/adr/0024-ciclo-de-vida-por-rpc-e-fim-da-escrita-direta-na-submissao.md
+index 9a4d62a..6c613ec 100644
+--- a/docs/adr/0024-ciclo-de-vida-por-rpc-e-fim-da-escrita-direta-na-submissao.md
++++ b/docs/adr/0024-ciclo-de-vida-por-rpc-e-fim-da-escrita-direta-na-submissao.md
+@@ -124,6 +124,17 @@ A matriz de `tests/rls/policy-matrix.test.ts` passou `onboarding_submissions` de
+ `SIU` para `S`, e a varredura das duas fechaduras continua valendo: policy e
+ GRANT saíram juntos.
+ 
++## Confirmado em ambiente hospedado
++
++O QA humano da FASE 7 exercitou o ciclo inteiro em staging — abrir, responder,
++enviar, reabrir, reenviar — e o `activity_log` de lá registra o que esta decisão
++prometia: quatro eventos, autoria correta em cada um (a Boop abriu e reabriu; o
++cliente enviou as duas vezes), e o segundo envio saindo `submitted_no_advance`
++com o projeto parado em `immersion`.
++
++Nenhuma escrita direta aconteceu, porque nenhuma é possível:
++`onboarding_submissions` responde `SELECT` e mais nada para `authenticated`.
++
+ ## Gatilho de revisão
+ 
+ Se uma quarta operação de ciclo de vida do onboarding aparecer, ou se outro
+diff --git a/docs/roadmap.md b/docs/roadmap.md
+index 27a9292..521c8eb 100644
+--- a/docs/roadmap.md
++++ b/docs/roadmap.md
+@@ -162,7 +162,7 @@ Três funções SQL novas ([ADR-0023](adr/0023-fronteiras-transacionais-de-proje
+ e a imutabilidade de `journey_key`/`type` no banco, que a ADR-0006 declarava e o
+ schema não garantia. Ver [`docs/FASE6ESTADO.md`](FASE6ESTADO.md).
+ 
+-### FASE 7 — Onboarding ✅
++### FASE 7 — Onboarding ✅ (validada em ambiente hospedado)
+ 
+ Renderização a partir do schema, uma seção por vez, progresso, autosave com
+ `upsert`, rascunho, `submitOnboarding` (função SQL), leitura das respostas no
 -- 
 2.43.0
 
