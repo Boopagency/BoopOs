@@ -72,6 +72,24 @@ export const WORKFLOW_MESSAGE: Record<string, string> = {
   'membership.revoke_failed': 'Não foi possível remover o acesso.',
   'membership.user_disabled': 'Essa pessoa está desligada.',
   'membership.admin_is_global': 'Admins da Boop já alcançam todos os clientes.',
+
+  /* Onboarding — FASE 7 */
+  'onboarding.start_failed': 'Não foi possível abrir o onboarding.',
+  'onboarding.unsupported': 'Esse tipo de projeto ainda não tem formulário de onboarding.',
+  'onboarding.stage_not_current':
+    'Avance o projeto para a etapa Onboarding antes de abrir o formulário.',
+  'onboarding.not_started': 'O onboarding deste projeto ainda não foi aberto.',
+  'onboarding.already_submitted': 'Este onboarding já foi enviado.',
+  'onboarding.question_not_found': 'Essa pergunta não faz parte deste onboarding.',
+  'onboarding.answer_invalid': 'Essa resposta não é válida para esta pergunta.',
+  'onboarding.save_failed': 'Não foi possível salvar sua resposta. Tente de novo.',
+  'onboarding.submit_failed': 'Não foi possível enviar o onboarding.',
+  'onboarding.required_missing': 'Ainda faltam respostas obrigatórias.',
+  'onboarding.reopen_failed': 'Não foi possível reabrir o onboarding.',
+  'onboarding.start.denied': 'Você não tem permissão para abrir o onboarding deste projeto.',
+  'onboarding.answer.denied': 'Você não tem permissão para responder este onboarding.',
+  'onboarding.submit.denied': 'Você não tem permissão para enviar este onboarding.',
+  'onboarding.reopen.denied': 'Só um admin da Boop reabre um onboarding.',
 }
 
 const FALLBACK = 'Não foi possível concluir. Tente de novo em instantes.'
@@ -100,6 +118,10 @@ export const FIELD_MESSAGE: Record<string, string> = {
   client_id_invalid: 'Cliente inválido.',
   user_id_invalid: 'Pessoa inválida.',
   client_required_for_client_user: 'Escolha o cliente que essa pessoa vai acessar.',
+  project_id_invalid: 'Projeto inválido.',
+  question_id_invalid: 'Pergunta inválida.',
+  answer_value_invalid: 'Valor inválido para esta pergunta.',
+  answer_too_long: 'Resposta longa demais.',
 }
 
 /** A primeira mensagem de um campo, já traduzida. */

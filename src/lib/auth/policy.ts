@@ -63,6 +63,17 @@ export const CAPABILITIES = [
   'onboarding.answer',
   'onboarding.submit',
   'onboarding.read_answers',
+  /*
+   * FASE 7. Nao estava na matriz de docs/permissions.md porque a operacao
+   * so ganhou codigo agora — mas o documento sempre reservou `reopenOnboarding`
+   * a `boop_admin` (docs/workflows.md), e uma capacidade propria e o que faz
+   * essa reserva valer na PRIMEIRA camada.
+   *
+   * Sem ela, o workflow teria de reusar `onboarding.start`, que inclui
+   * `boop_member`: a recusa aconteceria so no corpo da funcao SQL, e chegaria
+   * na tela como falha generica em vez de "so um admin da Boop reabre".
+   */
+  'onboarding.reopen',
   /* Estrategia */
   'strategy.create',
   'strategy.read_draft',
@@ -137,6 +148,7 @@ const PERMITIDO: Record<Capability, readonly UserRole[]> = {
   'onboarding.answer': ['boop_admin', 'boop_member', 'client_user'],
   'onboarding.submit': ['boop_admin', 'boop_member', 'client_user'],
   'onboarding.read_answers': ['boop_admin', 'boop_member', 'client_user'],
+  'onboarding.reopen': ['boop_admin'],
 
   'strategy.create': ['boop_admin', 'boop_member'],
   /* Rascunho e trabalho em andamento: o cliente entra quando esta pronto. */

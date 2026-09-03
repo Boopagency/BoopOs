@@ -9,7 +9,6 @@ import type {
   Insight,
   JourneyStage,
   Meeting,
-  OnboardingSection,
   ProjectFile,
   ProjectSummary,
   ResultsPeriod,
@@ -45,9 +44,16 @@ import type {
  *
  * Elas passaram a receber um uuid REAL, conferido pelo mesmo guard das outras.
  * Nenhuma delas usa `DEMO_PROJECT_ID` como atalho: o id é validado primeiro, e
- * só então o mock responde. Assim, quando a FASE 7 trocar `getOnboarding()` por
- * uma consulta de verdade, a autorização já está no lugar certo — e o que
- * mudou foi só de onde vieram as linhas.
+ * só então o mock responde. Foi exatamente assim que a FASE 7 trocou o
+ * onboarding: a autorização já estava no lugar certo, e o que mudou foi só de
+ * onde vieram as linhas.
+ *
+ * ## O onboarding saiu deste arquivo
+ *
+ * `getOnboarding()` não existe mais. O onboarding tem domínio próprio desde a
+ * FASE 7 (`src/domains/onboarding/queries.ts`), como projetos desde a FASE 6:
+ * quando o dado é real, ele não passa mais pela camada que existia para
+ * segurar mock.
  */
 
 /**
@@ -158,11 +164,6 @@ export async function getAwaitingContent(projectId: string): Promise<ContentItem
 export async function getStrategy(projectId: string): Promise<Strategy> {
   await assertProject(projectId)
   return hartmann.STRATEGY
-}
-
-export async function getOnboarding(projectId: string): Promise<OnboardingSection[]> {
-  await assertProject(projectId)
-  return hartmann.ONBOARDING
 }
 
 export async function getResults(projectId: string): Promise<ResultsPeriod | null> {

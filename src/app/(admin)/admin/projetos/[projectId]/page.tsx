@@ -9,6 +9,8 @@ import { JourneyControls } from '@/domains/projects/components/journey-controls'
 import { ProjectForm } from '@/domains/projects/components/project-form'
 import { ProjectStatusControls } from '@/domains/projects/components/project-status-controls'
 import { ProjectStatusMark } from '@/domains/projects/components/project-status-mark'
+import { OnboardingPanel } from '@/domains/onboarding/components/onboarding-panel'
+import { getOnboardingForBoop } from '@/domains/onboarding/queries'
 import { getProjectDetailForBoop, getProjectStagesForBoop } from '@/domains/projects/queries'
 import { requireBoop } from '@/lib/auth/authorization'
 import { can } from '@/lib/auth/policy'
@@ -42,21 +44,28 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  *
  * ## O que NÃO está aqui
  *
- * Onboarding, estratégia, conteúdo, arquivos, resultados. São FASE 7 em diante.
- * Nenhum bloco vazio e nenhum "em breve".
+ * Estratégia, conteúdo, arquivos, resultados. São FASE 9 em diante. Nenhum
+ * bloco vazio e nenhum "em breve".
+ *
+ * O ONBOARDING entrou na FASE 7, e entrou aqui — e não numa rota própria: a
+ * pergunta que ele responde ("o que sabemos deste cliente?") pertence à página
+ * do projeto, ao lado da jornada que ele faz avançar.
  */
 export default async function AdminProjectPage({ params }: Params) {
   const { projectId } = await params
 
   const [actor, project] = await Promise.all([requireBoop(), getProjectDetailForBoop(projectId)])
-  const [client, stages] = await Promise.all([
+  const [client, stages, onboarding] = await Promise.all([
     getClientPublic(project.clientId),
     getProjectStagesForBoop(projectId),
+    getOnboardingForBoop(projectId),
   ])
 
   const canManageJourney = can(actor, 'project.advance_stage').allowed
   const canChangeStatus = can(actor, 'project.change_status').allowed
   const canEdit = can(actor, 'project.update').allowed
+  const canStartOnboarding = can(actor, 'onboarding.start').allowed
+  const canReopenOnboarding = can(actor, 'onboarding.reopen').allowed
 
   return (
     <Container>
@@ -91,6 +100,24 @@ export default async function AdminProjectPage({ params }: Params) {
           </p>
           <div className="mt-8">
             <JourneyControls projectId={project.id} stages={stages} canManage={canManageJourney} />
+          </div>
+        </section>
+
+        <section aria-labelledby="onboarding">
+          <h2 id="onboarding" className="t-title text-foreground">
+            Onboarding
+          </h2>
+          <p className="t-body text-muted measure mt-3">
+            O que o cliente respondeu antes da imersão. Enviar fecha a etapa Onboarding e abre a
+            próxima — as duas coisas na mesma transação.
+          </p>
+          <div className="mt-8">
+            <OnboardingPanel
+              projectId={project.id}
+              onboarding={onboarding}
+              canStart={canStartOnboarding}
+              canReopen={canReopenOnboarding}
+            />
           </div>
         </section>
 

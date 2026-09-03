@@ -67,6 +67,30 @@ export const ACTIVITY_ACTIONS = [
   'project.updated',
   'project.status_changed',
   'project.stage_changed',
+  /*
+   * FASE 7 — onboarding. Tres verbos, e a ausencia de um quarto e a decisao
+   * mais importante do grupo:
+   *
+   *   `onboarding.started`    a Boop abriu o formulario para o cliente.
+   *   `onboarding.completed`  o cliente enviou. Gravado DENTRO de
+   *                           `submit_onboarding()`, junto com o avanco da
+   *                           etapa, entao o workflow nao chama
+   *                           `ctx.activity()` — chamar produziria duas linhas.
+   *   `onboarding.reopened`   um admin devolveu a submissao para `draft`.
+   *
+   * NAO existe `onboarding.answer_saved`. O autosave dispara a cada debounce,
+   * por PERGUNTA: registra-lo encheria uma tabela append-only de centenas de
+   * linhas por onboarding, e nenhuma delas responderia uma pergunta de
+   * auditoria. O que importa auditar e quando o formulario abriu, quando foi
+   * enviado e quando foi reaberto (docs/workflows.md).
+   *
+   * O verbo e `completed`, e nao `submitted`: o catalogo canonico de
+   * docs/workflows.md decidiu, e um vocabulario com dois nomes para o mesmo
+   * fato nunca mais sai de um log append-only.
+   */
+  'onboarding.started',
+  'onboarding.completed',
+  'onboarding.reopened',
 ] as const
 
 export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number]
@@ -81,6 +105,7 @@ export const ACTIVITY_ENTITY_TYPES = [
   'client_membership',
   'project',
   'project_stage',
+  'onboarding_submission',
 ] as const
 export type ActivityEntityType = (typeof ACTIVITY_ENTITY_TYPES)[number]
 
@@ -104,4 +129,7 @@ export const ACTIVITY_ACTION_LABEL: Record<ActivityAction, string> = {
   'project.updated': 'editou o projeto',
   'project.status_changed': 'mudou o status do projeto',
   'project.stage_changed': 'moveu a jornada de',
+  'onboarding.started': 'abriu o onboarding de',
+  'onboarding.completed': 'enviou o onboarding de',
+  'onboarding.reopened': 'reabriu o onboarding de',
 }

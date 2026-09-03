@@ -156,23 +156,15 @@ export interface Strategy {
   chapters: StrategyChapter[]
 }
 
-export interface OnboardingQuestion {
-  key: string
-  label: string
-  help?: string
-  type: 'short_text' | 'long_text' | 'single_select' | 'multi_select' | 'url'
-  options?: string[]
-  placeholder?: string
-}
-
-export interface OnboardingSection {
-  key: string
-  index: number
-  title: string
-  /** A fala que abre a secao. E o que torna o onboarding conversacional. */
-  lead: string
-  questions: OnboardingQuestion[]
-}
+/*
+ * `OnboardingQuestion` e `OnboardingSection` moravam aqui e saíram na FASE 7.
+ *
+ * Elas descreviam o formulário do PROTÓTIPO — sem `id`, sem `is_required`, com
+ * um `placeholder` que o banco não tem e um `type` recortado que omitia
+ * `boolean`, `number` e `file`. As formas reais vivem em
+ * `src/domains/onboarding/types.ts`, separadas por audiência, como manda a
+ * convenção de projeção das FASES 5 e 6.
+ */
 
 export interface MetricReading {
   key: string

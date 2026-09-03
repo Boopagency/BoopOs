@@ -20,6 +20,16 @@ export interface FieldProps {
   help?: string
   error?: string
   required?: boolean
+  /**
+   * O controle é um CONJUNTO de botões, não um único elemento — escolha única,
+   * múltipla, sim/não.
+   *
+   * Muda a semântica, e não a aparência: `fieldset` + `legend` no lugar de
+   * `label` + `htmlFor`. Uma `label` apontando para um `id` que não pertence a
+   * nenhum controle é uma associação que o leitor de tela não consegue seguir,
+   * e um grupo de botões não tem "o" controle para apontar.
+   */
+  group?: boolean
   children: (props: { id: string; describedBy: string | undefined; invalid: boolean }) => ReactNode
 }
 
@@ -28,23 +38,20 @@ export interface FieldProps {
  * (.claude/rules/frontend.md). O shell cuida da acessibilidade; o controle
  * só se preocupa com aparência.
  */
-export function Field({ label, help, error, required, children }: FieldProps) {
+export function Field({ label, help, error, required, group, children }: FieldProps) {
   const id = useId()
   const helpId = help ? `${id}-help` : undefined
   const errorId = error ? `${id}-error` : undefined
   const describedBy = [helpId, errorId].filter(Boolean).join(' ') || undefined
 
-  return (
-    <div className="space-y-2.5">
-      <label htmlFor={id} className="t-label text-foreground block">
-        {label}
-        {required && (
-          <span className="text-danger ml-1" aria-hidden="true">
-            *
-          </span>
-        )}
-      </label>
+  const marca = required && (
+    <span className="text-danger ml-1" aria-hidden="true">
+      *
+    </span>
+  )
 
+  const corpo = (
+    <>
       {help && (
         <p id={helpId} className="t-label text-muted">
           {help}
@@ -58,6 +65,29 @@ export function Field({ label, help, error, required, children }: FieldProps) {
           {error}
         </p>
       )}
+    </>
+  )
+
+  if (group) {
+    return (
+      <fieldset className="space-y-2.5 border-0 p-0">
+        <legend className="t-label text-foreground mb-2.5 p-0">
+          {label}
+          {marca}
+        </legend>
+        {corpo}
+      </fieldset>
+    )
+  }
+
+  return (
+    <div className="space-y-2.5">
+      <label htmlFor={id} className="t-label text-foreground block">
+        {label}
+        {marca}
+      </label>
+
+      {corpo}
     </div>
   )
 }

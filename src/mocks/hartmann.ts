@@ -15,7 +15,6 @@ import type {
   Delivery,
   Insight,
   Meeting,
-  OnboardingSection,
   ProjectFile,
   ResultsPeriod,
   Strategy,
@@ -31,7 +30,9 @@ import type {
  *
  * O resto deste arquivo continua, e continua sendo a unica fonte de dado
  * ficticio do repositorio: conteudo, estrategia, arquivos, reunioes,
- * resultados, onboarding, atencao e insight sao das FASES 7+.
+ * resultados, atencao e insight sao das FASES 8+. O onboarding SAIU daqui na
+ * FASE 7: o formulario e as respostas vem do banco, e nao existe mais
+ * `ONBOARDING` para nenhuma tela importar.
  */
 export const ATTENTION: AttentionItem[] = [
   {
@@ -354,125 +355,6 @@ export const STRATEGY: Strategy = {
     },
   ],
 }
-
-export const ONBOARDING: OnboardingSection[] = [
-  {
-    key: 'brand',
-    index: 1,
-    title: 'A marca',
-    lead: 'Antes de falar sobre conteúdo, queremos entender uma coisa.',
-    questions: [
-      {
-        key: 'why',
-        label: 'Por que a Hartmann precisa existir?',
-        help: 'Sem discurso de marketing. Do jeito que vocês contariam para uma amiga.',
-        type: 'long_text',
-        placeholder: 'Escreva à vontade…',
-      },
-      {
-        key: 'refuse',
-        label: 'O que vocês se recusam a fazer?',
-        type: 'long_text',
-        placeholder: 'O que está fora de questão, mesmo que dê dinheiro.',
-      },
-    ],
-  },
-  {
-    key: 'business',
-    index: 2,
-    title: 'O negócio',
-    lead: 'Agora a parte prática. Sem isso, a estratégia vira palpite.',
-    questions: [
-      {
-        key: 'revenue',
-        label: 'De onde vem a maior parte da receita hoje?',
-        type: 'single_select',
-        options: ['Loja física', 'Instagram', 'Site próprio', 'Encomendas diretas', 'Revenda'],
-      },
-      {
-        key: 'goal',
-        label: 'O que precisa acontecer nos próximos seis meses?',
-        type: 'long_text',
-        placeholder: 'O resultado concreto, não a intenção.',
-      },
-    ],
-  },
-  {
-    key: 'customer',
-    index: 3,
-    title: 'O cliente',
-    lead: 'Quem já compra costuma explicar melhor a marca do que qualquer pesquisa.',
-    questions: [
-      {
-        key: 'who',
-        label: 'Descreva a última pessoa que comprou de vocês.',
-        type: 'long_text',
-        placeholder: 'Quem era, o que levou, por quê.',
-      },
-      {
-        key: 'objection',
-        label: 'Qual é a objeção que mais aparece?',
-        type: 'short_text',
-        placeholder: 'A frase que vocês mais ouvem antes do "vou pensar".',
-      },
-    ],
-  },
-  {
-    key: 'perception',
-    index: 4,
-    title: 'Percepção',
-    lead: 'O que as pessoas acham hoje é o ponto de partida do que vamos construir.',
-    questions: [
-      {
-        key: 'said',
-        label: 'Qual elogio vocês mais escutam?',
-        type: 'short_text',
-      },
-      {
-        key: 'wrong',
-        label: 'O que as pessoas entendem errado sobre a Hartmann?',
-        type: 'long_text',
-      },
-    ],
-  },
-  {
-    key: 'references',
-    index: 5,
-    title: 'Referências',
-    lead: 'Referência não é para copiar. É para calibrar o que vocês gostam.',
-    questions: [
-      {
-        key: 'admire',
-        label: 'Três marcas que vocês admiram — de qualquer categoria.',
-        type: 'long_text',
-      },
-      {
-        key: 'avoid',
-        label: 'Uma marca que vocês não querem parecer.',
-        type: 'short_text',
-      },
-    ],
-  },
-  {
-    key: 'materials',
-    index: 6,
-    title: 'Materiais',
-    lead: 'Por último, o que vocês já têm pronto.',
-    questions: [
-      {
-        key: 'drive',
-        label: 'Link para fotos, catálogo ou manual de marca',
-        type: 'url',
-        placeholder: 'https://',
-      },
-      {
-        key: 'anything',
-        label: 'Alguma coisa que a gente não perguntou e deveria ter perguntado?',
-        type: 'long_text',
-      },
-    ],
-  },
-]
 
 export const RESULTS: ResultsPeriod = {
   period: 'Agosto 2026',
