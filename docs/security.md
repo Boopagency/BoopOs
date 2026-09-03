@@ -233,7 +233,7 @@ para devolver ao portal MENOS do que as policies negam: apenas `full_name` de
 quem atende a conta — sem id, sem e-mail, sem papel, sem metadata de vínculo
 ([ADR-0023](adr/0023-fronteiras-transacionais-de-projeto-e-jornada.md)).
 | `onboarding_*` (template) | CRUD | R | R (apenas o template da própria submissão) |
-| `onboarding_submissions` | CRUD | RU | RU (apenas enquanto `draft`) |
+| `onboarding_submissions` | R (escrita só por RPC) | R | R |
 | `onboarding_answers` | CRUD | R | CRU (apenas enquanto `draft`) |
 | `strategies` / `strategy_versions` | CRUD | CRU | R (`status <> 'draft'`) |
 | `strategy_approvals` | R | R | R — escrita **apenas** via RPC |

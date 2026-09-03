@@ -74,7 +74,7 @@ via `rpc`). Ver [ADR-0011](adr/0011-workflows-transacionais-em-sql.md).
 | `request_content_changes`     | decisão + status do item + activity log                     | 11   |
 | `create_content_version`      | nova versão + `superseded` na anterior + ponteiro + status  | 10   |
 | `approve_strategy_version`    | aprovação + status da versão + activity log                 | 11   |
-| `submit_onboarding`           | status da submissão + avanço de etapa + activity log        | 7    |
+| `submit_onboarding`           | status da submissão + avanço CONDICIONAL de etapa + log     | 7    |
 
 As três da FASE 6 têm um agravante que as cinco originais não tinham: o índice
 parcial `project_stages_one_current_idx` **impõe uma ordem** entre os dois
@@ -93,6 +93,8 @@ a operação.
 | Índice único parcial `where decision='approved'`                           | aprovação de conteúdo e de estratégia |
 | Guarda de estado dentro da função SQL (`where status = 'awaiting_client'`) | todas as transições                   |
 | `upsert` em `(submission_id, question_id)`                                 | autosave do onboarding                |
+| `for update` na submissão + guarda de status                               | duplo clique em Enviar (FASE 7)       |
+| `on conflict (project_id) do nothing`                                      | duplo clique em Abrir onboarding      |
 | `unique (client_id, user_id)`                                              | convite repetido                      |
 | `notifications.dedupe_key`                                                 | e-mail duplicado                      |
 | `unique (project_id, period_month)`                                        | review republicado                    |
@@ -135,12 +137,43 @@ distinga.
 
 ### Onboarding
 
-| Workflow               | Papel        | Efeitos                                     | Evento                 |
-| ---------------------- | ------------ | ------------------------------------------- | ---------------------- |
-| `startOnboarding`      | Boop         | cria submissão a partir do template         | `onboarding.started`   |
-| `saveOnboardingAnswer` | cliente/Boop | upsert; só enquanto `draft`                 | — (ruidoso demais)     |
-| `submitOnboarding`     | cliente      | `submitted` + avança etapa + e-mail interno | `onboarding.completed` |
-| `reopenOnboarding`     | `boop_admin` | volta para `draft`                          | `onboarding.reopened`  |
+| Workflow               | Papel        | Efeitos                                 | Evento                 |
+| ---------------------- | ------------ | --------------------------------------- | ---------------------- |
+| `startOnboarding`      | Boop         | cria submissão a partir do template     | `onboarding.started`   |
+| `saveOnboardingAnswer` | cliente/Boop | upsert; só enquanto `draft`             | — (ruidoso demais)     |
+| `submitOnboarding`     | cliente      | `submitted` + avanço condicional (D-21) | `onboarding.completed` |
+| `reopenOnboarding`     | `boop_admin` | volta para `draft`; NÃO mexe na jornada | `onboarding.reopened`  |
+
+**Os três primeiros — menos o autosave — são RPC, e a tabela não aceita mais
+escrita direta** ([ADR-0024](adr/0024-ciclo-de-vida-por-rpc-e-fim-da-escrita-direta-na-submissao.md)).
+`onboarding_submissions` ficou com `select` para `authenticated`: abrir, enviar
+e reabrir passam por `start_onboarding()`, `submit_onboarding()` e
+`reopen_onboarding()`, e por mais nada — nem para a Boop. Cada uma recebe
+`project_id` e deriva o resto; o `template_id` **nunca** vem do navegador.
+
+`start_onboarding` e `reopen_onboarding` tocam uma linha só e mesmo assim são
+RPC: quando uma operação multi-linha vira fronteira, as irmãs do mesmo ciclo de
+vida vão junto, porque duas portas para o mesmo estado é como uma delas fica sem
+uma checagem.
+
+**D-21 — o avanço é condicional.** `submit_onboarding` fecha a etapa e abre a
+próxima **apenas** quando a corrente é `onboarding` (`advanced`). Em qualquer
+outra, envia e não toca na jornada (`submitted_no_advance`). Forçar `immersion`
+inventaria um fato a partir de um gesto que disse outra coisa — e o caso é real:
+depois de uma reabertura o projeto já está em `immersion`, e reenviar não pode
+empurrá-lo para `research`.
+
+**D-24 — a submissão nasce por ação explícita da Boop**, com a etapa
+`onboarding` corrente. Não no `createProject`, não no avanço de etapa, não
+quando o cliente abre a página. É o que mantém o fluxo normal sempre no ramo
+`advanced`.
+
+Os três resultados idempotentes — `already_started`, `already_submitted`,
+`already_draft` — devolvem **sucesso**, não erro.
+
+O e-mail `onboarding_completed` está adiado para a FASE 16 (**D-20**): o
+`EmailService` não existe, e gravar `pending` em `notifications` sem consumidor
+criaria uma fila que ninguém esvazia.
 
 ### Estratégia
 

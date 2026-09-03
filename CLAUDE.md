@@ -12,20 +12,41 @@ para ele.
 
 Percepção-alvo: _"Eu sei exatamente o que está acontecendo com minha marca."_
 
-**Status atual: FASE 6 concluída e VALIDADA EM AMBIENTE HOSPEDADO.**
-19 migrations, 19 tabelas com RLS **e políticas**, 11 funções `app.*`, 8
-fronteiras `security definer`, e 788 testes (393 contra Postgres real).
+**Status atual: FASE 7 concluída.**
+22 migrations, 19 tabelas com RLS **e políticas**, 11 funções `app.*` de
+autorização, 11 fronteiras `security definer` em `public`, e 934 testes (446
+contra Postgres real).
 Fingerprint local ↔ staging idêntico nas nove partes.
 
 **A superfície administrativa lê e escreve Supabase de verdade.** `/admin`
 (clientes, pessoas, projetos, jornada, atividade) não tem mock, e doze workflows
 escrevem pelo JWT do ator.
 
+**O ONBOARDING é real, e o cliente não perde resposta.** O formulário vem do
+banco (template → seções → perguntas), o autosave é `upsert` por pergunta —
+debounce, blur e flush antes de trocar de seção ou enviar —, e sair e voltar não
+perde nada. `submitOnboarding` é a nona função SQL: status, avanço de etapa e
+activity log na mesma transação, com `for update` para que dois cliques não
+pulem uma etapa.
+
+**O ciclo de vida da submissão tem uma porta só.** `onboarding_submissions`
+perdeu os GRANTs de INSERT e UPDATE
+([ADR-0024](docs/adr/0024-ciclo-de-vida-por-rpc-e-fim-da-escrita-direta-na-submissao.md)):
+com eles, um `client_user` movia `draft → submitted` pelo PostgREST — sem
+jornada e sem log, e o sistema não teria como saber. Abrir, enviar e reabrir são
+`start_onboarding()`, `submit_onboarding()` e `reopen_onboarding()`, e nada
+mais — nem para a Boop.
+
+**A resposta não pode citar a pergunta de outro formulário.** Um trigger compara
+o template da submissão com o da pergunta, e valida a FORMA do valor contra o
+tipo — `single_select` fora das alternativas é recusado. É trigger e não policy
+porque é invariante de dado: vale inclusive para `service_role`.
+
 **O PORTAL deixou de ter identidade falsa.** `DEMO_PROJECT_ID` não existe mais:
 `/portal` resolve os projetos reais do ator, `/portal/[projectId]` tem guard no
 LAYOUT do grupo, e projeto e jornada vêm do banco. Os outros mocks do portal
-continuam — conteúdo, estratégia, arquivos, reuniões, resultados e onboarding
-são das FASES 7+, e todos passam pelo mesmo guard.
+continuam — conteúdo, estratégia, arquivos, reuniões e resultados são das
+FASES 9+, e todos passam pelo mesmo guard.
 
 **Projeto e jornada nascem juntos ou não nascem.** `createProject`,
 `advanceStage` e `setStageState` são funções SQL transacionais
@@ -59,7 +80,7 @@ entre ela e o cliente: a projeção não pede a coluna, o tipo não a carrega
 ([`docs/security.md`](docs/security.md)). A convenção já cobre
 `content_versions.internal_notes`, que chega na FASE 10.
 
-A próxima fase é a 7 (onboarding).
+A próxima fase é a 8 (dashboard).
 
 ## Vocabulário
 
@@ -110,6 +131,7 @@ compatibilidade verificada com `typescript-eslint` e `eslint-config-next`.
 | Por que decidimos assim                               | [`docs/adr/`](docs/adr/)                               |
 | Estado ao fim da FASE 5                               | [`docs/FASE5ESTADO.md`](docs/FASE5ESTADO.md)           |
 | Estado ao fim da FASE 6                               | [`docs/FASE6ESTADO.md`](docs/FASE6ESTADO.md)           |
+| Estado ao fim da FASE 7                               | [`docs/FASE7ESTADO.md`](docs/FASE7ESTADO.md)           |
 | Inconsistências e decisões pendentes                  | [`docs/spec-review.md`](docs/spec-review.md)           |
 
 Regras imperativas, curtas, para consulta durante o trabalho:
@@ -220,13 +242,18 @@ Regras de crescimento:
 - **Tela nunca importa `src/mocks`.** O admin fala com `src/domains/*/queries`,
   que lê do Supabase; o portal fala com `src/lib/data/portal.ts`, que desde a
   FASE 6 lê projeto e jornada do banco e o resto dos mocks — sempre atrás do
-  mesmo guard.
+  mesmo guard. O onboarding saiu dessa camada na FASE 7: dado real tem domínio
+  próprio (`src/domains/onboarding`).
 - **Projeção client-facing nunca carrega campo interno.** O tipo passa por
   `AssertClientFacing` (`src/lib/data/projection.ts`) e o build quebra se
   carregar. Campo interno novo entra em `INTERNAL_FIELDS`, e a partir daí toda
   projeção que o carregue para de compilar.
 - **Escrita de domínio só por `defineWorkflow`.** Server Action adapta `FormData`
   e delega; não decide nada.
+- **Ciclo de vida é RPC, e uma porta só.** Quando uma operação multi-linha vira
+  fronteira SQL, as irmãs do mesmo ciclo de vida vão junto — mesmo as de uma
+  linha — e o GRANT direto é revogado. Duas portas para o mesmo estado é como
+  uma delas fica sem uma checagem (ADR-0024).
 - Nenhum componente usa hexadecimal: cor vem de token em `src/app/globals.css`.
 - Nenhum `max-w-[Nch]` em wrapper: `ch` resolve no font-size do próprio
   elemento, então a largura vai no elemento que tem o tamanho.

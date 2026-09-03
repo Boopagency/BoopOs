@@ -45,15 +45,15 @@ Regras:
 
 ### Templates
 
-| Template                 | Gatilho                                            | Destinatário | Fase |
-| ------------------------ | -------------------------------------------------- | ------------ | ---- |
-| `invite`                 | `inviteUser`                                       | cliente      | 5    |
-| `welcome`                | primeiro login                                     | cliente      | 5    |
-| `onboarding_completed`   | `submitOnboarding`                                 | equipe Boop  | 7    |
-| `strategy_ready`         | `sendStrategyForApproval`                          | cliente      | 9    |
-| `content_needs_approval` | `submitContentForApproval`                         | cliente      | 11   |
-| `changes_requested`      | `requestContentChanges` / `requestStrategyChanges` | equipe Boop  | 11   |
-| `review_ready`           | `publishMonthlyReview`                             | cliente      | 15   |
+| Template                 | Gatilho                                            | Destinatário | Fase     |
+| ------------------------ | -------------------------------------------------- | ------------ | -------- |
+| `invite`                 | `inviteUser`                                       | cliente      | 5        |
+| `welcome`                | primeiro login                                     | cliente      | 5        |
+| `onboarding_completed`   | `submitOnboarding`                                 | equipe Boop  | ~~7~~ 16 |
+| `strategy_ready`         | `sendStrategyForApproval`                          | cliente      | 9        |
+| `content_needs_approval` | `submitContentForApproval`                         | cliente      | 11       |
+| `changes_requested`      | `requestContentChanges` / `requestStrategyChanges` | equipe Boop  | 11       |
+| `review_ready`           | `publishMonthlyReview`                             | cliente      | 15       |
 
 Templates em React Email ou HTML simples, com fallback em texto puro. Assunto e
 corpo em pt-BR, tom da marca, sem emoji decorativo.

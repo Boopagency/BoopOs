@@ -72,6 +72,7 @@ configuração, integrações, activity log, outros clientes.
 | `onboarding.answer`                                    |      ✓       |      escopo       |        escopo (enquanto `draft`)         |
 | `onboarding.submit`                                    |      ✓       |      escopo       |                  escopo                  |
 | `onboarding.read_answers`                              |      ✓       |      escopo       |           escopo (as próprias)           |
+| `onboarding.reopen`                                    |      ✓       |         —         |                    —                     |
 | **Estratégia**                                         |              |                   |                                          |
 | `strategy.create` / `strategy.version.create`          |      ✓       |      escopo       |                    —                     |
 | `strategy.read_draft`                                  |      ✓       |      escopo       |                    —                     |

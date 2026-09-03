@@ -473,6 +473,82 @@ Boop: o acesso está certo, a Boop ainda está preparando o projeto, e não há 
 que ele precise fazer. Sem CTA — não há nada que ele possa fazer, e um botão
 sugeriria que há. Para um ator da Boop, o vazio leva ao `/admin`.
 
+### D-20 — o e-mail `onboarding_completed` fica para a FASE 16
+
+O roadmap da FASE 7 pedia o e-mail. Ele **não** entrou, e a razão não é escopo:
+o `EmailService` que a [I-06](#i-06-o-primeiro-marco-exige-e-mail-que-só-aparece-na-fase-16)
+prometeu para a FASE 5 nunca foi construído — o convite sai pelo SMTP do
+Supabase Auth, que é o outro caminho da [ADR-0010](adr/0010-email-auth-vs-produto.md).
+
+Duas saídas foram consideradas e recusadas. Construir o `EmailService` agora
+infla a fase com uma integração inteira. Gravar a linha `pending` em
+`notifications` sem consumidor cria uma fila que ninguém esvazia — e um registro
+de "pendente" que nunca sai de pendente é pior do que a ausência, porque a tela
+de reenvio da FASE 16 nasceria com um passivo falso.
+
+**Adotado:** `submitOnboarding` grava `onboarding.completed` no activity log e
+nada mais. O gatilho do e-mail volta na FASE 16, e o lugar dele é um
+`ctx.after()` no handler — que é onde o comentário no código diz que ele vai.
+
+### D-21 — o envio avança a jornada CONDICIONALMENTE
+
+`submit_onboarding` fecha a etapa e abre a próxima **apenas** quando a corrente
+é `onboarding` (resultado `advanced`). Em qualquer outra etapa, a submissão é
+enviada e a jornada **não é tocada** (`submitted_no_advance`).
+
+Forçar `immersion` inventaria um fato a partir de um gesto que disse outra
+coisa — exatamente o que `set_project_stage_state` se recusa a fazer ("o
+histórico não é reescrito por dedução", [ADR-0023](adr/0023-fronteiras-transacionais-de-projeto-e-jornada.md)).
+E recusar o envio puniria o cliente por um gesto administrativo que não é dele.
+
+O caso não é hipotético: é a consequência de D-22. Depois de uma reabertura o
+projeto já está em `immersion`, e reenviar não pode empurrá-lo para `research`.
+
+### D-22 — `reopenOnboarding` entra na FASE 7
+
+O roadmap não a citava; `workflows.md` a especificava desde a FASE 2. Ela entrou,
+e o gatilho é concreto: sem ela, um cliente que enviou com um erro de digitação
+não tem saída nenhuma — ele perdeu o direito de escrever
+(`app.can_answer_submission`), e a Boop não tinha tela. O único conserto seria
+SQL manual em produção, que é o que a definição de pronto do Marco 1 proíbe.
+
+Ganhou capacidade própria, `onboarding.reopen`, restrita a `boop_admin` — e não
+reusou `onboarding.start`, que inclui `boop_member`. **Não mexe na jornada**:
+limpar `submitted_at`/`submitted_by` é seguro porque o envio anterior está no
+`activity_log`, que é append-only.
+
+### D-23 — o catálogo social sai do seed e vira migration
+
+`onboarding_templates` não tem `client_id`: o formulário é **produto da Boop**,
+servido igual a todo tenant. Mas ele vivia só no `seed.sql`, que não roda em
+staging nem em produção (`docs/database.md#seed`) — então o onboarding seria
+impossível de abrir no ambiente hospedado, e o QA da fase, impossível de fazer.
+
+**Adotado:** migration idempotente com os MESMOS ids estáveis do seed, e o
+catálogo removido do seed. Ids novos tornariam migration e seed incompatíveis —
+um banco recriado do zero teria dois catálogos, um deles órfão. O seed continua
+com o que é de fato dado de tenant: as submissões e as respostas dos dois
+clientes fictícios.
+
+Isto **não** abre a porta para um construtor visual de formulários, que a
+[§4](#4-overengineering-a-evitar) continua listando como overengineering.
+
+### D-24 — a submissão nasce por ação explícita da Boop
+
+Não na criação do projeto, não no avanço automático de etapa, não quando o
+`client_user` abre a página. `onboarding.start` é ✓/escopo/— na matriz, e a
+função exige que a etapa corrente seja `onboarding`.
+
+Três alternativas foram recusadas: criar junto com o projeto mudaria uma função
+SQL da FASE 6 já validada em ambiente hospedado; criar no avanço de etapa seria
+automação que a spec não pediu; criar quando o cliente abre a página daria a ele
+uma capacidade que a matriz nega.
+
+O preço é um passo que a Boop pode esquecer, e ele é pago na tela: o cliente vê
+um estado `not_started` honesto ("seu onboarding ainda não foi aberto"), que é
+diferente de vazio, diferente de erro, e diferente de `unsupported` — o projeto
+cuja jornada não tem etapa de onboarding.
+
 ### D-13 — desligar não tem inverso na V0
 
 `disable_profile()` move `invited | active → disabled`, e nada volta. A matriz de

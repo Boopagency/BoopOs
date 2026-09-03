@@ -97,7 +97,7 @@ esquecimento — e o teste de varredura confere a tabela inteira contra o catál
 | `onboarding_templates`   | `SIUD` | Boop tudo; cliente só o próprio                       | só admin                                  |
 | `onboarding_sections`    | `SIUD` | idem                                                  | só admin                                  |
 | `onboarding_questions`   | `SIUD` | idem                                                  | só admin                                  |
-| `onboarding_submissions` | `SIU`  | quem tem acesso ao cliente                            | Boop; cliente só em `draft`               |
+| `onboarding_submissions` | `S`    | quem tem acesso ao cliente                            | **ninguém** — três RPCs (FASE 7)          |
 | `onboarding_answers`     | `SIU`  | via submissão                                         | Boop; cliente só em `draft`               |
 | `strategies`             | `SIU`  | quem tem acesso ao cliente                            | Boop                                      |
 | `strategy_versions`      | `SIU`  | cliente **não** vê `draft`                            | Boop                                      |

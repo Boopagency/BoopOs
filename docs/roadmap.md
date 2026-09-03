@@ -162,13 +162,28 @@ Três funções SQL novas ([ADR-0023](adr/0023-fronteiras-transacionais-de-proje
 e a imutabilidade de `journey_key`/`type` no banco, que a ADR-0006 declarava e o
 schema não garantia. Ver [`docs/FASE6ESTADO.md`](FASE6ESTADO.md).
 
-### FASE 7 — Onboarding
+### FASE 7 — Onboarding ✅
 
 Renderização a partir do schema, uma seção por vez, progresso, autosave com
 `upsert`, rascunho, `submitOnboarding` (função SQL), leitura das respostas no
-admin, e-mail `onboarding_completed`. Sem perguntas do tipo `file`.
+admin. Sem perguntas do tipo `file`.
 **Pronto quando:** a cliente responde no celular, fecha o navegador, volta e não
 perdeu nada; ao finalizar, a etapa avança sozinha.
+
+**Entregue, e o que mudou em relação ao previsto:**
+
+- O catálogo social saiu do `seed.sql` e virou migration (**D-23**): ele é
+  produto da Boop, e o seed não roda em staging nem em produção — sem isso o
+  onboarding seria impossível de abrir no ambiente hospedado.
+- O ciclo de vida da submissão passou a ser escrito **só por RPC**
+  ([ADR-0024](adr/0024-ciclo-de-vida-por-rpc-e-fim-da-escrita-direta-na-submissao.md)):
+  `onboarding_submissions` perdeu os GRANTs de INSERT e UPDATE. Com eles, um
+  `client_user` movia `draft → submitted` pelo PostgREST, sem jornada e sem log.
+- `reopenOnboarding` entrou na fase (**D-22**). Sem ela, um envio com erro de
+  digitação não teria conserto sem SQL manual em produção.
+- O e-mail `onboarding_completed` **NÃO** entrou (**D-20**): o `EmailService`
+  não existe, e uma linha `pending` em `notifications` sem consumidor seria uma
+  fila que ninguém esvazia. O gatilho volta na FASE 16.
 
 ### FASE 8 — Dashboard
 
