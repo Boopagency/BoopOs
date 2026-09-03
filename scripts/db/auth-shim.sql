@@ -76,6 +76,22 @@ alter default privileges in schema public
 create schema if not exists auth;
 grant usage on schema auth to postgres, service_role;
 
+-- `anon` e `authenticated` TAMBEM tem USAGE aqui, e isso espelha o Supabase de
+-- verdade — conferido contra o staging, onde `has_schema_privilege` devolve
+-- true para os dois.
+--
+-- A linha faltava, e a ausencia era invisivel: o `grant execute` em `auth.uid()`
+-- mais abaixo existia desde sempre, mas sem USAGE no schema ele nao era
+-- alcancavel. Nada tinha esbarrado nisso porque toda funcao que chamava
+-- `auth.uid()` ate a FASE 5 era `security definer` e rodava como dona.
+--
+-- A FASE 6 trouxe a primeira funcao `security invoker` que precisa da
+-- identidade (`create_project_with_journey`), e ai o shim divergiu do ambiente
+-- real: passava em staging e falhava localmente com "permission denied for
+-- schema auth". Um plano B que nao reproduz o ambiente real deixa de ser plano
+-- B (docs/database.md#sem-docker).
+grant usage on schema auth to anon, authenticated;
+
 comment on schema auth is
   'SHIM LOCAL. Sem Docker nao ha GoTrue; isto e o minimo que as migrations '
   'exigem. Nunca aplicado em staging ou producao. Ver scripts/db/auth-shim.sql.';
