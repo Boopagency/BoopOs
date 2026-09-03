@@ -1,7 +1,7 @@
 From 1bd90d05bc5eb8abfd8d42a36970eccecc18c787 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 3 Sep 2026 01:41:39 +0000
-Subject: [PATCH 2/5] =?UTF-8?q?feat(db):=20phase=206=20=E2=80=94=20transac?=
+Subject: [PATCH 2/7] =?UTF-8?q?feat(db):=20phase=206=20=E2=80=94=20transac?=
  =?UTF-8?q?tional=20boundaries=20and=20an=20immutable=20journey=20binding?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

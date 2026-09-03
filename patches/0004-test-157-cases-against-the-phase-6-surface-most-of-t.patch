@@ -1,7 +1,7 @@
 From 43fe5ab8d9347d27a26e3aeddfa396d69242a923 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 3 Sep 2026 01:42:17 +0000
-Subject: [PATCH 4/5] test: 157 cases against the phase 6 surface, most of them
+Subject: [PATCH 4/7] test: 157 cases against the phase 6 surface, most of them
  trying to break it
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
