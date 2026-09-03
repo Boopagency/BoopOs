@@ -1,0 +1,2780 @@
+From 5e39041826a6adf2ecd6f2922218765dbfd0299f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 3 Sep 2026 18:15:47 +0000
+Subject: [PATCH 2/4] =?UTF-8?q?feat:=20phase=207=20=E2=80=94=20an=20onboar?=
+ =?UTF-8?q?ding=20that=20saves,=20and=20a=20form=20that=20comes=20from=20t?=
+ =?UTF-8?q?he=20database?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The client answers, closes the browser, comes back, and nothing is lost. That
+was the phase's definition of done, and the mock could never satisfy it.
+
+The form is rendered from the template: sections, questions, types, options and
+required flags all come from Postgres. `src/mocks/hartmann.ts` no longer has an
+`ONBOARDING`, `getOnboarding()` is gone from the data layer, and the prototype
+component — with its "answers are not saved" label and its local `done` flag —
+was deleted. Whether the onboarding was submitted is now read from the database,
+so a refresh keeps showing the confirmation.
+
+Autosave has three triggers, because a debounce alone loses answers in two real
+situations on a phone: typing then tapping Continue, and typing then leaving for
+another app. So: debounce while typing, blur on leaving a field, and a mandatory
+flush before changing section or submitting. A save that failed goes back to the
+queue and blocks the submit — sending a submission knowing an answer was left
+behind is the most expensive way to lose data on this screen.
+
+Emptiness is decided per TYPE, never by truthiness: `false` answers a boolean
+and `0` answers a number, and both are falsy in JavaScript. The same rule lives
+in SQL, and the two are compared case by case in the tests.
+
+Four states, and they are genuinely different: `unsupported` (this journey has
+no onboarding stage), `not_started` (Boop has not opened it), `draft`,
+`submitted`. None of them is a 404.
+
+Admin gets an Onboarding section inside the project page — not a new route and
+not a new dashboard: open the form when the stage allows it, say what is missing
+when it does not, read the answers as Section → Question → Answer, and reopen.
+
+Portal navigation still has seven items.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018oK4rvj1mYjUcJY54csxCy
+---
+ .../admin/projetos/[projectId]/page.tsx       |  33 +-
+ .../portal/[projectId]/onboarding/page.tsx    |  33 +-
+ src/components/patterns/onboarding-flow.tsx   | 180 ------
+ src/components/ui/field.tsx                   |  52 +-
+ src/config/activity.ts                        |  28 +
+ src/config/messages.ts                        |  22 +
+ src/domains/onboarding/actions.ts             | 128 ++++
+ src/domains/onboarding/answers.ts             | 137 +++++
+ .../onboarding/components/onboarding-form.tsx | 567 ++++++++++++++++++
+ .../components/onboarding-panel.tsx           | 199 ++++++
+ .../components/onboarding-states.tsx          |  97 +++
+ src/domains/onboarding/mutations.ts           | 241 ++++++++
+ src/domains/onboarding/queries.ts             | 314 ++++++++++
+ src/domains/onboarding/schemas.ts             |  61 ++
+ src/domains/onboarding/types.ts               | 162 +++++
+ src/lib/auth/policy.ts                        |  12 +
+ src/lib/data/portal.ts                        |  19 +-
+ src/lib/data/types.ts                         |  26 +-
+ src/mocks/hartmann.ts                         | 124 +---
+ 19 files changed, 2090 insertions(+), 345 deletions(-)
+ delete mode 100644 src/components/patterns/onboarding-flow.tsx
+ create mode 100644 src/domains/onboarding/actions.ts
+ create mode 100644 src/domains/onboarding/answers.ts
+ create mode 100644 src/domains/onboarding/components/onboarding-form.tsx
+ create mode 100644 src/domains/onboarding/components/onboarding-panel.tsx
+ create mode 100644 src/domains/onboarding/components/onboarding-states.tsx
+ create mode 100644 src/domains/onboarding/mutations.ts
+ create mode 100644 src/domains/onboarding/queries.ts
+ create mode 100644 src/domains/onboarding/schemas.ts
+ create mode 100644 src/domains/onboarding/types.ts
+
+diff --git a/src/app/(admin)/admin/projetos/[projectId]/page.tsx b/src/app/(admin)/admin/projetos/[projectId]/page.tsx
+index 783192e..65a5ef7 100644
+--- a/src/app/(admin)/admin/projetos/[projectId]/page.tsx
++++ b/src/app/(admin)/admin/projetos/[projectId]/page.tsx
+@@ -9,6 +9,8 @@ import { JourneyControls } from '@/domains/projects/components/journey-controls'
+ import { ProjectForm } from '@/domains/projects/components/project-form'
+ import { ProjectStatusControls } from '@/domains/projects/components/project-status-controls'
+ import { ProjectStatusMark } from '@/domains/projects/components/project-status-mark'
++import { OnboardingPanel } from '@/domains/onboarding/components/onboarding-panel'
++import { getOnboardingForBoop } from '@/domains/onboarding/queries'
+ import { getProjectDetailForBoop, getProjectStagesForBoop } from '@/domains/projects/queries'
+ import { requireBoop } from '@/lib/auth/authorization'
+ import { can } from '@/lib/auth/policy'
+@@ -42,21 +44,28 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
+  *
+  * ## O que NÃO está aqui
+  *
+- * Onboarding, estratégia, conteúdo, arquivos, resultados. São FASE 7 em diante.
+- * Nenhum bloco vazio e nenhum "em breve".
++ * Estratégia, conteúdo, arquivos, resultados. São FASE 9 em diante. Nenhum
++ * bloco vazio e nenhum "em breve".
++ *
++ * O ONBOARDING entrou na FASE 7, e entrou aqui — e não numa rota própria: a
++ * pergunta que ele responde ("o que sabemos deste cliente?") pertence à página
++ * do projeto, ao lado da jornada que ele faz avançar.
+  */
+ export default async function AdminProjectPage({ params }: Params) {
+   const { projectId } = await params
+ 
+   const [actor, project] = await Promise.all([requireBoop(), getProjectDetailForBoop(projectId)])
+-  const [client, stages] = await Promise.all([
++  const [client, stages, onboarding] = await Promise.all([
+     getClientPublic(project.clientId),
+     getProjectStagesForBoop(projectId),
++    getOnboardingForBoop(projectId),
+   ])
+ 
+   const canManageJourney = can(actor, 'project.advance_stage').allowed
+   const canChangeStatus = can(actor, 'project.change_status').allowed
+   const canEdit = can(actor, 'project.update').allowed
++  const canStartOnboarding = can(actor, 'onboarding.start').allowed
++  const canReopenOnboarding = can(actor, 'onboarding.reopen').allowed
+ 
+   return (
+     <Container>
+@@ -94,6 +103,24 @@ export default async function AdminProjectPage({ params }: Params) {
+           </div>
+         </section>
+ 
++        <section aria-labelledby="onboarding">
++          <h2 id="onboarding" className="t-title text-foreground">
++            Onboarding
++          </h2>
++          <p className="t-body text-muted measure mt-3">
++            O que o cliente respondeu antes da imersão. Enviar fecha a etapa Onboarding e abre a
++            próxima — as duas coisas na mesma transação.
++          </p>
++          <div className="mt-8">
++            <OnboardingPanel
++              projectId={project.id}
++              onboarding={onboarding}
++              canStart={canStartOnboarding}
++              canReopen={canReopenOnboarding}
++            />
++          </div>
++        </section>
++
+         {canEdit && (
+           <section aria-labelledby="dados">
+             <h2 id="dados" className="t-title text-foreground">
+diff --git a/src/app/(portal)/portal/[projectId]/onboarding/page.tsx b/src/app/(portal)/portal/[projectId]/onboarding/page.tsx
+index 7a0a79d..3aaabe9 100644
+--- a/src/app/(portal)/portal/[projectId]/onboarding/page.tsx
++++ b/src/app/(portal)/portal/[projectId]/onboarding/page.tsx
+@@ -1,18 +1,43 @@
+ import type { Metadata } from 'next'
+-import { OnboardingFlow } from '@/components/patterns/onboarding-flow'
+-import { getOnboarding, getProject } from '@/lib/data/portal'
++import { OnboardingForm } from '@/domains/onboarding/components/onboarding-form'
++import {
++  OnboardingNotStarted,
++  OnboardingSubmitted,
++  OnboardingUnsupported,
++} from '@/domains/onboarding/components/onboarding-states'
++import { getOnboardingForClient } from '@/domains/onboarding/queries'
+ 
+ export const metadata: Metadata = { title: 'Onboarding' }
+ 
++/**
++ * O onboarding do cliente.
++ *
++ * A autorização NÃO está aqui: ela está no layout de `/portal/[projectId]`,
++ * que chama `requireVisiblePortalProject()` e vale para esta página e para
++ * todas as irmãs (ADR da FASE 6). `getOnboardingForClient` carrega o mesmo
++ * guard de novo, porque loader seguro por tabela — e não por página — é o que
++ * sobrevive à próxima tela.
++ *
++ * O `state` decide, e as quatro respostas são realmente diferentes. Nenhuma
++ * delas é 404: quem não deveria estar aqui já parou no layout.
++ */
+ export default async function OnboardingPage({
+   params,
+ }: {
+   params: Promise<{ projectId: string }>
+ }) {
+   const { projectId } = await params
+-  const [sections, project] = await Promise.all([getOnboarding(projectId), getProject(projectId)])
++  const onboarding = await getOnboardingForClient(projectId)
++
++  if (onboarding.state === 'unsupported') return <OnboardingUnsupported projectId={projectId} />
++  if (onboarding.state === 'not_started') return <OnboardingNotStarted projectId={projectId} />
++  if (onboarding.state === 'submitted') return <OnboardingSubmitted projectId={projectId} />
+ 
+   return (
+-    <OnboardingFlow sections={sections} clientName={project.clientName} projectId={projectId} />
++    <OnboardingForm
++      projectId={projectId}
++      sections={onboarding.sections}
++      answers={onboarding.answers}
++    />
+   )
+ }
+diff --git a/src/components/patterns/onboarding-flow.tsx b/src/components/patterns/onboarding-flow.tsx
+deleted file mode 100644
+index 2f597bd..0000000
+--- a/src/components/patterns/onboarding-flow.tsx
++++ /dev/null
+@@ -1,180 +0,0 @@
+-'use client'
+-
+-import { useState } from 'react'
+-import Link from 'next/link'
+-import { BoopEyes } from '@/components/brand/boop-eyes'
+-import { CloudLayer } from '@/components/brand/cloud-layer'
+-import { Button } from '@/components/ui/button'
+-import { Field, Input, Textarea } from '@/components/ui/field'
+-import { portalHref } from '@/config/app'
+-import type { OnboardingSection } from '@/lib/data/types'
+-import { padded } from '@/lib/format'
+-import { cn } from '@/lib/cn'
+-
+-/*
+- * Onboarding quase conversacional.
+- *
+- * Uma secao por vez, cada uma abrindo com uma fala e nao com um titulo de
+- * formulario. O progresso e "02 / 06" em caixa alta, nao uma barrinha: e a
+- * mesma paginacao de um impresso.
+- *
+- * PROTOTIPO: as respostas ficam so no estado local. O autosave com debounce e
+- * o upsert por (submission_id, question_id) chegam na FASE 7 — o modelo ja
+- * esta em docs/data-model.md, e e ele que torna o autosave idempotente.
+- */
+-export function OnboardingFlow({
+-  sections,
+-  clientName,
+-  projectId,
+-}: {
+-  sections: OnboardingSection[]
+-  clientName: string
+-  projectId: string
+-}) {
+-  const [index, setIndex] = useState(0)
+-  const [answers, setAnswers] = useState<Record<string, string>>({})
+-  const [done, setDone] = useState(false)
+-
+-  const total = sections.length
+-  const section = sections[index]
+-
+-  function setAnswer(key: string, value: string) {
+-    setAnswers((previous) => ({ ...previous, [key]: value }))
+-  }
+-
+-  if (done) {
+-    return (
+-      <div className="on-emphasis bg-surface-emphasis relative isolate min-h-[70vh] overflow-hidden">
+-        <CloudLayer density="horizon" className="opacity-40" />
+-        <div className="content relative flex min-h-[70vh] flex-col justify-center py-20">
+-          <BoopEyes blink className="fade w-20" />
+-          <h1 className="t-display rise rise-1 text-cloud mt-10 max-w-[13ch]">Recebemos tudo.</h1>
+-          <p className="t-lead rise rise-2 text-navy mt-8 max-w-[38ch]">
+-            Agora é com a gente. A equipe lê tudo antes da imersão, e a próxima etapa do projeto já
+-            está aberta.
+-          </p>
+-          <div className="rise rise-3 mt-12">
+-            <Link
+-              href={portalHref(projectId, '')}
+-              className="t-meta bg-navy text-on-inverse hover:bg-navy/90 inline-flex h-14 items-center rounded-sm px-8 transition-colors max-sm:w-full max-sm:justify-center"
+-            >
+-              Ver o projeto
+-            </Link>
+-          </div>
+-        </div>
+-      </div>
+-    )
+-  }
+-
+-  if (!section) return null
+-
+-  const first = index === 0
+-  const last = index === total - 1
+-
+-  return (
+-    <div className="content py-12 md:py-20">
+-      {/* Progresso: paginacao editorial, nao barrinha. */}
+-      <div className="flex items-center justify-between gap-6">
+-        <p className="t-meta text-muted" data-numeric>
+-          <span className="text-foreground">{padded(section.index)}</span> / {padded(total)}
+-        </p>
+-        <ol className="flex gap-1.5" aria-label={`Seção ${section.index} de ${total}`}>
+-          {sections.map((entry, i) => (
+-            <li
+-              key={entry.key}
+-              aria-current={i === index ? 'step' : undefined}
+-              className={cn(
+-                'h-1 w-7 rounded-sm transition-colors duration-[--motion-default]',
+-                i < index ? 'bg-navy' : i === index ? 'bg-accent' : 'bg-rule-strong/40',
+-              )}
+-            >
+-              <span className="sr-only">{entry.title}</span>
+-            </li>
+-          ))}
+-        </ol>
+-      </div>
+-
+-      {/* A fala que abre a secao. */}
+-      <div key={section.key} className="mt-14 md:mt-20">
+-        <p className="t-meta rise rise-1 text-muted">{section.title}</p>
+-        <p className="t-section rise rise-2 measure text-foreground mt-5">
+-          {section.lead.replace('{cliente}', clientName)}
+-        </p>
+-
+-        <div className="rise rise-3 mt-12 max-w-2xl space-y-10">
+-          {section.questions.map((question) => (
+-            <Field
+-              key={question.key}
+-              label={question.label}
+-              {...(question.help ? { help: question.help } : {})}
+-            >
+-              {({ id, describedBy }) =>
+-                question.type === 'long_text' ? (
+-                  <Textarea
+-                    id={id}
+-                    aria-describedby={describedBy}
+-                    rows={5}
+-                    placeholder={question.placeholder ?? ''}
+-                    value={answers[question.key] ?? ''}
+-                    onChange={(event) => setAnswer(question.key, event.target.value)}
+-                  />
+-                ) : question.type === 'single_select' ? (
+-                  <div role="group" aria-describedby={describedBy} className="flex flex-wrap gap-2">
+-                    {(question.options ?? []).map((option) => {
+-                      const selected = answers[question.key] === option
+-                      return (
+-                        <button
+-                          key={option}
+-                          type="button"
+-                          aria-pressed={selected}
+-                          onClick={() => setAnswer(question.key, option)}
+-                          className={cn(
+-                            't-label h-12 rounded-sm border px-4 transition-colors duration-[--motion-fast]',
+-                            selected
+-                              ? 'border-navy bg-navy text-on-inverse'
+-                              : 'border-rule-strong text-foreground hover:border-muted',
+-                          )}
+-                        >
+-                          {option}
+-                        </button>
+-                      )
+-                    })}
+-                  </div>
+-                ) : (
+-                  <Input
+-                    id={id}
+-                    aria-describedby={describedBy}
+-                    type={question.type === 'url' ? 'url' : 'text'}
+-                    placeholder={question.placeholder ?? ''}
+-                    value={answers[question.key] ?? ''}
+-                    onChange={(event) => setAnswer(question.key, event.target.value)}
+-                  />
+-                )
+-              }
+-            </Field>
+-          ))}
+-        </div>
+-      </div>
+-
+-      <div className="border-rule mt-14 flex flex-wrap items-center gap-4 border-t pt-8">
+-        <Button
+-          size="lg"
+-          onClick={() => (last ? setDone(true) : setIndex(index + 1))}
+-          className="max-sm:w-full"
+-        >
+-          {last ? 'Finalizar' : 'Continuar →'}
+-        </Button>
+-
+-        {!first && (
+-          <Button variant="quiet" onClick={() => setIndex(index - 1)}>
+-            Voltar
+-          </Button>
+-        )}
+-
+-        <p className="t-label text-muted ml-auto max-sm:w-full">
+-          Protótipo: as respostas não são salvas.
+-        </p>
+-      </div>
+-    </div>
+-  )
+-}
+diff --git a/src/components/ui/field.tsx b/src/components/ui/field.tsx
+index aceaf51..ad547a5 100644
+--- a/src/components/ui/field.tsx
++++ b/src/components/ui/field.tsx
+@@ -20,6 +20,16 @@ export interface FieldProps {
+   help?: string
+   error?: string
+   required?: boolean
++  /**
++   * O controle é um CONJUNTO de botões, não um único elemento — escolha única,
++   * múltipla, sim/não.
++   *
++   * Muda a semântica, e não a aparência: `fieldset` + `legend` no lugar de
++   * `label` + `htmlFor`. Uma `label` apontando para um `id` que não pertence a
++   * nenhum controle é uma associação que o leitor de tela não consegue seguir,
++   * e um grupo de botões não tem "o" controle para apontar.
++   */
++  group?: boolean
+   children: (props: { id: string; describedBy: string | undefined; invalid: boolean }) => ReactNode
+ }
+ 
+@@ -28,23 +38,20 @@ export interface FieldProps {
+  * (.claude/rules/frontend.md). O shell cuida da acessibilidade; o controle
+  * só se preocupa com aparência.
+  */
+-export function Field({ label, help, error, required, children }: FieldProps) {
++export function Field({ label, help, error, required, group, children }: FieldProps) {
+   const id = useId()
+   const helpId = help ? `${id}-help` : undefined
+   const errorId = error ? `${id}-error` : undefined
+   const describedBy = [helpId, errorId].filter(Boolean).join(' ') || undefined
+ 
+-  return (
+-    <div className="space-y-2.5">
+-      <label htmlFor={id} className="t-label text-foreground block">
+-        {label}
+-        {required && (
+-          <span className="text-danger ml-1" aria-hidden="true">
+-            *
+-          </span>
+-        )}
+-      </label>
++  const marca = required && (
++    <span className="text-danger ml-1" aria-hidden="true">
++      *
++    </span>
++  )
+ 
++  const corpo = (
++    <>
+       {help && (
+         <p id={helpId} className="t-label text-muted">
+           {help}
+@@ -58,6 +65,29 @@ export function Field({ label, help, error, required, children }: FieldProps) {
+           {error}
+         </p>
+       )}
++    </>
++  )
++
++  if (group) {
++    return (
++      <fieldset className="space-y-2.5 border-0 p-0">
++        <legend className="t-label text-foreground mb-2.5 p-0">
++          {label}
++          {marca}
++        </legend>
++        {corpo}
++      </fieldset>
++    )
++  }
++
++  return (
++    <div className="space-y-2.5">
++      <label htmlFor={id} className="t-label text-foreground block">
++        {label}
++        {marca}
++      </label>
++
++      {corpo}
+     </div>
+   )
+ }
+diff --git a/src/config/activity.ts b/src/config/activity.ts
+index 883b14d..8b95d39 100644
+--- a/src/config/activity.ts
++++ b/src/config/activity.ts
+@@ -67,6 +67,30 @@ export const ACTIVITY_ACTIONS = [
+   'project.updated',
+   'project.status_changed',
+   'project.stage_changed',
++  /*
++   * FASE 7 — onboarding. Tres verbos, e a ausencia de um quarto e a decisao
++   * mais importante do grupo:
++   *
++   *   `onboarding.started`    a Boop abriu o formulario para o cliente.
++   *   `onboarding.completed`  o cliente enviou. Gravado DENTRO de
++   *                           `submit_onboarding()`, junto com o avanco da
++   *                           etapa, entao o workflow nao chama
++   *                           `ctx.activity()` — chamar produziria duas linhas.
++   *   `onboarding.reopened`   um admin devolveu a submissao para `draft`.
++   *
++   * NAO existe `onboarding.answer_saved`. O autosave dispara a cada debounce,
++   * por PERGUNTA: registra-lo encheria uma tabela append-only de centenas de
++   * linhas por onboarding, e nenhuma delas responderia uma pergunta de
++   * auditoria. O que importa auditar e quando o formulario abriu, quando foi
++   * enviado e quando foi reaberto (docs/workflows.md).
++   *
++   * O verbo e `completed`, e nao `submitted`: o catalogo canonico de
++   * docs/workflows.md decidiu, e um vocabulario com dois nomes para o mesmo
++   * fato nunca mais sai de um log append-only.
++   */
++  'onboarding.started',
++  'onboarding.completed',
++  'onboarding.reopened',
+ ] as const
+ 
+ export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number]
+@@ -81,6 +105,7 @@ export const ACTIVITY_ENTITY_TYPES = [
+   'client_membership',
+   'project',
+   'project_stage',
++  'onboarding_submission',
+ ] as const
+ export type ActivityEntityType = (typeof ACTIVITY_ENTITY_TYPES)[number]
+ 
+@@ -104,4 +129,7 @@ export const ACTIVITY_ACTION_LABEL: Record<ActivityAction, string> = {
+   'project.updated': 'editou o projeto',
+   'project.status_changed': 'mudou o status do projeto',
+   'project.stage_changed': 'moveu a jornada de',
++  'onboarding.started': 'abriu o onboarding de',
++  'onboarding.completed': 'enviou o onboarding de',
++  'onboarding.reopened': 'reabriu o onboarding de',
+ }
+diff --git a/src/config/messages.ts b/src/config/messages.ts
+index a3290d9..a87ab62 100644
+--- a/src/config/messages.ts
++++ b/src/config/messages.ts
+@@ -72,6 +72,24 @@ export const WORKFLOW_MESSAGE: Record<string, string> = {
+   'membership.revoke_failed': 'Não foi possível remover o acesso.',
+   'membership.user_disabled': 'Essa pessoa está desligada.',
+   'membership.admin_is_global': 'Admins da Boop já alcançam todos os clientes.',
++
++  /* Onboarding — FASE 7 */
++  'onboarding.start_failed': 'Não foi possível abrir o onboarding.',
++  'onboarding.unsupported': 'Esse tipo de projeto ainda não tem formulário de onboarding.',
++  'onboarding.stage_not_current':
++    'Avance o projeto para a etapa Onboarding antes de abrir o formulário.',
++  'onboarding.not_started': 'O onboarding deste projeto ainda não foi aberto.',
++  'onboarding.already_submitted': 'Este onboarding já foi enviado.',
++  'onboarding.question_not_found': 'Essa pergunta não faz parte deste onboarding.',
++  'onboarding.answer_invalid': 'Essa resposta não é válida para esta pergunta.',
++  'onboarding.save_failed': 'Não foi possível salvar sua resposta. Tente de novo.',
++  'onboarding.submit_failed': 'Não foi possível enviar o onboarding.',
++  'onboarding.required_missing': 'Ainda faltam respostas obrigatórias.',
++  'onboarding.reopen_failed': 'Não foi possível reabrir o onboarding.',
++  'onboarding.start.denied': 'Você não tem permissão para abrir o onboarding deste projeto.',
++  'onboarding.answer.denied': 'Você não tem permissão para responder este onboarding.',
++  'onboarding.submit.denied': 'Você não tem permissão para enviar este onboarding.',
++  'onboarding.reopen.denied': 'Só um admin da Boop reabre um onboarding.',
+ }
+ 
+ const FALLBACK = 'Não foi possível concluir. Tente de novo em instantes.'
+@@ -100,6 +118,10 @@ export const FIELD_MESSAGE: Record<string, string> = {
+   client_id_invalid: 'Cliente inválido.',
+   user_id_invalid: 'Pessoa inválida.',
+   client_required_for_client_user: 'Escolha o cliente que essa pessoa vai acessar.',
++  project_id_invalid: 'Projeto inválido.',
++  question_id_invalid: 'Pergunta inválida.',
++  answer_value_invalid: 'Valor inválido para esta pergunta.',
++  answer_too_long: 'Resposta longa demais.',
+ }
+ 
+ /** A primeira mensagem de um campo, já traduzida. */
+diff --git a/src/domains/onboarding/actions.ts b/src/domains/onboarding/actions.ts
+new file mode 100644
+index 0000000..ba4278e
+--- /dev/null
++++ b/src/domains/onboarding/actions.ts
+@@ -0,0 +1,128 @@
++'use server'
++
++import { revalidatePath } from 'next/cache'
++import {
++  reopenOnboarding,
++  saveOnboardingAnswer,
++  startOnboarding,
++  submitOnboarding,
++} from '@/domains/onboarding/mutations'
++import type { ActionState } from '@/lib/workflow/action-state'
++
++/**
++ * Server Actions de onboarding. Adaptam a entrada e delegam — não decidem nada.
++ *
++ * ## O autosave é a única que não recebe `FormData`
++ *
++ * `saveOnboardingAnswerAction` é chamada por JavaScript, a cada debounce, com
++ * um valor que pode ser texto, número, booleano ou lista. `FormData` só
++ * carrega string: `false` viraria `"false"` e `0` viraria `"0"`, e os dois são
++ * exatamente os valores que a validação por tipo existe para preservar.
++ *
++ * Uma Server Action com argumento serializável continua sendo um endpoint
++ * público, e continua passando pelo mesmo `defineWorkflow` — o zod `.strict()`
++ * está lá, e quem posta `{"value": {"role": "boop_admin"}}` é recusado no
++ * primeiro passo.
++ *
++ * ## O autosave não revalida
++ *
++ * `revalidatePath` a cada tecla mandaria o servidor re-renderizar a página
++ * inteira dezenas de vezes por seção, e a tela já tem a resposta: foi ela que a
++ * digitou. Quem revalida é o ENVIO, que muda status e jornada — e a
++ * reabertura, que desfaz as duas.
++ */
++
++export async function saveOnboardingAnswerAction(input: {
++  projectId: string
++  questionId: string
++  value: string | number | boolean | string[]
++}): Promise<ActionState> {
++  const result = await saveOnboardingAnswer(input)
++
++  if (!result.ok) {
++    return {
++      status: 'error',
++      code: result.code,
++      ...(result.fieldErrors ? { fieldErrors: result.fieldErrors } : {}),
++    }
++  }
++
++  return { status: 'success' }
++}
++
++export async function submitOnboardingAction(
++  _prev: ActionState,
++  formData: FormData,
++): Promise<ActionState> {
++  const result = await submitOnboarding({ projectId: formData.get('projectId') })
++
++  if (!result.ok) {
++    return {
++      status: 'error',
++      code: result.code,
++      ...(result.fieldErrors ? { fieldErrors: result.fieldErrors } : {}),
++    }
++  }
++
++  /*
++   * O envio muda o status da submissão E a etapa corrente. As duas telas que
++   * mostram isso precisam ser reconstruídas: a do cliente (formulário → "recebemos
++   * tudo", jornada nova) e a da Boop (respostas para ler).
++   */
++  revalidatePath(`/portal/${result.data.projectId}`, 'layout')
++  revalidatePath(`/admin/projetos/${result.data.projectId}`)
++
++  return { status: 'success', message: 'Recebemos suas respostas.' }
++}
++
++export async function startOnboardingAction(
++  _prev: ActionState,
++  formData: FormData,
++): Promise<ActionState> {
++  const result = await startOnboarding({ projectId: formData.get('projectId') })
++
++  if (!result.ok) {
++    return {
++      status: 'error',
++      code: result.code,
++      ...(result.fieldErrors ? { fieldErrors: result.fieldErrors } : {}),
++    }
++  }
++
++  revalidatePath(`/admin/projetos/${result.data.projectId}`)
++  revalidatePath(`/portal/${result.data.projectId}`, 'layout')
++
++  return {
++    status: 'success',
++    message:
++      result.data.outcome === 'already_started'
++        ? 'O onboarding já estava aberto.'
++        : 'Onboarding aberto. A cliente já pode responder.',
++  }
++}
++
++export async function reopenOnboardingAction(
++  _prev: ActionState,
++  formData: FormData,
++): Promise<ActionState> {
++  const result = await reopenOnboarding({ projectId: formData.get('projectId') })
++
++  if (!result.ok) {
++    return {
++      status: 'error',
++      code: result.code,
++      ...(result.fieldErrors ? { fieldErrors: result.fieldErrors } : {}),
++    }
++  }
++
++  revalidatePath(`/admin/projetos/${result.data.projectId}`)
++  revalidatePath(`/portal/${result.data.projectId}`, 'layout')
++
++  return {
++    status: 'success',
++    message:
++      result.data.outcome === 'already_draft'
++        ? 'Este onboarding já estava aberto para edição.'
++        : 'Onboarding reaberto. A cliente pode corrigir e enviar de novo.',
++  }
++}
+diff --git a/src/domains/onboarding/answers.ts b/src/domains/onboarding/answers.ts
+new file mode 100644
+index 0000000..88d4a9b
+--- /dev/null
++++ b/src/domains/onboarding/answers.ts
+@@ -0,0 +1,137 @@
++import type { QuestionType } from '@/config/enums'
++import type { AnswerValue, OnboardingQuestion } from '@/domains/onboarding/types'
++
++/**
++ * A semântica de uma resposta: que FORMA ela tem, e se ela está PREENCHIDA.
++ *
++ * São duas perguntas diferentes, e confundi-las é o bug clássico deste
++ * formulário:
++ *
++ *   forma       `""` é válido — o cliente apagou o campo, e rascunho aceita
++ *               campo vazio. `"Opção Inventada"` num `single_select` não é.
++ *   preenchido  `""` não responde nada; `false` e `0` respondem.
++ *
++ * ## Por que isto existe em TypeScript se já existe em SQL
++ *
++ * Não existe "de novo": existe em DUAS camadas, de propósito, e cada uma serve
++ * a um momento diferente.
++ *
++ *   `app.answer_value_is_valid` / `app.answer_is_present` (banco) são a
++ *   AUTORIDADE. Valem para todo papel, inclusive para um POST direto no
++ *   PostgREST que nunca passou por este arquivo.
++ *
++ *   Estas funções são a UX e a mensagem: elas permitem ao workflow recusar com
++ *   um código de domínio em pt-BR em vez de deixar o banco devolver `23514`, e
++ *   permitem ao formulário marcar a obrigatória faltante sem uma viagem ao
++ *   servidor.
++ *
++ * As duas implementações são conferidas uma contra a outra em
++ * `tests/rls/phase7-answer-integrity.test.ts`, sobre a MESMA tabela de casos
++ * (`tests/support/answer-cases.ts`). Divergir passa a ser um teste vermelho, e
++ * não uma descoberta em produção.
++ *
++ * Puro, sem I/O, sem `server-only`: o formulário do portal é Client Component e
++ * precisa das duas para dar retorno enquanto a pessoa digita.
++ */
++
++/** Tipos que a FASE 7 renderiza. `file` fica fora até a FASE 12 (I-05). */
++export const RENDERABLE_QUESTION_TYPES = [
++  'short_text',
++  'long_text',
++  'single_select',
++  'multi_select',
++  'boolean',
++  'number',
++  'url',
++] as const
++
++export type RenderableQuestionType = (typeof RENDERABLE_QUESTION_TYPES)[number]
++
++/**
++ * Este tipo tem campo nesta fase?
++ *
++ * `file` responde `false`, e a tela mostra a pergunta como indisponível em vez
++ * de um input falso — que é a diferença entre adiar um tipo e mentir sobre ele.
++ */
++export function isRenderableType(type: QuestionType): type is RenderableQuestionType {
++  return (RENDERABLE_QUESTION_TYPES as readonly string[]).includes(type)
++}
++
++function isStringArray(value: unknown): value is string[] {
++  return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
++}
++
++/**
++ * A forma bate com o tipo, e a escolha existe no template?
++ *
++ * Espelha `app.answer_value_is_valid`. Tipo desconhecido e `file` caem no
++ * `default`: fail closed.
++ */
++export function isAnswerShapeValid(
++  type: QuestionType,
++  options: readonly string[],
++  value: unknown,
++): value is AnswerValue {
++  if (value === null || value === undefined) return false
++
++  switch (type) {
++    case 'short_text':
++    case 'long_text':
++    case 'url':
++      return typeof value === 'string'
++    case 'boolean':
++      return typeof value === 'boolean'
++    case 'number':
++      /* `NaN` e `Infinity` não sobrevivem a `JSON.stringify`: viram `null`. */
++      return typeof value === 'number' && Number.isFinite(value)
++    case 'single_select':
++      return typeof value === 'string' && options.includes(value)
++    case 'multi_select':
++      return isStringArray(value) && value.every((entry) => options.includes(entry))
++    default:
++      return false
++  }
++}
++
++/**
++ * Está preenchida?
++ *
++ * Espelha `app.answer_is_present`. **Não é truthiness**: `false` responde um
++ * boolean e `0` responde um number, e os dois são falsy em JavaScript — que é
++ * exatamente como uma obrigatória legitimamente respondida seria recusada.
++ */
++export function isAnswerPresent(type: QuestionType, value: unknown): boolean {
++  if (value === null || value === undefined) return false
++
++  switch (type) {
++    case 'short_text':
++    case 'long_text':
++    case 'url':
++    case 'single_select':
++      return typeof value === 'string' && value.trim() !== ''
++    case 'boolean':
++      return typeof value === 'boolean'
++    case 'number':
++      return typeof value === 'number' && Number.isFinite(value)
++    case 'multi_select':
++      return isStringArray(value) && value.length > 0
++    default:
++      return false
++  }
++}
++
++/**
++ * As obrigatórias que ainda faltam, na ordem em que aparecem no formulário.
++ *
++ * A ordem importa: é ela que decide para qual campo o foco vai quando alguém
++ * tenta enviar incompleto, e mandar o foco para a última pergunta faltante
++ * seria mandar a pessoa para o lugar errado.
++ */
++export function missingRequired(
++  questions: readonly OnboardingQuestion[],
++  answers: Readonly<Record<string, unknown>>,
++): OnboardingQuestion[] {
++  return questions.filter(
++    (question) => question.required && !isAnswerPresent(question.type, answers[question.id]),
++  )
++}
+diff --git a/src/domains/onboarding/components/onboarding-form.tsx b/src/domains/onboarding/components/onboarding-form.tsx
+new file mode 100644
+index 0000000..b5f644d
+--- /dev/null
++++ b/src/domains/onboarding/components/onboarding-form.tsx
+@@ -0,0 +1,567 @@
++'use client'
++
++import { useCallback, useEffect, useRef, useState } from 'react'
++import { Button } from '@/components/ui/button'
++import { Field, Input, Textarea } from '@/components/ui/field'
++import { messageFor } from '@/config/messages'
++import { saveOnboardingAnswerAction, submitOnboardingAction } from '@/domains/onboarding/actions'
++import { isAnswerPresent, isRenderableType, missingRequired } from '@/domains/onboarding/answers'
++import type {
++  AnswerValue,
++  OnboardingAnswer,
++  OnboardingQuestion,
++  OnboardingSection,
++} from '@/domains/onboarding/types'
++import { padded } from '@/lib/format'
++import { cn } from '@/lib/cn'
++
++/*
++ * O onboarding, agora com banco atrás.
++ *
++ * A forma editorial é a mesma do protótipo da FASE 1.5 — uma seção por vez,
++ * paginação "02 / 06" em vez de barrinha, a fala que abre a seção — porque ela
++ * está certa. O que mudou é tudo o que estava faltando: as perguntas vêm do
++ * template, as respostas são gravadas, e "Finalizar" é uma transação.
++ *
++ * ## O autosave, e por que ele tem três gatilhos
++ *
++ * Um debounce sozinho perde resposta em dois momentos reais, e os dois
++ * acontecem no celular:
++ *
++ *   1. a pessoa digita e toca "Continuar" antes do debounce vencer;
++ *   2. a pessoa digita e sai do campo para outro app.
++ *
++ * Por isso: **debounce** enquanto digita, **blur** ao sair do campo, e um
++ * **flush** obrigatório antes de trocar de seção ou enviar. As três escrevem a
++ * mesma fila (`pendentes`), e a fila é por PERGUNTA — o `upsert` em
++ * `(submission_id, question_id)` torna repetir inofensivo.
++ *
++ * Não há `beforeunload`: ele é o gatilho menos confiável de todos (o iOS
++ * ignora em boa parte dos casos), e desenhar a confiabilidade em cima dele
++ * seria trocar três garantias por um diálogo que às vezes aparece. O que
++ * protege quem fecha o navegador é o debounce curto e o blur.
++ *
++ * ## Falha de gravação não vira sucesso
++ *
++ * Uma resposta que falhou volta para a fila e o rótulo diz "Erro ao salvar".
++ * Enviar chama o flush primeiro: se ele não conseguir gravar, o envio **não
++ * acontece** — mandar uma submissão sabendo que uma resposta ficou para trás
++ * seria a forma mais cara de perder dado nesta tela.
++ */
++
++type SaveState = 'idle' | 'saving' | 'saved' | 'error'
++
++/** Curto o bastante para não perder nada, longo o bastante para não gaguejar. */
++const DEBOUNCE_MS = 700
++
++function initialAnswerMap(answers: readonly OnboardingAnswer[]): Record<string, AnswerValue> {
++  const map: Record<string, AnswerValue> = {}
++  for (const answer of answers) map[answer.questionId] = answer.value
++  return map
++}
++
++/**
++ * A seção onde a pessoa parou.
++ *
++ * Derivado das RESPOSTAS, e não de uma coluna `current_section` — que seria
++ * estado de navegação virando estado de banco, e ficaria errado no dia em que
++ * o template mudasse de tamanho.
++ *
++ * Três regras, nesta ordem, e a ordem é o que faz a retomada parecer certa:
++ *
++ *   1. a primeira seção com OBRIGATÓRIA faltando — é o que impede o envio, e
++ *      portanto é onde o trabalho está;
++ *   2. senão, a primeira seção em que nada foi respondido — a pessoa ainda não
++ *      chegou lá;
++ *   3. senão, a última — está tudo respondido, e o que falta é enviar.
++ *
++ * A regra 1 olha só obrigatórias de propósito: pular uma opcional é uma
++ * escolha, e voltar a pessoa para ela seria tratá-la como pendência.
++ */
++function resumeIndex(
++  sections: readonly OnboardingSection[],
++  answers: Record<string, AnswerValue>,
++): number {
++  if (Object.keys(answers).length === 0) return 0
++
++  const obrigatoriaFaltando = sections.findIndex((section) =>
++    section.questions.some(
++      (question) =>
++        question.required &&
++        isRenderableType(question.type) &&
++        !isAnswerPresent(question.type, answers[question.id]),
++    ),
++  )
++  if (obrigatoriaFaltando !== -1) return obrigatoriaFaltando
++
++  const intocada = sections.findIndex((section) =>
++    section.questions.every((question) => answers[question.id] === undefined),
++  )
++  if (intocada !== -1) return intocada
++
++  return sections.length - 1
++}
++
++export function OnboardingForm({
++  projectId,
++  sections,
++  answers: initial,
++}: {
++  projectId: string
++  sections: OnboardingSection[]
++  answers: OnboardingAnswer[]
++}) {
++  const [answers, setAnswers] = useState(() => initialAnswerMap(initial))
++  const [index, setIndex] = useState(() => resumeIndex(sections, initialAnswerMap(initial)))
++  const [save, setSave] = useState<SaveState>('idle')
++  const [saveCode, setSaveCode] = useState<string | undefined>(undefined)
++  const [faltando, setFaltando] = useState<string[]>([])
++  const [submitCode, setSubmitCode] = useState<string | undefined>(undefined)
++  const [enviando, setEnviando] = useState(false)
++
++  const pendentes = useRef(new Map<string, AnswerValue>())
++  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
++  /*
++   * O flush em andamento, e se o último falhou. São `ref` e não estado, e a
++   * razão é um bug real:
++   *
++   * clicar em "Enviar" tira o foco do campo, então o `blur` dispara um flush
++   * ANTES do flush do envio. O segundo encontrava a fila já esvaziada pelo
++   * primeiro — que ainda estava no ar — e concluía "não há nada pendente, pode
++   * enviar", com `save` ainda em `idle` porque o `setSave('error')` do primeiro
++   * não tinha acontecido. A submissão saía com uma resposta que nunca gravou.
++   *
++   * `emVoo` encadeia os flushes (o segundo espera o primeiro), e `falhou`
++   * responde sobre a última tentativa sem depender de um `setState` que talvez
++   * ainda não tenha sido aplicado.
++   */
++  const emVoo = useRef<Promise<boolean> | null>(null)
++  const falhou = useRef(false)
++
++  useEffect(
++    () => () => {
++      if (timer.current) clearTimeout(timer.current)
++    },
++    [],
++  )
++
++  /** Grava tudo o que está na fila. Devolve `false` se alguma falhou. */
++  const flush = useCallback(async (): Promise<boolean> => {
++    if (timer.current) {
++      clearTimeout(timer.current)
++      timer.current = null
++    }
++
++    const anterior = emVoo.current
++
++    const corrente = (async (): Promise<boolean> => {
++      if (anterior) await anterior
++
++      const lote = [...pendentes.current.entries()]
++      if (lote.length === 0) return !falhou.current
++
++      pendentes.current.clear()
++      setSave('saving')
++
++      const resultados = await Promise.all(
++        lote.map(([questionId, value]) =>
++          saveOnboardingAnswerAction({ projectId, questionId, value }),
++        ),
++      )
++
++      const falha = resultados.find((resultado) => resultado.status === 'error')
++
++      if (falha) {
++        /* De volta para a fila: o próximo gatilho tenta de novo. Só não
++         * sobrescreve o que a pessoa digitou depois. */
++        for (const [questionId, value] of lote) {
++          if (!pendentes.current.has(questionId)) pendentes.current.set(questionId, value)
++        }
++        falhou.current = true
++        setSave('error')
++        setSaveCode(falha.code)
++        return false
++      }
++
++      falhou.current = false
++      setSave('saved')
++      setSaveCode(undefined)
++      return true
++    })()
++
++    emVoo.current = corrente
++
++    try {
++      return await corrente
++    } finally {
++      if (emVoo.current === corrente) emVoo.current = null
++    }
++  }, [projectId])
++
++  function alterar(question: OnboardingQuestion, value: AnswerValue) {
++    setAnswers((anterior) => ({ ...anterior, [question.id]: value }))
++    setFaltando((anterior) => anterior.filter((id) => id !== question.id))
++    pendentes.current.set(question.id, value)
++
++    if (timer.current) clearTimeout(timer.current)
++    timer.current = setTimeout(() => void flush(), DEBOUNCE_MS)
++  }
++
++  function irPara(proximo: number) {
++    void flush()
++    setIndex(proximo)
++  }
++
++  const perguntasRenderizaveis = sections.flatMap((section) =>
++    section.questions.filter((question) => isRenderableType(question.type)),
++  )
++
++  async function enviar() {
++    setSubmitCode(undefined)
++    setEnviando(true)
++
++    try {
++      const gravou = await flush()
++      if (!gravou) return
++
++      const pendentesObrigatorias = missingRequired(perguntasRenderizaveis, answers)
++
++      if (pendentesObrigatorias.length > 0) {
++        setFaltando(pendentesObrigatorias.map((question) => question.id))
++        setSubmitCode('onboarding.required_missing')
++
++        /* Leva a pessoa até a PRIMEIRA que falta — e não até a última, que é
++         * onde um `findLast` a deixaria. */
++        const primeira = pendentesObrigatorias[0]
++        const secao = sections.findIndex((section) =>
++          section.questions.some((question) => question.id === primeira?.id),
++        )
++        if (secao !== -1) setIndex(secao)
++        return
++      }
++
++      const dados = new FormData()
++      dados.set('projectId', projectId)
++      const resultado = await submitOnboardingAction({ status: 'idle' }, dados)
++
++      if (resultado.status === 'error') setSubmitCode(resultado.code)
++      /* Sucesso não é tratado aqui: a action revalida, o servidor devolve a
++       * página com `state = 'submitted'`, e quem mostra "Recebemos tudo" é o
++       * banco — não um `useState` que acha que enviou. */
++    } finally {
++      setEnviando(false)
++    }
++  }
++
++  const section = sections[index]
++  if (!section) return null
++
++  const total = sections.length
++  const primeira = index === 0
++  const ultima = index === total - 1
++
++  return (
++    <div className="content py-12 md:py-20">
++      {/* Progresso: paginacao editorial, nao barrinha. */}
++      <div className="flex items-center justify-between gap-6">
++        <p className="t-meta text-muted" data-numeric>
++          <span className="text-foreground">{padded(index + 1)}</span> / {padded(total)}
++        </p>
++        <ol className="flex gap-1.5" aria-label={`Seção ${index + 1} de ${total}`}>
++          {sections.map((entry, i) => (
++            <li
++              key={entry.key}
++              aria-current={i === index ? 'step' : undefined}
++              className={cn(
++                'h-1 w-7 rounded-sm transition-colors duration-[--motion-default]',
++                i < index ? 'bg-navy' : i === index ? 'bg-accent' : 'bg-rule-strong/40',
++              )}
++            >
++              <span className="sr-only">{entry.title}</span>
++            </li>
++          ))}
++        </ol>
++      </div>
++
++      {/*
++        O título da seção é o `h1` da página: é o que responde "onde estou" para
++        quem navega por cabeçalho. A fala de abertura vem depois, como texto —
++        ela conversa, não titula.
++      */}
++      <div key={section.key} className="mt-14 md:mt-20">
++        <h1 className="t-meta rise rise-1 text-muted">{section.title}</h1>
++        {section.lead && (
++          <p className="t-section rise rise-2 measure text-foreground mt-5">{section.lead}</p>
++        )}
++
++        <div className="rise rise-3 mt-12 max-w-2xl space-y-10">
++          {section.questions.map((question) => (
++            <QuestionField
++              key={question.id}
++              question={question}
++              value={answers[question.id]}
++              missing={faltando.includes(question.id)}
++              onChange={(value) => alterar(question, value)}
++              onFlush={() => void flush()}
++            />
++          ))}
++        </div>
++      </div>
++
++      <div className="border-rule mt-14 border-t pt-8">
++        <div className="flex flex-wrap items-center gap-4">
++          {ultima ? (
++            <Button
++              size="lg"
++              onClick={() => void enviar()}
++              disabled={enviando}
++              className="max-sm:w-full"
++            >
++              {enviando ? 'Enviando…' : 'Enviar respostas'}
++            </Button>
++          ) : (
++            <Button size="lg" onClick={() => irPara(index + 1)} className="max-sm:w-full">
++              Continuar →
++            </Button>
++          )}
++
++          {!primeira && (
++            <Button variant="quiet" onClick={() => irPara(index - 1)}>
++              Voltar
++            </Button>
++          )}
++
++          <SaveIndicator state={save} {...(saveCode ? { code: saveCode } : {})} />
++        </div>
++
++        {submitCode && (
++          <p className="t-label text-danger mt-5" role="alert">
++            {messageFor(submitCode)}
++          </p>
++        )}
++      </div>
++    </div>
++  )
++}
++
++/**
++ * O retorno do autosave: discreto, no canto, e nunca um toast por tecla.
++ *
++ * `aria-live="polite"` para quem não vê a mudança de rótulo; `polite` e não
++ * `assertive` porque isto não interrompe nada — a pessoa está escrevendo.
++ */
++function SaveIndicator({ state, code }: { state: SaveState; code?: string }) {
++  const texto =
++    state === 'saving'
++      ? 'Salvando…'
++      : state === 'saved'
++        ? 'Salvo'
++        : state === 'error'
++          ? code
++            ? messageFor(code)
++            : 'Erro ao salvar'
++          : 'Suas respostas salvam sozinhas'
++
++  return (
++    <p
++      aria-live="polite"
++      className={cn(
++        't-label ml-auto max-sm:ml-0 max-sm:w-full',
++        state === 'error' ? 'text-danger' : 'text-muted',
++      )}
++    >
++      {texto}
++    </p>
++  )
++}
++
++/** Um controle por tipo de pergunta. Alvo de toque nunca menor que 44px. */
++function QuestionField({
++  question,
++  value,
++  missing,
++  onChange,
++  onFlush,
++}: {
++  question: OnboardingQuestion
++  value: AnswerValue | undefined
++  missing: boolean
++  onChange: (value: AnswerValue) => void
++  onFlush: () => void
++}) {
++  const erro = missing ? 'Esta resposta é obrigatória.' : undefined
++
++  /*
++   * `file` (FASE 12) e qualquer tipo que o banco ganhe antes da tela: a
++   * pergunta aparece, marcada como indisponível. Um input falso que não sobe
++   * arquivo nenhum seria pior do que dizer a verdade.
++   */
++  if (!isRenderableType(question.type)) {
++    return (
++      <Field label={question.label} {...(question.help ? { help: question.help } : {})}>
++        {() => (
++          <p className="border-rule text-muted t-label border-l-2 py-1 pl-4">
++            Esta pergunta ainda não pode ser respondida por aqui. A equipe vai combinar com você.
++          </p>
++        )}
++      </Field>
++    )
++  }
++
++  const agrupado =
++    question.type === 'single_select' ||
++    question.type === 'multi_select' ||
++    question.type === 'boolean'
++
++  return (
++    <Field
++      label={question.label}
++      required={question.required}
++      group={agrupado}
++      {...(question.help ? { help: question.help } : {})}
++      {...(erro ? { error: erro } : {})}
++    >
++      {({ id, describedBy, invalid }) => {
++        if (question.type === 'long_text') {
++          return (
++            <Textarea
++              id={id}
++              aria-describedby={describedBy}
++              aria-invalid={invalid}
++              rows={5}
++              value={typeof value === 'string' ? value : ''}
++              onChange={(event) => onChange(event.target.value)}
++              onBlur={onFlush}
++            />
++          )
++        }
++
++        if (question.type === 'number') {
++          return (
++            <Input
++              id={id}
++              type="number"
++              inputMode="decimal"
++              aria-describedby={describedBy}
++              aria-invalid={invalid}
++              value={typeof value === 'number' ? String(value) : ''}
++              onChange={(event) => {
++                const numero = Number(event.target.value)
++                /* Campo esvaziado vira `""`, e `Number('')` é 0 — que seria uma
++                 * resposta que ninguém deu. */
++                onChange(event.target.value === '' || !Number.isFinite(numero) ? '' : numero)
++              }}
++              onBlur={onFlush}
++            />
++          )
++        }
++
++        if (question.type === 'boolean') {
++          return (
++            <Choices
++              describedBy={describedBy}
++              options={[
++                { label: 'Sim', value: true },
++                { label: 'Não', value: false },
++              ]}
++              selected={(option) => value === option}
++              onPick={(option) => {
++                onChange(option)
++                onFlush()
++              }}
++            />
++          )
++        }
++
++        if (question.type === 'single_select') {
++          return (
++            <Choices
++              describedBy={describedBy}
++              options={question.options.map((option) => ({ label: option, value: option }))}
++              selected={(option) => value === option}
++              onPick={(option) => {
++                onChange(option)
++                onFlush()
++              }}
++            />
++          )
++        }
++
++        if (question.type === 'multi_select') {
++          const marcadas = Array.isArray(value) ? value : []
++          return (
++            <Choices
++              describedBy={describedBy}
++              options={question.options.map((option) => ({ label: option, value: option }))}
++              selected={(option) => marcadas.includes(option)}
++              onPick={(option) => {
++                onChange(
++                  marcadas.includes(option)
++                    ? marcadas.filter((entry) => entry !== option)
++                    : [...marcadas, option],
++                )
++                onFlush()
++              }}
++            />
++          )
++        }
++
++        return (
++          <Input
++            id={id}
++            type={question.type === 'url' ? 'url' : 'text'}
++            inputMode={question.type === 'url' ? 'url' : undefined}
++            aria-describedby={describedBy}
++            aria-invalid={invalid}
++            value={typeof value === 'string' ? value : ''}
++            onChange={(event) => onChange(event.target.value)}
++            onBlur={onFlush}
++          />
++        )
++      }}
++    </Field>
++  )
++}
++
++/**
++ * Grupo de botões de escolha. Serve a `single_select`, `multi_select` e
++ * `boolean` — os três são "escolha entre alternativas visíveis", e um `select`
++ * nativo esconderia o que existe para escolher.
++ *
++ * 48px de altura: acima dos 44px mínimos, e confortável com o polegar.
++ */
++function Choices<T extends string | boolean>({
++  describedBy,
++  options,
++  selected,
++  onPick,
++}: {
++  describedBy: string | undefined
++  options: { label: string; value: T }[]
++  selected: (value: T) => boolean
++  onPick: (value: T) => void
++}) {
++  return (
++    <div aria-describedby={describedBy} className="flex flex-wrap gap-2">
++      {options.map((option) => {
++        const marcada = selected(option.value)
++        return (
++          <button
++            key={String(option.value)}
++            type="button"
++            aria-pressed={marcada}
++            onClick={() => onPick(option.value)}
++            className={cn(
++              't-label h-12 rounded-sm border px-4 transition-colors duration-[--motion-fast]',
++              marcada
++                ? 'border-navy bg-navy text-on-inverse'
++                : 'border-rule-strong text-foreground hover:border-muted',
++            )}
++          >
++            {option.label}
++          </button>
++        )
++      })}
++    </div>
++  )
++}
+diff --git a/src/domains/onboarding/components/onboarding-panel.tsx b/src/domains/onboarding/components/onboarding-panel.tsx
+new file mode 100644
+index 0000000..aae8132
+--- /dev/null
++++ b/src/domains/onboarding/components/onboarding-panel.tsx
+@@ -0,0 +1,199 @@
++'use client'
++
++import { useActionState } from 'react'
++import { Button } from '@/components/ui/button'
++import { Callout } from '@/components/ui/callout'
++import { messageFor } from '@/config/messages'
++import { reopenOnboardingAction, startOnboardingAction } from '@/domains/onboarding/actions'
++import { isRenderableType } from '@/domains/onboarding/answers'
++import type { AnswerValue, OnboardingForBoop } from '@/domains/onboarding/types'
++import { IDLE, type ActionState } from '@/lib/workflow/action-state'
++import { formatDateTime } from '@/lib/format'
++
++/**
++ * O onboarding do lado da Boop: abrir, ler as respostas, reabrir.
++ *
++ * ## O que ele NÃO é
++ *
++ * Não é editor de formulário. O template é catálogo de produto, instalado por
++ * migration, e uma UI de gestão dele seria o construtor de formulários que
++ * `docs/spec-review.md §4` lista como overengineering — a capacidade
++ * `onboarding.template.manage` existir não obriga ninguém a construir tela para
++ * ela nesta fase.
++ *
++ * Também não é dashboard novo: é uma seção da página do projeto, ao lado da
++ * jornada, que é onde a pergunta "o que sabemos deste cliente?" aparece.
++ *
++ * ## Quatro estados, quatro telas diferentes
++ *
++ *   `unsupported`  bloco explicativo curto e nenhuma ação. Não some porque a
++ *                  ausência aqui é informação interna: quem abre a página do
++ *                  projeto precisa saber que não há formulário para pedir.
++ *   `not_started`  ou o botão de abrir, ou a frase que diz o que falta antes —
++ *                  avançar a jornada até `onboarding`.
++ *   `draft`        respondendo. Mostra o que já veio, e o que ainda não.
++ *   `submitted`    tudo, mais quem enviou e quando, mais "Reabrir".
++ */
++export function OnboardingPanel({
++  projectId,
++  onboarding,
++  canStart,
++  canReopen,
++}: {
++  projectId: string
++  onboarding: OnboardingForBoop
++  /**
++   * Vêm de `can()` no servidor. São conveniência, não segurança: o workflow
++   * nega de novo e a função SQL nega em terceiro lugar
++   * (docs/permissions.md#onde-a-permissao-e-aplicada).
++   */
++  canStart: boolean
++  canReopen: boolean
++}) {
++  const [startState, start, startPending] = useActionState(startOnboardingAction, IDLE)
++  const [reopenState, reopen, reopenPending] = useActionState(reopenOnboardingAction, IDLE)
++
++  const state: ActionState = reopenState.status !== 'idle' ? reopenState : startState
++
++  const respostas = new Map<string, AnswerValue>(
++    onboarding.answers.map((answer) => [answer.questionId, answer.value]),
++  )
++
++  const perguntas = onboarding.sections.flatMap((section) => section.questions)
++  const respondidas = perguntas.filter((question) => respostas.has(question.id)).length
++
++  return (
++    <div className="space-y-8">
++      {state.status === 'error' && <Callout tone="danger">{messageFor(state.code)}</Callout>}
++      {state.status === 'success' && state.message && (
++        <Callout tone="success">{state.message}</Callout>
++      )}
++
++      {onboarding.state === 'unsupported' && (
++        <p className="t-body text-muted measure">
++          A jornada deste projeto não tem a etapa Onboarding, então não há formulário para abrir. O
++          que a equipe precisa saber é combinado direto com o cliente.
++        </p>
++      )}
++
++      {onboarding.state === 'not_started' &&
++        (onboarding.currentStageKey === 'onboarding' ? (
++          <div className="flex flex-wrap items-center gap-6">
++            <p className="t-body text-muted measure flex-1">
++              O formulário ainda não foi aberto. Abrir cria a submissão em rascunho e libera a tela
++              para o cliente responder.
++            </p>
++            {canStart && (
++              <form action={start}>
++                <input type="hidden" name="projectId" value={projectId} />
++                <Button type="submit" disabled={startPending}>
++                  {startPending ? 'Abrindo…' : 'Abrir onboarding'}
++                </Button>
++              </form>
++            )}
++          </div>
++        ) : (
++          <Callout tone="warning">
++            Avance o projeto para a etapa Onboarding para abrir o formulário. O onboarding só é
++            aberto na etapa dele — assim o envio fecha a etapa certa.
++          </Callout>
++        ))}
++
++      {onboarding.submission && (
++        <>
++          <div className="border-rule flex flex-wrap items-end justify-between gap-6 border-b pb-6">
++            <div>
++              <p className="t-meta text-muted">
++                {onboarding.state === 'submitted' ? 'Enviado' : 'Em preenchimento'}
++              </p>
++              <p className="t-title text-foreground mt-2">
++                {respondidas} de {perguntas.length} perguntas respondidas
++              </p>
++              <p className="t-label text-muted mt-1">
++                {onboarding.state === 'submitted' && onboarding.submission.submittedOn
++                  ? `${formatDateTime(onboarding.submission.submittedOn)}${
++                      onboarding.submittedByName ? ` · ${onboarding.submittedByName}` : ''
++                    }`
++                  : onboarding.submission.startedOn
++                    ? `Aberto em ${formatDateTime(onboarding.submission.startedOn)}`
++                    : 'Aberto'}
++              </p>
++            </div>
++
++            {canReopen && onboarding.state === 'submitted' && (
++              <form action={reopen}>
++                <input type="hidden" name="projectId" value={projectId} />
++                <Button type="submit" variant="outline" disabled={reopenPending}>
++                  {reopenPending ? 'Reabrindo…' : 'Reabrir onboarding'}
++                </Button>
++              </form>
++            )}
++          </div>
++
++          <Answers sections={onboarding.sections} respostas={respostas} />
++        </>
++      )}
++    </div>
++  )
++}
++
++/**
++ * As respostas, para ler.
++ *
++ * Seção → pergunta → resposta, com o texto do template. Nenhum uuid, nenhum
++ * json cru: quem lê isto está tentando entender uma marca, não depurar um
++ * banco. Pergunta sem resposta aparece como "sem resposta" e não desaparece —
++ * aqui o vazio É a informação: mostra o que ainda falta perguntar de novo.
++ */
++function Answers({
++  sections,
++  respostas,
++}: {
++  sections: OnboardingForBoop['sections']
++  respostas: Map<string, AnswerValue>
++}) {
++  return (
++    <div className="space-y-12">
++      {sections.map((section) => (
++        <section key={section.id} aria-labelledby={`secao-${section.id}`}>
++          <h3 id={`secao-${section.id}`} className="t-meta text-muted">
++            {section.title}
++          </h3>
++
++          <dl className="divide-rule border-rule mt-4 divide-y border-t">
++            {section.questions.map((question) => (
++              <div key={question.id} className="py-5">
++                <dt className="t-label text-muted">
++                  {question.label}
++                  {question.required && <span className="text-danger ml-1">*</span>}
++                </dt>
++                <dd className="t-body text-foreground measure mt-2 whitespace-pre-wrap">
++                  {formatAnswer(question.type, respostas.get(question.id))}
++                </dd>
++              </div>
++            ))}
++          </dl>
++        </section>
++      ))}
++    </div>
++  )
++}
++
++/** O valor em português, e não o jsonb. `false` e `0` são respostas. */
++function formatAnswer(type: string, value: AnswerValue | undefined) {
++  if (value === undefined) {
++    return <span className="text-muted italic">Sem resposta</span>
++  }
++
++  if (!isRenderableType(type as never)) {
++    return <span className="text-muted italic">Tipo de pergunta ainda não suportado</span>
++  }
++
++  if (typeof value === 'boolean') return value ? 'Sim' : 'Não'
++  if (typeof value === 'number') return String(value)
++  if (Array.isArray(value)) {
++    return value.length > 0 ? value.join(' · ') : <span className="text-muted italic">Vazio</span>
++  }
++
++  return value.trim() === '' ? <span className="text-muted italic">Sem resposta</span> : value
++}
+diff --git a/src/domains/onboarding/components/onboarding-states.tsx b/src/domains/onboarding/components/onboarding-states.tsx
+new file mode 100644
+index 0000000..1d1ba95
+--- /dev/null
++++ b/src/domains/onboarding/components/onboarding-states.tsx
+@@ -0,0 +1,97 @@
++import Link from 'next/link'
++import { BoopEyes } from '@/components/brand/boop-eyes'
++import { CloudLayer } from '@/components/brand/cloud-layer'
++import { portalHref } from '@/config/app'
++
++/*
++ * Os três estados do onboarding que não são formulário.
++ *
++ * Eles são TRÊS e não um porque descrevem situações diferentes, e a diferença
++ * importa para quem lê:
++ *
++ *   enviado       acabou. É uma confirmação, e ela vem do BANCO — não de um
++ *                 `useState` que achou que enviou. Recarregar a página
++ *                 continua mostrando isto.
++ *   não aberto    vai existir, ainda não. É espera, não erro: nada quebrou, e
++ *                 a tela não pode sugerir que quebrou.
++ *   indisponível  não vai existir para este projeto. Dizer "ainda não foi
++ *                 aberto" aqui seria prometer uma coisa que não vem.
++ *
++ * Nenhum deles é 404: o projeto existe e é da pessoa. 404 é para quem não
++ * deveria estar aqui, e isso o guard do layout já respondeu.
++ */
++
++/** Enviado. A mesma abertura editorial do protótipo — agora verdadeira. */
++export function OnboardingSubmitted({ projectId }: { projectId: string }) {
++  return (
++    <div className="on-emphasis bg-surface-emphasis relative isolate min-h-[70vh] overflow-hidden">
++      <CloudLayer density="horizon" className="opacity-40" />
++      <div className="content relative flex min-h-[70vh] flex-col justify-center py-20">
++        <BoopEyes blink className="fade w-20" />
++        <h1 className="t-display rise rise-1 text-cloud mt-10 max-w-[13ch]">Recebemos tudo.</h1>
++        <p className="t-lead rise rise-2 text-navy mt-8 max-w-[38ch]">
++          Agora é com a gente. A equipe lê tudo antes da imersão, e a próxima etapa do projeto já
++          está aberta.
++        </p>
++        <div className="rise rise-3 mt-12">
++          <Link
++            href={portalHref(projectId, '')}
++            className="t-meta bg-navy text-on-inverse hover:bg-navy/90 inline-flex h-14 items-center rounded-sm px-8 transition-colors max-sm:w-full max-sm:justify-center"
++          >
++            Ver o projeto
++          </Link>
++        </div>
++      </div>
++    </div>
++  )
++}
++
++/**
++ * Aberto ainda não.
++ *
++ * Estado vazio nunca diz "nenhum dado": diz o que está acontecendo e o que vem
++ * a seguir, na voz da Boop (.claude/rules/frontend.md).
++ */
++export function OnboardingNotStarted({ projectId }: { projectId: string }) {
++  return (
++    <div className="content py-16 md:py-24">
++      <h1 className="t-section measure text-foreground">Seu onboarding ainda não foi aberto.</h1>
++      <p className="t-body text-muted mt-6 max-w-[52ch]">
++        A equipe está preparando as perguntas do seu projeto. Quando estiver tudo pronto, você
++        responde por aqui — no computador ou no celular, com calma, e sem precisar terminar de uma
++        vez.
++      </p>
++      <div className="mt-10">
++        <Link
++          href={portalHref(projectId, '')}
++          className="t-meta text-accent-text hover:text-navy inline-flex h-11 items-center transition-colors"
++        >
++          Voltar para o projeto →
++        </Link>
++      </div>
++    </div>
++  )
++}
++
++/** Este projeto não tem onboarding. Nem vai ter — e a frase diz isso. */
++export function OnboardingUnsupported({ projectId }: { projectId: string }) {
++  return (
++    <div className="content py-16 md:py-24">
++      <h1 className="t-section measure text-foreground">
++        Este projeto não tem formulário de onboarding.
++      </h1>
++      <p className="t-body text-muted mt-6 max-w-[52ch]">
++        O que a equipe precisa saber vai ser combinado direto com você, nas conversas do projeto.
++        Acompanhe o andamento pela jornada.
++      </p>
++      <div className="mt-10">
++        <Link
++          href={portalHref(projectId, '')}
++          className="t-meta text-accent-text hover:text-navy inline-flex h-11 items-center transition-colors"
++        >
++          Voltar para o projeto →
++        </Link>
++      </div>
++    </div>
++  )
++}
+diff --git a/src/domains/onboarding/mutations.ts b/src/domains/onboarding/mutations.ts
+new file mode 100644
+index 0000000..cd85d5d
+--- /dev/null
++++ b/src/domains/onboarding/mutations.ts
+@@ -0,0 +1,241 @@
++import 'server-only'
++
++import { isAnswerShapeValid } from '@/domains/onboarding/answers'
++import {
++  reopenOnboardingSchema,
++  saveOnboardingAnswerSchema,
++  startOnboardingSchema,
++  submitOnboardingSchema,
++} from '@/domains/onboarding/schemas'
++import { defineWorkflow, scopeAllowed, scopeDenied } from '@/lib/workflow/define'
++import { WorkflowError } from '@/lib/workflow/errors'
++import type { SupabaseServerClient } from '@/lib/supabase/server'
++
++/**
++ * Workflows de onboarding. São quatro, e cobrem três linhas da matriz:
++ * `onboarding.start`, `onboarding.answer` e `onboarding.submit`.
++ *
++ * ## Três deles não escrevem por `supabase-js`
++ *
++ * `startOnboarding`, `submitOnboarding` e `reopenOnboarding` chamam RPC, e não
++ * porque cada um seja multi-linha — `start` e `reopen` tocam uma linha só. É
++ * uma decisão diferente da FASE 6, e vale escrever por quê:
++ * `onboarding_submissions` **não tem mais GRANT de INSERT nem de UPDATE para
++ * `authenticated`** (`20260903125242_onboarding_lifecycle_boundaries.sql`).
++ *
++ * O ciclo de vida da submissão passou a ter uma porta só. Com duas — RPC para
++ * enviar, UPDATE direto para o resto — a segunda seria a que um dia esqueceria
++ * uma checagem: foi assim que um `client_user` podia fazer
++ * `draft → submitted` pelo PostgREST, sem jornada e sem log.
++ *
++ * Consequência para quem lê: **os três não chamam `ctx.activity()`**. O log é
++ * escrito dentro da função SQL, na mesma transação. Chamar aqui também
++ * produziria duas linhas para um evento.
++ *
++ * `saveOnboardingAnswer` é o oposto, e de propósito: escreve por `upsert`
++ * direto, sob RLS, e **não registra activity nenhuma**. É o autosave — dispara
++ * a cada debounce, por pergunta —, e auditá-lo encheria uma tabela append-only
++ * de centenas de linhas que não respondem nenhuma pergunta de auditoria
++ * (docs/workflows.md marca o evento como "ruidoso demais").
++ *
++ * ## Nenhum usa `service_role`
++ *
++ * As RPCs são `security definer` porque `authenticated` não tem `usage` no
++ * schema `app` e não alcançaria `app.is_boop()`. Elas checam papel e escopo no
++ * próprio corpo, com as mesmas funções que as policies usam.
++ */
++
++/** `23514` é violação de `check` — inclui os triggers de integridade. */
++const CHECK_VIOLATION = '23514'
++
++/**
++ * Lê o projeto por dentro do workflow, sem `notFound()`.
++ *
++ * Mesma razão das FASES 5 e 6: os guards de `authorization.ts` lançam navegação
++ * do Next, o que em Server Action viraria 404 na página inteira em vez de uma
++ * mensagem na tela. A pergunta é feita do mesmo jeito — tentando ler pelo JWT,
++ * sob RLS — e a resposta vira `ScopeDecision`.
++ */
++async function readProject(db: SupabaseServerClient, projectId: string): Promise<boolean> {
++  const { data } = await db.from('projects').select('id').eq('id', projectId).maybeSingle()
++  return data !== null
++}
++
++/**
++ * A Boop abre o formulário para o cliente.
++ *
++ * A entrada é só `projectId`: template, cliente e tipo são derivados dentro da
++ * função SQL. Os três resultados que não são sucesso viram frases diferentes,
++ * porque descrevem situações diferentes e o conserto de cada uma é outro:
++ *
++ *   `unsupported`           este tipo de projeto não tem formulário na V0.
++ *   `stage_not_onboarding`  a jornada ainda não chegou lá. Conserto: avançar a
++ *                           etapa — o que é uma decisão da Boop, não um efeito
++ *                           colateral de clicar aqui.
++ *   `already_started`       já estava aberto. **Não é erro**: é o duplo clique,
++ *                           e ele devolve sucesso.
++ */
++export const startOnboarding = defineWorkflow({
++  name: 'onboarding.start',
++  input: startOnboardingSchema,
++  capability: 'onboarding.start',
++  authorize: async ({ input, ctx }) =>
++    (await readProject(ctx.db, input.projectId)) ? scopeAllowed() : scopeDenied(),
++  handler: async ({ input, ctx }) => {
++    const { data, error } = await ctx.db.rpc('start_onboarding', { p_project_id: input.projectId })
++
++    if (error) throw new WorkflowError('onboarding.start_failed', { code: error.code ?? null })
++    if (data === 'unsupported') throw new WorkflowError('onboarding.unsupported')
++    if (data === 'stage_not_onboarding') throw new WorkflowError('onboarding.stage_not_current')
++
++    /* Sem `ctx.activity()`: gravado na mesma transação, quando houve abertura. */
++    return { projectId: input.projectId, outcome: data ?? 'started' }
++  },
++})
++
++/**
++ * Uma resposta. É o autosave, e roda muitas vezes por sessão.
++ *
++ * ## As três camadas de validação, e o que cada uma existe para pegar
++ *
++ * 1. **zod** afirma o que é representável em `jsonb`: texto, número, booleano
++ *    ou lista de textos. Não sabe nada sobre a pergunta.
++ * 2. **aqui**, contra a pergunta lida sob RLS: a forma corresponde ao TIPO, e a
++ *    opção escolhida existe no template. É esta camada que devolve um código de
++ *    domínio em pt-BR em vez de deixar vazar um erro do Postgres.
++ * 3. **o trigger** `onboarding_answers_enforce_integrity`, que vale para todo
++ *    papel e para um POST direto no PostgREST que nunca passou por aqui.
++ *
++ * A terceira é a autoridade. As duas primeiras existem para que a recusa seja
++ * uma frase e não um `23514` — e para que a segunda camada exista mesmo quando
++ * alguém, um dia, chamar este workflow de um lugar novo.
++ *
++ * ## Por que a pergunta é lida a partir da SUBMISSÃO
++ *
++ * O `questionId` vem do navegador e é endereço, nunca prova. O caminho é
++ * projeto → submissão → template → seções → perguntas, e uma pergunta que não
++ * apareça nesse caminho simplesmente não é encontrada — o mesmo desenho de
++ * `app.has_template_access()`, que nunca vai de template para submissão.
++ */
++export const saveOnboardingAnswer = defineWorkflow({
++  name: 'onboarding.save_answer',
++  input: saveOnboardingAnswerSchema,
++  capability: 'onboarding.answer',
++  authorize: async ({ input, ctx }) =>
++    (await readProject(ctx.db, input.projectId)) ? scopeAllowed() : scopeDenied(),
++  handler: async ({ input, ctx }) => {
++    const { data: submission } = await ctx.db
++      .from('onboarding_submissions')
++      .select('id, status, template_id')
++      .eq('project_id', input.projectId)
++      .maybeSingle()
++
++    if (!submission) throw new WorkflowError('onboarding.not_started')
++
++    /*
++     * A trava de estado do cliente vive em `app.can_answer_submission` e a RLS
++     * a aplicaria de qualquer jeito — mas o erro chegaria como "0 linhas
++     * afetadas", indistinguível de qualquer outra recusa. Conferir aqui é o
++     * que transforma isso na frase certa: "este onboarding já foi enviado".
++     */
++    if (submission.status === 'submitted') throw new WorkflowError('onboarding.already_submitted')
++
++    const { data: question } = await ctx.db
++      .from('onboarding_questions')
++      .select('id, type, options, onboarding_sections!inner(template_id)')
++      .eq('id', input.questionId)
++      .eq('onboarding_sections.template_id', submission.template_id)
++      .maybeSingle()
++
++    /* Pergunta de outro template não é "proibida": para esta submissão, ela
++     * não existe. Mesma resposta de sempre para as duas recusas. */
++    if (!question) throw new WorkflowError('onboarding.question_not_found')
++
++    const options = Array.isArray(question.options) ? (question.options as string[]) : []
++
++    if (!isAnswerShapeValid(question.type, options, input.value)) {
++      throw new WorkflowError('onboarding.answer_invalid')
++    }
++
++    const { error } = await ctx.db.from('onboarding_answers').upsert(
++      {
++        submission_id: submission.id,
++        question_id: question.id,
++        value: input.value,
++      },
++      { onConflict: 'submission_id,question_id' },
++    )
++
++    if (error) {
++      if (error.code === CHECK_VIOLATION) throw new WorkflowError('onboarding.answer_invalid')
++      throw new WorkflowError('onboarding.save_failed', { code: error.code })
++    }
++
++    /* Sem `ctx.activity()`. Ver o cabeçalho: autosave não é evento. */
++    return { questionId: question.id, savedAt: new Date().toISOString() }
++  },
++})
++
++/**
++ * O envio. A fronteira transacional da fase.
++ *
++ * Os cinco resultados da função SQL viram cinco desfechos aqui, e nenhum é
++ * ignorado:
++ *
++ *   `advanced`              enviou e a jornada andou.
++ *   `submitted_no_advance`  enviou; a etapa corrente não era `onboarding`, e a
++ *                           jornada NÃO foi tocada (D-21). É o caso do reenvio
++ *                           depois de uma reabertura.
++ *   `already_submitted`     duplo clique. Sucesso, não erro.
++ *   `required_missing`      obrigatória vazia. Erro de domínio.
++ *   `not_started`           não há formulário aberto.
++ */
++export const submitOnboarding = defineWorkflow({
++  name: 'onboarding.submit',
++  input: submitOnboardingSchema,
++  capability: 'onboarding.submit',
++  authorize: async ({ input, ctx }) =>
++    (await readProject(ctx.db, input.projectId)) ? scopeAllowed() : scopeDenied(),
++  handler: async ({ input, ctx }) => {
++    const { data, error } = await ctx.db.rpc('submit_onboarding', { p_project_id: input.projectId })
++
++    if (error) throw new WorkflowError('onboarding.submit_failed', { code: error.code ?? null })
++    if (data === 'not_started') throw new WorkflowError('onboarding.not_started')
++    if (data === 'required_missing') throw new WorkflowError('onboarding.required_missing')
++
++    /*
++     * O e-mail `onboarding_completed` NÃO é disparado aqui, e a ausência é
++     * decisão registrada (D-20): não existe `EmailService` no sistema, e
++     * criar uma linha `pending` em `notifications` sem consumidor seria uma
++     * fila que ninguém esvazia. O gatilho volta na FASE 16, e o lugar dele é
++     * um `ctx.after()` nesta linha.
++     */
++    return { projectId: input.projectId, outcome: data ?? 'advanced' }
++  },
++})
++
++/**
++ * A reabertura. Devolve a submissão para `draft` para o cliente corrigir.
++ *
++ * Capacidade PRÓPRIA, `onboarding.reopen`, e não a de `start`: `start` inclui
++ * `boop_member`, e `docs/workflows.md` reserva a reabertura a `boop_admin`.
++ * Reusar a capacidade errada faria a recusa do member acontecer só no corpo da
++ * função SQL — que a nega corretamente, mas devolveria uma falha genérica em
++ * vez da frase certa. As duas camadas dizem a mesma coisa, e é isso que se
++ * espera delas.
++ */
++export const reopenOnboarding = defineWorkflow({
++  name: 'onboarding.reopen',
++  input: reopenOnboardingSchema,
++  capability: 'onboarding.reopen',
++  authorize: async ({ input, ctx }) =>
++    (await readProject(ctx.db, input.projectId)) ? scopeAllowed() : scopeDenied(),
++  handler: async ({ input, ctx }) => {
++    const { data, error } = await ctx.db.rpc('reopen_onboarding', { p_project_id: input.projectId })
++
++    if (error) throw new WorkflowError('onboarding.reopen_failed', { code: error.code ?? null })
++    if (data === 'not_started') throw new WorkflowError('onboarding.not_started')
++
++    return { projectId: input.projectId, outcome: data ?? 'reopened' }
++  },
++})
+diff --git a/src/domains/onboarding/queries.ts b/src/domains/onboarding/queries.ts
+new file mode 100644
+index 0000000..bf34b48
+--- /dev/null
++++ b/src/domains/onboarding/queries.ts
+@@ -0,0 +1,314 @@
++import 'server-only'
++
++import { cache } from 'react'
++import { requireBoop, requireProjectAccess } from '@/lib/auth/authorization'
++import { logger } from '@/lib/logging/logger'
++import { createSupabaseServerClient } from '@/lib/supabase/server'
++import type { SupabaseServerClient } from '@/lib/supabase/server'
++import { requireVisiblePortalProject } from '@/domains/projects/queries'
++import {
++  ANSWER_COLUMNS,
++  QUESTION_COLUMNS,
++  SECTION_COLUMNS,
++  SUBMISSION_ADMIN_COLUMNS,
++  SUBMISSION_PUBLIC_COLUMNS,
++  type OnboardingAnswer,
++  type OnboardingForBoop,
++  type OnboardingForClient,
++  type OnboardingSection,
++  type OnboardingState,
++} from '@/domains/onboarding/types'
++
++/**
++ * Leituras do onboarding. Sob RLS, com projeção explícita, guard próprio em
++ * cada função.
++ *
++ * ## As três ausências, e por que são três estados e não um
++ *
++ * A tela precisa distinguir coisas que um `null` sozinho não distingue:
++ *
++ *   `unsupported`  o projeto é `website`/`branding`/`automation`/`custom`. Não
++ *                  existe formulário para ele na V0, e nunca vai existir sem
++ *                  uma decisão de produto. Dizer "ainda não foi aberto" seria
++ *                  prometer uma coisa que não vem.
++ *   `not_started`  existe formulário, a Boop ainda não abriu. É espera.
++ *   `draft`        aberto.
++ *
++ * O critério de `unsupported` é a JORNADA MATERIALIZADA do projeto: tem etapa
++ * `onboarding`? Não é a escolha mais óbvia — o instinto seria perguntar se
++ * existe template ativo para o tipo —, e é a única que funciona para as duas
++ * audiências: `app.has_template_access()` concede ao `client_user` apenas o
++ * template da PRÓPRIA submissão, então um cliente sem submissão não enxerga
++ * template nenhum e "não achei template" não distinguiria nada para ele.
++ *
++ * A etapa, ele enxerga. E ela responde a mesma pergunta pelo lado certo: quem
++ * decide que este projeto tem onboarding é a jornada dele.
++ */
++
++/* ═══ Peças comuns ══════════════════════════════════════════════════════════ */
++
++/**
++ * O que o portal PEDE, que é uma coluna a mais do que ele DEVOLVE.
++ *
++ * `template_id` entra porque é ele que resolve qual formulário carregar — e
++ * para aqui: não está em `OnboardingSubmissionPublic`, então não atravessa a
++ * fronteira do RSC. Qual template a Boop escolheu é decisão interna; para quem
++ * responde existe um onboarding, não uma instância de catálogo.
++ */
++const SUBMISSION_PORTAL_QUERY = `${SUBMISSION_PUBLIC_COLUMNS}, template_id`
++
++/** A etapa `onboarding` existe na jornada deste projeto? */
++async function hasOnboardingStage(
++  supabase: SupabaseServerClient,
++  projectId: string,
++): Promise<boolean> {
++  const { data, error } = await supabase
++    .from('project_stages')
++    .select('id')
++    .eq('project_id', projectId)
++    .eq('stage_key', 'onboarding')
++    .maybeSingle()
++
++  if (error) {
++    logger.error('onboarding.stage_lookup_failed', { code: error.code })
++    throw new Error('onboarding.stage_lookup_failed')
++  }
++
++  return data !== null
++}
++
++/**
++ * O formulário inteiro de um template, já agrupado.
++ *
++ * Duas consultas e um agrupamento em memória, e não um embed do PostgREST: a
++ * projeção de cada tabela fica escrita em um lugar só, e o `order` de perguntas
++ * dentro de seção não depende de como o PostgREST serializa aninhamento.
++ */
++async function readForm(
++  supabase: SupabaseServerClient,
++  templateId: string,
++): Promise<OnboardingSection[]> {
++  const sections = await supabase
++    .from('onboarding_sections')
++    .select(SECTION_COLUMNS)
++    .eq('template_id', templateId)
++    .order('position', { ascending: true })
++
++  if (sections.error) {
++    logger.error('onboarding.form_read_failed', { sections: sections.error.code })
++    throw new Error('onboarding.form_read_failed')
++  }
++
++  const sectionIds = (sections.data ?? []).map((section) => section.id)
++
++  if (sectionIds.length === 0) return []
++
++  /*
++   * As perguntas são pedidas PELAS SEÇÕES deste template, e não em bloco.
++   * `onboarding_questions` não tem `template_id` para filtrar — a coluna não
++   * existe, e criá-la seria a segunda verdade que a migration de integridade
++   * deliberadamente recusou. Para a Boop, que lê o catálogo inteiro, pedir sem
++   * o `in` traria as perguntas de todo template ativo para montar uma tela que
++   * usa as de um só.
++   */
++  const questions = await supabase
++    .from('onboarding_questions')
++    .select(QUESTION_COLUMNS)
++    .in('section_id', sectionIds)
++    .order('position', { ascending: true })
++
++  if (questions.error) {
++    logger.error('onboarding.form_read_failed', { questions: questions.error.code })
++    throw new Error('onboarding.form_read_failed')
++  }
++
++  return (sections.data ?? []).map((section) => ({
++    id: section.id,
++    key: section.key,
++    title: section.title,
++    lead: section.description,
++    position: section.position,
++    questions: (questions.data ?? [])
++      .filter((question) => question.section_id === section.id)
++      .map((question) => ({
++        id: question.id,
++        key: question.key,
++        label: question.label,
++        help: question.help_text,
++        type: question.type,
++        required: question.is_required,
++        options: Array.isArray(question.options) ? (question.options as string[]) : [],
++        position: question.position,
++      })),
++  }))
++}
++
++async function readAnswers(
++  supabase: SupabaseServerClient,
++  submissionId: string,
++): Promise<OnboardingAnswer[]> {
++  const { data, error } = await supabase
++    .from('onboarding_answers')
++    .select(ANSWER_COLUMNS)
++    .eq('submission_id', submissionId)
++
++  if (error) {
++    logger.error('onboarding.answers_read_failed', { code: error.code })
++    throw new Error('onboarding.answers_read_failed')
++  }
++
++  return (data ?? []).map((row) => ({
++    questionId: row.question_id,
++    value: row.value as OnboardingAnswer['value'],
++  }))
++}
++
++function stateFor(hasStage: boolean, status: 'draft' | 'submitted' | null): OnboardingState {
++  if (!hasStage) return 'unsupported'
++  if (status === null) return 'not_started'
++  return status
++}
++
++/* ═══ Portal ════════════════════════════════════════════════════════════════ */
++
++/**
++ * O onboarding do cliente.
++ *
++ * O guard é `requireVisiblePortalProject`, o mesmo do layout do grupo — e ele
++ * está aqui de novo de propósito: um loader seguro só porque a página que o
++ * chama é segura deixa de ser seguro na segunda página (docs/security.md).
++ */
++export const getOnboardingForClient = cache(
++  async (projectId: string): Promise<OnboardingForClient> => {
++    await requireVisiblePortalProject(projectId)
++
++    const supabase = await createSupabaseServerClient()
++
++    const [hasStage, submissionResult] = await Promise.all([
++      hasOnboardingStage(supabase, projectId),
++      supabase
++        .from('onboarding_submissions')
++        .select(SUBMISSION_PORTAL_QUERY)
++        .eq('project_id', projectId)
++        .maybeSingle(),
++    ])
++
++    if (submissionResult.error) {
++      logger.error('onboarding.submission_read_failed', { code: submissionResult.error.code })
++      throw new Error('onboarding.submission_read_failed')
++    }
++
++    const row = submissionResult.data
++
++    if (!row) {
++      return {
++        state: stateFor(hasStage, null),
++        submission: null,
++        sections: [],
++        answers: [],
++      }
++    }
++
++    const [sections, answers] = await Promise.all([
++      readForm(supabase, row.template_id),
++      readAnswers(supabase, row.id),
++    ])
++
++    return {
++      state: stateFor(hasStage, row.status),
++      submission: {
++        id: row.id,
++        status: row.status,
++        startedOn: row.started_at,
++        submittedOn: row.submitted_at,
++      },
++      sections,
++      answers,
++    }
++  },
++)
++
++/* ═══ Boop-side ═════════════════════════════════════════════════════════════ */
++
++/**
++ * O onboarding para a tela do projeto no admin.
++ *
++ * Acrescenta ao do cliente a autoria do envio e a etapa corrente — que é o que
++ * decide se "Abrir onboarding" está disponível ou se a resposta é "avance o
++ * projeto primeiro".
++ *
++ * `submittedByName` sai de `profiles`, sob RLS: `app.has_profile_access()`
++ * decide, e um `boop_member` que não divida cliente com a pessoa recebe `null`
++ * em vez do nome. Falhar em `null` é a resposta certa — a tela mostra a data do
++ * envio sem inventar quem enviou.
++ */
++export const getOnboardingForBoop = cache(async (projectId: string): Promise<OnboardingForBoop> => {
++  await requireBoop()
++  await requireProjectAccess(projectId)
++
++  const supabase = await createSupabaseServerClient()
++
++  const [hasStage, submissionResult, currentStage] = await Promise.all([
++    hasOnboardingStage(supabase, projectId),
++    supabase
++      .from('onboarding_submissions')
++      .select(SUBMISSION_ADMIN_COLUMNS)
++      .eq('project_id', projectId)
++      .maybeSingle(),
++    supabase
++      .from('project_stages')
++      .select('stage_key')
++      .eq('project_id', projectId)
++      .eq('state', 'current')
++      .maybeSingle(),
++  ])
++
++  if (submissionResult.error || currentStage.error) {
++    logger.error('onboarding.submission_read_failed', {
++      submission: submissionResult.error?.code ?? null,
++      stage: currentStage.error?.code ?? null,
++    })
++    throw new Error('onboarding.submission_read_failed')
++  }
++
++  const row = submissionResult.data
++  const currentStageKey = currentStage.data?.stage_key ?? null
++
++  if (!row) {
++    return {
++      state: stateFor(hasStage, null),
++      submission: null,
++      submittedByName: null,
++      sections: [],
++      answers: [],
++      currentStageKey,
++    }
++  }
++
++  const [sections, answers, author] = await Promise.all([
++    readForm(supabase, row.template_id),
++    readAnswers(supabase, row.id),
++    row.submitted_by
++      ? supabase.from('profiles').select('full_name').eq('id', row.submitted_by).maybeSingle()
++      : Promise.resolve({ data: null, error: null }),
++  ])
++
++  return {
++    state: stateFor(hasStage, row.status),
++    submission: {
++      id: row.id,
++      clientId: row.client_id,
++      projectId: row.project_id,
++      templateId: row.template_id,
++      status: row.status,
++      startedOn: row.started_at,
++      submittedOn: row.submitted_at,
++      submittedById: row.submitted_by,
++      updatedOn: row.updated_at,
++    },
++    submittedByName: author.data?.full_name ?? null,
++    sections,
++    answers,
++    currentStageKey,
++  }
++})
+diff --git a/src/domains/onboarding/schemas.ts b/src/domains/onboarding/schemas.ts
+new file mode 100644
+index 0000000..1a43a9d
+--- /dev/null
++++ b/src/domains/onboarding/schemas.ts
+@@ -0,0 +1,61 @@
++import { z } from 'zod'
++
++/**
++ * Entrada dos workflows de onboarding. Zod `.strict()`, sempre.
++ *
++ * ## O que NÃO aparece em nenhum destes schemas
++ *
++ *   `templateId`    é a decisão mais importante da fase do lado da entrada.
++ *                   Aceitá-lo seria deixar quem posta escolher QUAL formulário
++ *                   o cliente responde. `start_onboarding()` o deriva do
++ *                   projeto → tipo → template ativo, no banco.
++ *   `submissionId`  derivado do projeto: `onboarding_submissions.project_id` é
++ *                   unique, então o projeto já identifica a submissão. Um id a
++ *                   menos vindo do navegador é um id a menos para conferir.
++ *   `clientId`      derivado por trigger a partir do projeto, e imutável.
++ *   `status`        transição, não campo. Quem a faz são as três RPCs.
++ *   `submittedBy`   vem de `auth.uid()`, dentro da função SQL.
++ *
++ * O `projectId` que sobra é ENDEREÇO, nunca autorização: quem responde escopo é
++ * `app.has_project_access()`, no corpo de cada fronteira.
++ */
++
++const projectId = z.uuid({ error: 'project_id_invalid' })
++const questionId = z.uuid({ error: 'question_id_invalid' })
++
++/**
++ * O valor de uma resposta.
++ *
++ * Aqui o zod só afirma o que é possível representar em `jsonb`: texto, número,
++ * booleano ou lista de textos. Ele **não** consegue afirmar o que importa —
++ * "esta forma corresponde ao TIPO desta pergunta?" e "esta opção existe no
++ * template?" —, porque as duas dependem de uma linha do banco que o schema não
++ * viu.
++ *
++ * Essa segunda metade acontece no workflow, contra a pergunta lida sob RLS, e
++ * de novo no trigger `onboarding_answers_enforce_integrity`. O schema é o
++ * primeiro filtro, não o único.
++ *
++ * `.nullable()` fica de fora de propósito: apagar uma resposta é gravar `""`
++ * ou `[]`, que são valores. `null` em `value` é proibido pelo `not null` da
++ * coluna, e oferecer o campo produziria um formulário que salva e o banco
++ * rejeita.
++ */
++const answerValue = z.union([
++  z.string().max(10_000, { error: 'answer_too_long' }),
++  z.number().finite({ error: 'answer_value_invalid' }),
++  z.boolean(),
++  z.array(z.string().max(500, { error: 'answer_too_long' })).max(50, { error: 'answer_too_long' }),
++])
++
++export const startOnboardingSchema = z.object({ projectId }).strict()
++
++export const saveOnboardingAnswerSchema = z
++  .object({ projectId, questionId, value: answerValue })
++  .strict()
++
++export const submitOnboardingSchema = z.object({ projectId }).strict()
++
++export const reopenOnboardingSchema = z.object({ projectId }).strict()
++
++export type SaveOnboardingAnswerInput = z.infer<typeof saveOnboardingAnswerSchema>
+diff --git a/src/domains/onboarding/types.ts b/src/domains/onboarding/types.ts
+new file mode 100644
+index 0000000..346bfad
+--- /dev/null
++++ b/src/domains/onboarding/types.ts
+@@ -0,0 +1,162 @@
++import type { OnboardingStatus, QuestionType } from '@/config/enums'
++import type { AssertClientFacing } from '@/lib/data/projection'
++
++/**
++ * Projeções do onboarding, separadas por AUDIÊNCIA.
++ *
++ * Mesma convenção das FASES 5 e 6: duas formas com dois nomes, nunca uma com
++ * booleano.
++ *
++ * ## O que o cliente não recebe, e por quê
++ *
++ * | Coluna         | Por que fica fora da projeção client-facing                |
++ * | -------------- | ---------------------------------------------------------- |
++ * | `template_id`  | qual formulário ele respondeu é decisão da Boop. Para ele   |
++ * |                | existe UM onboarding, não uma instância de um catálogo.     |
++ * | `client_id`    | redundante: ele só alcança o próprio tenant, e a tela do    |
++ * |                | onboarding não compõe com nada que precise disso.           |
++ * | `submitted_by` | uuid de pessoa. A tela diz "recebemos tudo", não quem da    |
++ * |                | equipe apertou o botão — e um uuid no payload do RSC é      |
++ * |                | identificador vazando sem nenhum uso.                       |
++ * | `created_at`   | quando a Boop abriu o registro. `started_at` é o que        |
++ * | `updated_at`   | significa alguma coisa para quem responde.                  |
++ *
++ * Nenhum deles está em `INTERNAL_FIELDS` — não são segredo, são ruído ou
++ * vocabulário errado. A proteção é a de sempre e é a primeira: **a coluna não
++ * sai do banco**, porque não está na lista do `select`.
++ *
++ * `AssertClientFacing` continua ao lado de cada projeção client-facing, porque
++ * é ele que cobra no dia em que o onboarding ganhar a sua nota interna — e ele
++ * vai ganhar: `content_versions.internal_notes` já está na lista, e a mesma
++ * convenção cobre o que vier.
++ */
++
++/* ═══ Listas de colunas — a PRIMEIRA camada ═════════════════════════════════ */
++
++/** A submissão como o portal a lê. Sem template, sem autoria, sem carimbos. */
++export const SUBMISSION_PUBLIC_COLUMNS = 'id, status, started_at, submitted_at'
++
++/** A submissão como o admin a lê: acrescenta autoria e o template respondido. */
++export const SUBMISSION_ADMIN_COLUMNS =
++  'id, client_id, project_id, template_id, status, started_at, submitted_at, submitted_by, updated_at'
++
++/**
++ * O formulário. As mesmas colunas para as duas audiências, e isso é correto:
++ * o catálogo NÃO tem campo interno — pergunta, ajuda e alternativas existem
++ * para serem lidas por quem responde.
++ *
++ * O que separa as audiências aqui não é a coluna, é o ALCANCE: `client_user` só
++ * chega ao template da própria submissão, e quem garante isso é
++ * `app.has_template_access()`, no banco.
++ */
++export const SECTION_COLUMNS = 'id, key, title, description, position'
++export const QUESTION_COLUMNS =
++  'id, section_id, key, label, help_text, type, is_required, options, position'
++
++/** A resposta. `id` não interessa a ninguém: a chave real é a pergunta. */
++export const ANSWER_COLUMNS = 'question_id, value'
++
++/* ═══ Formas ════════════════════════════════════════════════════════════════ */
++
++/**
++ * Uma pergunta renderizável.
++ *
++ * `type` é o enum inteiro, e não um subconjunto: recortá-lo em TypeScript faria
++ * o compilador acreditar que `file` não chega aqui, quando o banco pode
++ * devolvê-lo a qualquer momento. Quem decide o que fazer com um tipo ainda não
++ * implementado é o renderizador, explicitamente (FASE 12, spec-review I-05).
++ */
++export interface OnboardingQuestion {
++  id: string
++  key: string
++  label: string
++  help: string | null
++  type: QuestionType
++  required: boolean
++  /** `single_select`/`multi_select`. Vazio nos demais tipos. */
++  options: string[]
++  position: number
++}
++
++export type _OnboardingQuestionIsSafe = AssertClientFacing<OnboardingQuestion>
++
++export interface OnboardingSection {
++  id: string
++  key: string
++  title: string
++  /** A fala que abre a seção. É o que torna o onboarding conversacional. */
++  lead: string | null
++  position: number
++  questions: OnboardingQuestion[]
++}
++
++export type _OnboardingSectionIsSafe = AssertClientFacing<OnboardingSection>
++
++/** `value` é o jsonb do banco: a forma depende do tipo da pergunta. */
++export type AnswerValue = string | number | boolean | string[]
++
++export interface OnboardingAnswer {
++  questionId: string
++  value: AnswerValue
++}
++
++/**
++ * O onboarding como o portal o vê.
++ *
++ * `state` é o que a tela decide em cima, e são três situações **diferentes**
++ * que não podem virar a mesma:
++ *
++ *   `unsupported`  este tipo de projeto não tem onboarding na V0. Nunca vai ter
++ *                  formulário aqui, e dizer "ainda não abriram" seria mentira.
++ *   `not_started`  tem formulário, a Boop ainda não abriu. É espera, não erro.
++ *   `draft`        aberto, respondendo.
++ *   `submitted`    enviado. Leitura.
++ */
++export type OnboardingState = 'unsupported' | 'not_started' | 'draft' | 'submitted'
++
++export interface OnboardingSubmissionPublic {
++  id: string
++  status: OnboardingStatus
++  startedOn: string | null
++  submittedOn: string | null
++}
++
++export type _OnboardingSubmissionPublicIsSafe = AssertClientFacing<OnboardingSubmissionPublic>
++
++/** O que a página do portal recebe. Um objeto, e o `state` manda. */
++export interface OnboardingForClient {
++  state: OnboardingState
++  submission: OnboardingSubmissionPublic | null
++  sections: OnboardingSection[]
++  answers: OnboardingAnswer[]
++}
++
++export type _OnboardingForClientIsSafe = AssertClientFacing<OnboardingForClient>
++
++/* ═══ Boop-side ═════════════════════════════════════════════════════════════ */
++
++export interface OnboardingSubmissionAdmin {
++  id: string
++  clientId: string
++  projectId: string
++  templateId: string
++  status: OnboardingStatus
++  startedOn: string | null
++  submittedOn: string | null
++  submittedById: string | null
++  updatedOn: string
++}
++
++/**
++ * O que o admin recebe. Acrescenta ao do cliente a autoria e o nome de quem
++ * enviou — resolvido em `profiles`, sob RLS, e não montado a partir do uuid.
++ */
++export interface OnboardingForBoop {
++  state: OnboardingState
++  submission: OnboardingSubmissionAdmin | null
++  submittedByName: string | null
++  sections: OnboardingSection[]
++  answers: OnboardingAnswer[]
++  /** A etapa corrente do projeto: é ela que decide se "Abrir onboarding" pode. */
++  currentStageKey: string | null
++}
+diff --git a/src/lib/auth/policy.ts b/src/lib/auth/policy.ts
+index 95ea478..17068ff 100644
+--- a/src/lib/auth/policy.ts
++++ b/src/lib/auth/policy.ts
+@@ -63,6 +63,17 @@ export const CAPABILITIES = [
+   'onboarding.answer',
+   'onboarding.submit',
+   'onboarding.read_answers',
++  /*
++   * FASE 7. Nao estava na matriz de docs/permissions.md porque a operacao
++   * so ganhou codigo agora — mas o documento sempre reservou `reopenOnboarding`
++   * a `boop_admin` (docs/workflows.md), e uma capacidade propria e o que faz
++   * essa reserva valer na PRIMEIRA camada.
++   *
++   * Sem ela, o workflow teria de reusar `onboarding.start`, que inclui
++   * `boop_member`: a recusa aconteceria so no corpo da funcao SQL, e chegaria
++   * na tela como falha generica em vez de "so um admin da Boop reabre".
++   */
++  'onboarding.reopen',
+   /* Estrategia */
+   'strategy.create',
+   'strategy.read_draft',
+@@ -137,6 +148,7 @@ const PERMITIDO: Record<Capability, readonly UserRole[]> = {
+   'onboarding.answer': ['boop_admin', 'boop_member', 'client_user'],
+   'onboarding.submit': ['boop_admin', 'boop_member', 'client_user'],
+   'onboarding.read_answers': ['boop_admin', 'boop_member', 'client_user'],
++  'onboarding.reopen': ['boop_admin'],
+ 
+   'strategy.create': ['boop_admin', 'boop_member'],
+   /* Rascunho e trabalho em andamento: o cliente entra quando esta pronto. */
+diff --git a/src/lib/data/portal.ts b/src/lib/data/portal.ts
+index 625637b..14ce0f6 100644
+--- a/src/lib/data/portal.ts
++++ b/src/lib/data/portal.ts
+@@ -9,7 +9,6 @@ import type {
+   Insight,
+   JourneyStage,
+   Meeting,
+-  OnboardingSection,
+   ProjectFile,
+   ProjectSummary,
+   ResultsPeriod,
+@@ -45,9 +44,16 @@ import type {
+  *
+  * Elas passaram a receber um uuid REAL, conferido pelo mesmo guard das outras.
+  * Nenhuma delas usa `DEMO_PROJECT_ID` como atalho: o id é validado primeiro, e
+- * só então o mock responde. Assim, quando a FASE 7 trocar `getOnboarding()` por
+- * uma consulta de verdade, a autorização já está no lugar certo — e o que
+- * mudou foi só de onde vieram as linhas.
++ * só então o mock responde. Foi exatamente assim que a FASE 7 trocou o
++ * onboarding: a autorização já estava no lugar certo, e o que mudou foi só de
++ * onde vieram as linhas.
++ *
++ * ## O onboarding saiu deste arquivo
++ *
++ * `getOnboarding()` não existe mais. O onboarding tem domínio próprio desde a
++ * FASE 7 (`src/domains/onboarding/queries.ts`), como projetos desde a FASE 6:
++ * quando o dado é real, ele não passa mais pela camada que existia para
++ * segurar mock.
+  */
+ 
+ /**
+@@ -160,11 +166,6 @@ export async function getStrategy(projectId: string): Promise<Strategy> {
+   return hartmann.STRATEGY
+ }
+ 
+-export async function getOnboarding(projectId: string): Promise<OnboardingSection[]> {
+-  await assertProject(projectId)
+-  return hartmann.ONBOARDING
+-}
+-
+ export async function getResults(projectId: string): Promise<ResultsPeriod | null> {
+   await assertProject(projectId)
+   return hartmann.RESULTS
+diff --git a/src/lib/data/types.ts b/src/lib/data/types.ts
+index 16eefd2..d79a024 100644
+--- a/src/lib/data/types.ts
++++ b/src/lib/data/types.ts
+@@ -156,23 +156,15 @@ export interface Strategy {
+   chapters: StrategyChapter[]
+ }
+ 
+-export interface OnboardingQuestion {
+-  key: string
+-  label: string
+-  help?: string
+-  type: 'short_text' | 'long_text' | 'single_select' | 'multi_select' | 'url'
+-  options?: string[]
+-  placeholder?: string
+-}
+-
+-export interface OnboardingSection {
+-  key: string
+-  index: number
+-  title: string
+-  /** A fala que abre a secao. E o que torna o onboarding conversacional. */
+-  lead: string
+-  questions: OnboardingQuestion[]
+-}
++/*
++ * `OnboardingQuestion` e `OnboardingSection` moravam aqui e saíram na FASE 7.
++ *
++ * Elas descreviam o formulário do PROTÓTIPO — sem `id`, sem `is_required`, com
++ * um `placeholder` que o banco não tem e um `type` recortado que omitia
++ * `boolean`, `number` e `file`. As formas reais vivem em
++ * `src/domains/onboarding/types.ts`, separadas por audiência, como manda a
++ * convenção de projeção das FASES 5 e 6.
++ */
+ 
+ export interface MetricReading {
+   key: string
+diff --git a/src/mocks/hartmann.ts b/src/mocks/hartmann.ts
+index 27d5afc..20f6d8e 100644
+--- a/src/mocks/hartmann.ts
++++ b/src/mocks/hartmann.ts
+@@ -15,7 +15,6 @@ import type {
+   Delivery,
+   Insight,
+   Meeting,
+-  OnboardingSection,
+   ProjectFile,
+   ResultsPeriod,
+   Strategy,
+@@ -31,7 +30,9 @@ import type {
+  *
+  * O resto deste arquivo continua, e continua sendo a unica fonte de dado
+  * ficticio do repositorio: conteudo, estrategia, arquivos, reunioes,
+- * resultados, onboarding, atencao e insight sao das FASES 7+.
++ * resultados, atencao e insight sao das FASES 8+. O onboarding SAIU daqui na
++ * FASE 7: o formulario e as respostas vem do banco, e nao existe mais
++ * `ONBOARDING` para nenhuma tela importar.
+  */
+ export const ATTENTION: AttentionItem[] = [
+   {
+@@ -355,125 +356,6 @@ export const STRATEGY: Strategy = {
+   ],
+ }
+ 
+-export const ONBOARDING: OnboardingSection[] = [
+-  {
+-    key: 'brand',
+-    index: 1,
+-    title: 'A marca',
+-    lead: 'Antes de falar sobre conteúdo, queremos entender uma coisa.',
+-    questions: [
+-      {
+-        key: 'why',
+-        label: 'Por que a Hartmann precisa existir?',
+-        help: 'Sem discurso de marketing. Do jeito que vocês contariam para uma amiga.',
+-        type: 'long_text',
+-        placeholder: 'Escreva à vontade…',
+-      },
+-      {
+-        key: 'refuse',
+-        label: 'O que vocês se recusam a fazer?',
+-        type: 'long_text',
+-        placeholder: 'O que está fora de questão, mesmo que dê dinheiro.',
+-      },
+-    ],
+-  },
+-  {
+-    key: 'business',
+-    index: 2,
+-    title: 'O negócio',
+-    lead: 'Agora a parte prática. Sem isso, a estratégia vira palpite.',
+-    questions: [
+-      {
+-        key: 'revenue',
+-        label: 'De onde vem a maior parte da receita hoje?',
+-        type: 'single_select',
+-        options: ['Loja física', 'Instagram', 'Site próprio', 'Encomendas diretas', 'Revenda'],
+-      },
+-      {
+-        key: 'goal',
+-        label: 'O que precisa acontecer nos próximos seis meses?',
+-        type: 'long_text',
+-        placeholder: 'O resultado concreto, não a intenção.',
+-      },
+-    ],
+-  },
+-  {
+-    key: 'customer',
+-    index: 3,
+-    title: 'O cliente',
+-    lead: 'Quem já compra costuma explicar melhor a marca do que qualquer pesquisa.',
+-    questions: [
+-      {
+-        key: 'who',
+-        label: 'Descreva a última pessoa que comprou de vocês.',
+-        type: 'long_text',
+-        placeholder: 'Quem era, o que levou, por quê.',
+-      },
+-      {
+-        key: 'objection',
+-        label: 'Qual é a objeção que mais aparece?',
+-        type: 'short_text',
+-        placeholder: 'A frase que vocês mais ouvem antes do "vou pensar".',
+-      },
+-    ],
+-  },
+-  {
+-    key: 'perception',
+-    index: 4,
+-    title: 'Percepção',
+-    lead: 'O que as pessoas acham hoje é o ponto de partida do que vamos construir.',
+-    questions: [
+-      {
+-        key: 'said',
+-        label: 'Qual elogio vocês mais escutam?',
+-        type: 'short_text',
+-      },
+-      {
+-        key: 'wrong',
+-        label: 'O que as pessoas entendem errado sobre a Hartmann?',
+-        type: 'long_text',
+-      },
+-    ],
+-  },
+-  {
+-    key: 'references',
+-    index: 5,
+-    title: 'Referências',
+-    lead: 'Referência não é para copiar. É para calibrar o que vocês gostam.',
+-    questions: [
+-      {
+-        key: 'admire',
+-        label: 'Três marcas que vocês admiram — de qualquer categoria.',
+-        type: 'long_text',
+-      },
+-      {
+-        key: 'avoid',
+-        label: 'Uma marca que vocês não querem parecer.',
+-        type: 'short_text',
+-      },
+-    ],
+-  },
+-  {
+-    key: 'materials',
+-    index: 6,
+-    title: 'Materiais',
+-    lead: 'Por último, o que vocês já têm pronto.',
+-    questions: [
+-      {
+-        key: 'drive',
+-        label: 'Link para fotos, catálogo ou manual de marca',
+-        type: 'url',
+-        placeholder: 'https://',
+-      },
+-      {
+-        key: 'anything',
+-        label: 'Alguma coisa que a gente não perguntou e deveria ter perguntado?',
+-        type: 'long_text',
+-      },
+-    ],
+-  },
+-]
+-
+ export const RESULTS: ResultsPeriod = {
+   period: 'Agosto 2026',
+   metrics: [
+-- 
+2.43.0
+
