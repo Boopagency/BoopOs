@@ -1,0 +1,54 @@
+From a38ce9d1ab2a188218f9b3f9d02bd8c03d409980 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 3 Sep 2026 01:41:24 +0000
+Subject: [PATCH 1/5] fix(db): the plan B without Docker did not reproduce the
+ real auth grants
+
+`scripts/db/auth-shim.sql` granted EXECUTE on `auth.uid()` to `anon` and
+`authenticated` but never granted USAGE on the `auth` schema, so the grant was
+unreachable. It stayed invisible for three phases because every function that
+called `auth.uid()` up to FASE 5 is `security definer` and runs as owner.
+
+The first `security invoker` function that needs the caller identity fails
+locally with "permission denied for schema auth" while passing on staging.
+Checked against `boop-os-staging`: there `has_schema_privilege` returns true for
+`anon` and `authenticated`. The shim now does the same.
+
+A plan B that does not reproduce the real environment stops being a plan B.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01AFjCwwfVTdnaJC3joRDayk
+---
+ scripts/db/auth-shim.sql | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/scripts/db/auth-shim.sql b/scripts/db/auth-shim.sql
+index 8180544..18b32e1 100644
+--- a/scripts/db/auth-shim.sql
++++ b/scripts/db/auth-shim.sql
+@@ -76,6 +76,22 @@ alter default privileges in schema public
+ create schema if not exists auth;
+ grant usage on schema auth to postgres, service_role;
+ 
++-- `anon` e `authenticated` TAMBEM tem USAGE aqui, e isso espelha o Supabase de
++-- verdade — conferido contra o staging, onde `has_schema_privilege` devolve
++-- true para os dois.
++--
++-- A linha faltava, e a ausencia era invisivel: o `grant execute` em `auth.uid()`
++-- mais abaixo existia desde sempre, mas sem USAGE no schema ele nao era
++-- alcancavel. Nada tinha esbarrado nisso porque toda funcao que chamava
++-- `auth.uid()` ate a FASE 5 era `security definer` e rodava como dona.
++--
++-- A FASE 6 trouxe a primeira funcao `security invoker` que precisa da
++-- identidade (`create_project_with_journey`), e ai o shim divergiu do ambiente
++-- real: passava em staging e falhava localmente com "permission denied for
++-- schema auth". Um plano B que nao reproduz o ambiente real deixa de ser plano
++-- B (docs/database.md#sem-docker).
++grant usage on schema auth to anon, authenticated;
++
+ comment on schema auth is
+   'SHIM LOCAL. Sem Docker nao ha GoTrue; isto e o minimo que as migrations '
+   'exigem. Nunca aplicado em staging ou producao. Ver scripts/db/auth-shim.sql.';
+-- 
+2.43.0
+

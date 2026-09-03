@@ -1,0 +1,3742 @@
+From 550af94f24e56b6849815bfc48227a9725266759 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 3 Sep 2026 01:41:58 +0000
+Subject: [PATCH 3/5] =?UTF-8?q?feat:=20phase=206=20=E2=80=94=20projects,?=
+ =?UTF-8?q?=20journey,=20and=20a=20portal=20that=20stops=20pretending?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+FASE 5 answered "which clients does Boop manage?". This one answers "what work
+is being done, and where is it?".
+
+## The portal had a fake identity, and no authorization
+
+`DEMO_PROJECT_ID` was `hartmann.PROJECT.id` and it decided WHO SAW WHAT:
+`/portal` redirected to it, `assertProject()` compared against it, and
+`/bem-vindo` showed the same client to anyone who logged in. It was not a data
+mock — it was an identity mock. And `assertProject()` compared a string without
+asking the database, so the portal had no real authorization at all.
+
+`/portal` is now a RESOLVER: it asks which projects the actor reaches (RLS) and
+which should appear to them (D-18), then decides — none shows an empty state
+with a voice, one redirects, several offer a choice. `.first()` is never picked.
+
+The guard lives in the LAYOUT of `/portal/[projectId]`, not in each page: a
+per-page guard is a guard the next page forgets. Every loader repeats it anyway,
+because a loader that is safe only because its caller is safe stops being safe
+in the second caller.
+
+## RLS answers tenant; the projection answers visibility
+
+`projects_select` grants a draft's row to its own client, and that is right —
+Boop needs drafts to work on them, and `authenticated` is one role for all three
+personas. So the product rule lives in the server, pure and testable, exactly
+like the `clients.notes` projection: a draft never reaches a `client_user`, not
+even by direct URL.
+
+## The journey is the progress
+
+No percentage anywhere. One source of truth per question — order is `position`,
+"where we are" is `state = 'current'`, and there is no "first not done"
+heuristic. Zero current stages is legitimate when the journey ended; when it is
+not, `advanceStage` refuses instead of guessing, and `setStageState` fixes it.
+
+`social.v1` has the EIGHT stages from docs/product.md, not the six from the
+prototype mock: the mock was screen illustration, the document is the spec. The
+other four types get minimal journeys — proof the architecture does not depend
+on social.
+
+## D-16: scope is gone, team is real
+
+`scope` had no origin in the schema, so the block left the screen instead of
+becoming an invented column. `team` stayed and became real: Boop people with an
+EXPLICIT membership. A `boop_admin` reaches every client by D-08 and that does
+not put them on anyone's team — access is not allocation. No job titles: the V0
+does not store one, and deriving "Estrategista" from `boop_member` would be
+fiction on the client's screen.
+
+Also: `project.change_status` existed in the permission matrix since FASE 0 and
+was missing from `CAPABILITIES`. No hole — `projects_update` already required
+`is_boop()` and a membership — but the documented row had no counterpart in
+`can()`. `setStageState` deliberately does not get its own capability.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01AFjCwwfVTdnaJC3joRDayk
+---
+ .../admin/clientes/[clientId]/page.tsx        |  40 ++-
+ .../[clientId]/projetos/novo/page.tsx         |  71 ++++
+ .../admin/projetos/[projectId]/loading.tsx    |  13 +
+ .../admin/projetos/[projectId]/not-found.tsx  |  24 ++
+ .../admin/projetos/[projectId]/page.tsx       | 137 +++++++
+ src/app/(auth)/bem-vindo/page.tsx             |  28 +-
+ .../(portal)/portal/[projectId]/layout.tsx    |  48 ++-
+ .../(portal)/portal/[projectId]/not-found.tsx |   4 +-
+ .../portal/[projectId]/projeto/page.tsx       |  80 +++--
+ src/app/(portal)/portal/page.tsx              | 109 +++++-
+ src/components/layout/portal-shell.tsx        |  61 +++-
+ src/components/patterns/dashboard-hero.tsx    |   4 +-
+ src/components/patterns/project-journey.tsx   |  12 +-
+ src/config/activity.ts                        |  54 ++-
+ src/config/enums.ts                           |  16 +
+ src/config/journeys.ts                        | 336 ++++++++++++++++++
+ src/config/messages.ts                        |  16 +
+ src/domains/projects/actions.ts               | 138 +++++++
+ .../projects/components/journey-controls.tsx  | 209 +++++++++++
+ .../projects/components/project-form.tsx      | 178 ++++++++++
+ .../projects/components/project-list.tsx      |  51 +++
+ .../components/project-status-controls.tsx    | 112 ++++++
+ .../components/project-status-mark.tsx        |  48 +++
+ src/domains/projects/journey.ts               |  98 +++++
+ src/domains/projects/mutations.ts             | 283 +++++++++++++++
+ src/domains/projects/queries.ts               | 310 ++++++++++++++++
+ src/domains/projects/schemas.ts               | 115 ++++++
+ src/domains/projects/types.ts                 | 161 +++++++++
+ src/domains/projects/visibility.ts            |  95 +++++
+ src/lib/auth/policy.ts                        |  16 +
+ src/lib/data/portal.ts                        | 111 ++++--
+ src/lib/data/types.ts                         |  39 +-
+ src/mocks/hartmann.ts                         |  76 +---
+ 33 files changed, 2919 insertions(+), 174 deletions(-)
+ create mode 100644 src/app/(admin)/admin/clientes/[clientId]/projetos/novo/page.tsx
+ create mode 100644 src/app/(admin)/admin/projetos/[projectId]/loading.tsx
+ create mode 100644 src/app/(admin)/admin/projetos/[projectId]/not-found.tsx
+ create mode 100644 src/app/(admin)/admin/projetos/[projectId]/page.tsx
+ create mode 100644 src/config/journeys.ts
+ create mode 100644 src/domains/projects/actions.ts
+ create mode 100644 src/domains/projects/components/journey-controls.tsx
+ create mode 100644 src/domains/projects/components/project-form.tsx
+ create mode 100644 src/domains/projects/components/project-list.tsx
+ create mode 100644 src/domains/projects/components/project-status-controls.tsx
+ create mode 100644 src/domains/projects/components/project-status-mark.tsx
+ create mode 100644 src/domains/projects/journey.ts
+ create mode 100644 src/domains/projects/mutations.ts
+ create mode 100644 src/domains/projects/queries.ts
+ create mode 100644 src/domains/projects/schemas.ts
+ create mode 100644 src/domains/projects/types.ts
+ create mode 100644 src/domains/projects/visibility.ts
+
+diff --git a/src/app/(admin)/admin/clientes/[clientId]/page.tsx b/src/app/(admin)/admin/clientes/[clientId]/page.tsx
+index e070c45..edc46ae 100644
+--- a/src/app/(admin)/admin/clientes/[clientId]/page.tsx
++++ b/src/app/(admin)/admin/clientes/[clientId]/page.tsx
+@@ -10,6 +10,8 @@ import { getClientDetailForBoop } from '@/domains/clients/queries'
+ import { InviteForm } from '@/domains/people/components/invite-form'
+ import { MemberList } from '@/domains/people/components/member-list'
+ import { listAssignablePeopleForBoop, listClientMembersForBoop } from '@/domains/people/queries'
++import { ProjectList } from '@/domains/projects/components/project-list'
++import { listProjectsForClientForBoop } from '@/domains/projects/queries'
+ import { requireBoop } from '@/lib/auth/authorization'
+ import { can } from '@/lib/auth/policy'
+ import { formatDateTime } from '@/lib/format'
+@@ -33,11 +35,17 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
+  * `can('client.read_internal_notes')`. Trocar o uuid na barra de endereços dá
+  * 404, igual a um uuid inventado (docs/security.md, §16-17 do briefing).
+  *
+- * ## O que NÃO está aqui
++ * ## O que a FASE 6 acrescentou
+  *
+- * Projetos, jornada, estratégia, conteúdo, arquivos. São FASE 6 em diante, e a
+- * tela não finge que existem: nenhum bloco vazio, nenhum "em breve". Bloco sem
+- * conteúdo desaparece (.claude/rules/frontend.md).
++ * A seção **Projetos**, que é o trabalho que a Boop executa para este cliente.
++ * Ela vem primeiro porque é a pergunta que se faz ao abrir um cliente — "o que
++ * estamos fazendo aqui?" —, antes de dados cadastrais e de quem acessa.
++ *
++ * ## O que continua NÃO estando aqui
++ *
++ * Estratégia, conteúdo e arquivos. São FASE 10 em diante, e a tela não finge
++ * que existem: nenhum bloco vazio, nenhum "em breve". Bloco sem conteúdo
++ * desaparece (.claude/rules/frontend.md).
+  */
+ export default async function ClientDetailPage({ params }: Params) {
+   const { clientId } = await params
+@@ -56,6 +64,9 @@ export default async function ClientDetailPage({ params }: Params) {
+     ? await Promise.all([listClientMembersForBoop(clientId), listAssignablePeopleForBoop(clientId)])
+     : [[], []]
+ 
++  const projects = await listProjectsForClientForBoop(clientId)
++  const canCreateProject = can(actor, 'project.create').allowed
++
+   return (
+     <Container>
+       <Link
+@@ -79,6 +90,27 @@ export default async function ClientDetailPage({ params }: Params) {
+       </p>
+ 
+       <div className="mt-16 space-y-16">
++        <section aria-labelledby="projetos">
++          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3">
++            <h2 id="projetos" className="t-title text-foreground">
++              Projetos
++            </h2>
++            {/* Só quem cria vê o link. Conveniência, não segurança: a rota
++                chama `requireCapability` e o workflow nega de novo. */}
++            {canCreateProject && (
++              <Link
++                href={`/admin/clientes/${client.id}/projetos/novo`}
++                className="t-meta text-muted decoration-rule-strong hover:text-foreground hover:decoration-accent underline underline-offset-[6px]"
++              >
++                Novo projeto →
++              </Link>
++            )}
++          </div>
++          <div className="mt-8">
++            <ProjectList projects={projects} />
++          </div>
++        </section>
++
+         <section aria-labelledby="dados">
+           <h2 id="dados" className="t-title text-foreground">
+             Dados da conta
+diff --git a/src/app/(admin)/admin/clientes/[clientId]/projetos/novo/page.tsx b/src/app/(admin)/admin/clientes/[clientId]/projetos/novo/page.tsx
+new file mode 100644
+index 0000000..a033793
+--- /dev/null
++++ b/src/app/(admin)/admin/clientes/[clientId]/projetos/novo/page.tsx
+@@ -0,0 +1,71 @@
++import type { Metadata } from 'next'
++import Link from 'next/link'
++import { Container } from '@/components/layout/container'
++import { SectionHeading } from '@/components/patterns/section-heading'
++import { getClientDetailForBoop } from '@/domains/clients/queries'
++import { createProjectAction } from '@/domains/projects/actions'
++import { ProjectForm } from '@/domains/projects/components/project-form'
++import { requireCapability } from '@/lib/auth/authorization'
++
++export const metadata: Metadata = { title: 'Novo projeto' }
++
++type Params = { params: Promise<{ clientId: string }> }
++
++/**
++ * Criação de projeto. Só `boop_admin` — 404 para os demais.
++ *
++ * `requireCapability('project.create')` responde 404, e não 403: um
++ * `boop_member` não deve descobrir que a rota existe pela diferença entre as
++ * duas respostas (docs/security.md).
++ *
++ * `getClientDetailForBoop()` carrega o próprio guard e confirma o escopo — o
++ * `clientId` da URL é endereço, nunca prova. Ele também é quem dá o nome do
++ * cliente para o cabeçalho, e é a razão de esta página não precisar de
++ * `requireClientAccess` explícito.
++ *
++ * ## O que o formulário NÃO pergunta
++ *
++ * A jornada. Ela é consequência do tipo (`JOURNEY_BY_TYPE`), resolvida no
++ * servidor, e as etapas são materializadas na mesma transação que cria o
++ * projeto. Perguntar duas vezes a mesma coisa — tipo e jornada — abriria a
++ * chance de as duas discordarem, que é exatamente o que a imutabilidade das
++ * duas colunas no banco existe para impedir.
++ */
++export default async function NewProjectPage({ params }: Params) {
++  const { clientId } = await params
++
++  await requireCapability('project.create')
++  const client = await getClientDetailForBoop(clientId)
++
++  return (
++    <Container>
++      <Link
++        href={`/admin/clientes/${client.id}`}
++        className="t-meta text-muted hover:text-foreground inline-flex items-center gap-2"
++      >
++        <span aria-hidden="true">←</span> {client.name}
++      </Link>
++
++      <SectionHeading
++        as="h1"
++        eyebrow={client.name}
++        title="Novo projeto"
++        lead="O tipo define a jornada que o cliente vai acompanhar. As etapas são criadas junto com o projeto, e a primeira já nasce em andamento."
++        className="mt-8"
++      />
++
++      <div className="mt-16">
++        <ProjectForm
++          action={createProjectAction}
++          submitLabel="Criar projeto"
++          clientId={client.id}
++        />
++      </div>
++
++      <p className="t-label text-muted measure mt-10">
++        O projeto nasce como rascunho e não aparece para o cliente. Ative quando a jornada estiver
++        como você quer.
++      </p>
++    </Container>
++  )
++}
+diff --git a/src/app/(admin)/admin/projetos/[projectId]/loading.tsx b/src/app/(admin)/admin/projetos/[projectId]/loading.tsx
+new file mode 100644
+index 0000000..bbad6db
+--- /dev/null
++++ b/src/app/(admin)/admin/projetos/[projectId]/loading.tsx
+@@ -0,0 +1,13 @@
++import { Container } from '@/components/layout/container'
++import { Spinner } from '@/components/ui/spinner'
++
++export default function Loading() {
++  return (
++    <Container>
++      <div className="flex items-center gap-3 py-24">
++        <Spinner label="Carregando projeto" />
++        <p className="t-label text-muted">Carregando projeto…</p>
++      </div>
++    </Container>
++  )
++}
+diff --git a/src/app/(admin)/admin/projetos/[projectId]/not-found.tsx b/src/app/(admin)/admin/projetos/[projectId]/not-found.tsx
+new file mode 100644
+index 0000000..758ebdf
+--- /dev/null
++++ b/src/app/(admin)/admin/projetos/[projectId]/not-found.tsx
+@@ -0,0 +1,24 @@
++import { Container } from '@/components/layout/container'
++import { ButtonLink } from '@/components/ui/button'
++
++/**
++ * A mesma pagina para "nao existe" e para "nao e seu".
++ *
++ * Mesma decisao da rota de cliente: 403 confirmaria que o projeto existe, e
++ * quem troca uuid na URL enumeraria projetos pela diferenca entre as duas
++ * respostas (docs/security.md).
++ */
++export default function ProjectNotFound() {
++  return (
++    <Container size="narrow">
++      <h1 className="t-section text-foreground">Projeto não encontrado</h1>
++      <p className="t-body text-muted mt-4 max-w-[46ch]">
++        Ou ele não existe, ou não está no seu escopo. Se você esperava encontrá-lo aqui, fale com um
++        admin da Boop.
++      </p>
++      <ButtonLink href="/admin/clientes" variant="outline" className="mt-8">
++        Voltar para clientes
++      </ButtonLink>
++    </Container>
++  )
++}
+diff --git a/src/app/(admin)/admin/projetos/[projectId]/page.tsx b/src/app/(admin)/admin/projetos/[projectId]/page.tsx
+new file mode 100644
+index 0000000..783192e
+--- /dev/null
++++ b/src/app/(admin)/admin/projetos/[projectId]/page.tsx
+@@ -0,0 +1,137 @@
++import type { Metadata } from 'next'
++import Link from 'next/link'
++import { Container } from '@/components/layout/container'
++import { SectionHeading } from '@/components/patterns/section-heading'
++import { PROJECT_TYPE_LABEL } from '@/config/enums'
++import { getClientPublic } from '@/domains/clients/queries'
++import { updateProjectAction } from '@/domains/projects/actions'
++import { JourneyControls } from '@/domains/projects/components/journey-controls'
++import { ProjectForm } from '@/domains/projects/components/project-form'
++import { ProjectStatusControls } from '@/domains/projects/components/project-status-controls'
++import { ProjectStatusMark } from '@/domains/projects/components/project-status-mark'
++import { getProjectDetailForBoop, getProjectStagesForBoop } from '@/domains/projects/queries'
++import { requireBoop } from '@/lib/auth/authorization'
++import { can } from '@/lib/auth/policy'
++import { formatDateTime } from '@/lib/format'
++
++type Params = { params: Promise<{ projectId: string }> }
++
++export async function generateMetadata({ params }: Params): Promise<Metadata> {
++  const { projectId } = await params
++  const project = await getProjectDetailForBoop(projectId)
++  return { title: project.name }
++}
++
++/**
++ * Detalhe do projeto, do lado da Boop. É a tela onde a jornada se move.
++ *
++ * ## O id da URL é endereço, nunca prova
++ *
++ * `getProjectDetailForBoop()` chama `requireBoop()` e `requireProjectAccess()`,
++ * que pergunta ao banco tentando ler a linha. Trocar o uuid dá 404, igual a um
++ * uuid inventado — inexistente e inalcançável têm a MESMA resposta.
++ *
++ * ## Três blocos, e a ordem é a das perguntas
++ *
++ *   1. **Jornada** — "onde estamos?". É o que se abre a tela para ver e é o que
++ *      se vem mudar; por isso vem antes dos dados cadastrais.
++ *   2. **Dados** — nome e período.
++ *   3. **Status** — o eixo independente da jornada (I-01). Um projeto pausado
++ *      está pausado EM alguma etapa; as duas coisas não se misturam, e as duas
++ *      seções também não.
++ *
++ * ## O que NÃO está aqui
++ *
++ * Onboarding, estratégia, conteúdo, arquivos, resultados. São FASE 7 em diante.
++ * Nenhum bloco vazio e nenhum "em breve".
++ */
++export default async function AdminProjectPage({ params }: Params) {
++  const { projectId } = await params
++
++  const [actor, project] = await Promise.all([requireBoop(), getProjectDetailForBoop(projectId)])
++  const [client, stages] = await Promise.all([
++    getClientPublic(project.clientId),
++    getProjectStagesForBoop(projectId),
++  ])
++
++  const canManageJourney = can(actor, 'project.advance_stage').allowed
++  const canChangeStatus = can(actor, 'project.change_status').allowed
++  const canEdit = can(actor, 'project.update').allowed
++
++  return (
++    <Container>
++      <Link
++        href={`/admin/clientes/${project.clientId}`}
++        className="t-meta text-muted hover:text-foreground inline-flex items-center gap-2"
++      >
++        <span aria-hidden="true">←</span> {client.name}
++      </Link>
++
++      <SectionHeading
++        as="h1"
++        eyebrow={`${PROJECT_TYPE_LABEL[project.type]} · Ciclo ${project.cycle}`}
++        title={project.name}
++        className="mt-8"
++        action={<ProjectStatusMark status={project.status} />}
++      />
++
++      <p className="t-label text-muted mt-6">
++        Criado em {formatDateTime(project.createdAt)} · atualizado em{' '}
++        {formatDateTime(project.updatedAt)}
++      </p>
++
++      <div className="mt-16 space-y-16">
++        <section aria-labelledby="jornada">
++          <h2 id="jornada" className="t-title text-foreground">
++            Jornada
++          </h2>
++          <p className="t-body text-muted measure mt-3">
++            É o que o cliente vê no portal. Avançar fecha a etapa atual e abre a próxima — as duas
++            coisas na mesma transação, nunca uma sem a outra.
++          </p>
++          <div className="mt-8">
++            <JourneyControls projectId={project.id} stages={stages} canManage={canManageJourney} />
++          </div>
++        </section>
++
++        {canEdit && (
++          <section aria-labelledby="dados">
++            <h2 id="dados" className="t-title text-foreground">
++              Dados do projeto
++            </h2>
++            <div className="mt-8">
++              <ProjectForm
++                action={updateProjectAction}
++                submitLabel="Salvar alterações"
++                project={{
++                  id: project.id,
++                  name: project.name,
++                  type: project.type,
++                  startedOn: project.startedOn,
++                  endsOn: project.endsOn,
++                }}
++              />
++            </div>
++          </section>
++        )}
++
++        <section aria-labelledby="status">
++          <h2 id="status" className="t-title text-foreground">
++            Status do projeto
++          </h2>
++          <p className="t-body text-muted measure mt-3">
++            Status e etapa da jornada são eixos independentes: um projeto pausado está pausado em
++            alguma etapa, e concluir a jornada não conclui o projeto.
++          </p>
++          <div className="mt-8">
++            <ProjectStatusControls
++              projectId={project.id}
++              status={project.status}
++              canManage={canChangeStatus}
++            />
++          </div>
++        </section>
++      </div>
++    </Container>
++  )
++}
+diff --git a/src/app/(auth)/bem-vindo/page.tsx b/src/app/(auth)/bem-vindo/page.tsx
+index 67d280e..8d4dded 100644
+--- a/src/app/(auth)/bem-vindo/page.tsx
++++ b/src/app/(auth)/bem-vindo/page.tsx
+@@ -5,7 +5,8 @@ import { BoopMark } from '@/components/brand/boop-mark'
+ import { CloudLayer } from '@/components/brand/cloud-layer'
+ import { portalHref } from '@/config/app'
+ import { requireActor } from '@/lib/auth/actor'
+-import { DEMO_PROJECT_ID, getProject } from '@/lib/data/portal'
++import { listPortalProjects } from '@/domains/projects/queries'
++import { resolvePortalEntry } from '@/domains/projects/visibility'
+ 
+ export const metadata: Metadata = { title: 'Bem-vindas' }
+ 
+@@ -21,9 +22,20 @@ export const metadata: Metadata = { title: 'Bem-vindas' }
+  */
+ export default async function WelcomePage() {
+   /* Primeiro acesso e uma tela de dentro do produto: exige sessao. */
+-  await requireActor()
++  const actor = await requireActor()
+ 
+-  const project = await getProject(DEMO_PROJECT_ID)
++  /*
++   * A tela mostrava "Hartmann · Social Media" para QUALQUER pessoa que
++   * entrasse, porque lia um projeto de mock por uma constante. Agora ela
++   * resolve os projetos reais do ator, com a MESMA regra de `/portal`.
++   *
++   * Com varios projetos ela nao escolhe nenhum: a linha de contexto some e os
++   * botoes vao para `/portal`, que e a tela que existe para escolher. Escolher
++   * "o primeiro" aqui seria dar a alguem uma boas-vindas ao projeto errado.
++   */
++  const projects = await listPortalProjects()
++  const resolution = resolvePortalEntry(projects, actor)
++  const project = resolution.kind === 'single' ? resolution.project : null
+ 
+   return (
+     <main
+@@ -38,9 +50,9 @@ export default async function WelcomePage() {
+         <div className="flex flex-1 flex-col justify-center py-16">
+           <BoopEyes blink className="fade rise-1 w-20 md:w-24" />
+ 
+-          <p className="t-meta rise rise-2 text-navy/70 mt-10">
+-            {project.clientName} · {project.name}
+-          </p>
++          {/* Bloco sem conteudo desaparece: sem projeto resolvido, nao ha
++              contexto honesto para mostrar (.claude/rules/frontend.md). */}
++          {project && <p className="t-meta rise rise-2 text-navy/70 mt-10">{project.name}</p>}
+ 
+           <h1 className="t-display rise rise-3 text-cloud mt-5 max-w-[12ch]">Bem-vindas à Boop.</h1>
+ 
+@@ -51,13 +63,13 @@ export default async function WelcomePage() {
+ 
+           <div className="rise rise-5 mt-12 flex flex-wrap items-center gap-x-8 gap-y-4">
+             <Link
+-              href={portalHref(project.id, 'onboarding')}
++              href={project ? portalHref(project.id, 'onboarding') : '/portal'}
+               className="t-meta bg-navy text-on-inverse hover:bg-navy/90 inline-flex h-14 items-center rounded-sm px-8 transition-colors duration-[--motion-fast] max-sm:w-full max-sm:justify-center"
+             >
+               Começar
+             </Link>
+             <Link
+-              href={portalHref(project.id, '')}
++              href={project ? portalHref(project.id, '') : '/portal'}
+               className="t-meta text-navy decoration-navy/30 hover:decoration-navy underline underline-offset-[6px] transition-colors"
+             >
+               Ver o projeto primeiro
+diff --git a/src/app/(portal)/portal/[projectId]/layout.tsx b/src/app/(portal)/portal/[projectId]/layout.tsx
+index 6d39a20..56ec9c6 100644
+--- a/src/app/(portal)/portal/[projectId]/layout.tsx
++++ b/src/app/(portal)/portal/[projectId]/layout.tsx
+@@ -1,7 +1,32 @@
+ import type { ReactNode } from 'react'
+ import { PortalShell } from '@/components/layout/portal-shell'
+-import { getProject } from '@/lib/data/portal'
++import { getClientPublic } from '@/domains/clients/queries'
++import { listPortalProjects, requireVisiblePortalProject } from '@/domains/projects/queries'
+ 
++/**
++ * A FRONTEIRA DE AUTORIZAÇÃO DO PORTAL.
++ *
++ * Ela está no layout do grupo, e não em cada página, e essa é a decisão mais
++ * importante desta rota: um guard por página é um guard que a próxima página
++ * pode esquecer. Aqui, `/portal/[projectId]` e tudo abaixo dela — dashboard,
++ * projeto, conteúdo, estratégia, arquivos, resultados, encontros, onboarding —
++ * herdam a mesma checagem, e uma rota nova nasce protegida sem ninguém lembrar.
++ *
++ * `requireVisiblePortalProject()` faz as duas perguntas que o portal precisa:
++ *
++ *   1. **tenant**       — a RLS devolve esta linha para este JWT?
++ *   2. **visibilidade** — este status pode aparecer para este papel? (`draft`
++ *                         não existe para o `client_user`, D-18)
++ *
++ * As três recusas — não existe, não é seu, não está visível — devolvem 404
++ * idêntico. Quem troca uuid na barra de endereços não distingue nenhuma delas
++ * (docs/security.md).
++ *
++ * Os loaders de `src/lib/data/portal.ts` repetem o guard, e a repetição é de
++ * propósito: eles precisam ser seguros onde quer que sejam chamados, inclusive
++ * de um lugar que ainda não existe. O custo é uma consulta em cache de request
++ * (`cache()` do React); o custo de esquecer é um tenant.
++ */
+ export default async function ProjectLayout({
+   children,
+   params,
+@@ -10,14 +35,31 @@ export default async function ProjectLayout({
+   params: Promise<{ projectId: string }>
+ }) {
+   const { projectId } = await params
+-  const project = await getProject(projectId)
++
++  const project = await requireVisiblePortalProject(projectId)
++
++  /*
++   * O nome do cliente e a lista de projetos são compostos AQUI, e não dentro do
++   * guard: o guard responde uma pergunta de segurança, e misturar leitura de
++   * domínio nele faria a próxima pessoa "aproveitá-lo" para buscar dado.
++   */
++  const [client, projects] = await Promise.all([
++    getClientPublic(project.clientId),
++    listPortalProjects(),
++  ])
+ 
+   return (
+     <PortalShell
+       projectId={project.id}
+-      clientName={project.clientName}
++      clientName={client.name}
+       projectName={project.name}
+       cycle={project.cycle}
++      /*
++       * O seletor só aparece com mais de um projeto — com um só, a complexidade
++       * fica invisível (docs/product.md). Não é um oitavo item de navegação: é
++       * troca de contexto no cabeçalho, ao lado do que já estava lá.
++       */
++      projects={projects.map((item) => ({ id: item.id, name: item.name }))}
+     >
+       {children}
+     </PortalShell>
+diff --git a/src/app/(portal)/portal/[projectId]/not-found.tsx b/src/app/(portal)/portal/[projectId]/not-found.tsx
+index 57fcd76..f992af0 100644
+--- a/src/app/(portal)/portal/[projectId]/not-found.tsx
++++ b/src/app/(portal)/portal/[projectId]/not-found.tsx
+@@ -1,7 +1,5 @@
+ import Link from 'next/link'
+ import { EmptyState } from '@/components/patterns/empty-state'
+-import { DEMO_PROJECT_ID } from '@/lib/data/portal'
+-import { portalHref } from '@/config/app'
+ 
+ /**
+  * 404 dentro do portal.
+@@ -18,7 +16,7 @@ export default function PortalNotFound() {
+       </EmptyState>
+       <p className="pb-16 text-center">
+         <Link
+-          href={portalHref(DEMO_PROJECT_ID, '')}
++          href="/portal"
+           className="t-meta text-muted decoration-rule-strong hover:text-foreground hover:decoration-accent underline underline-offset-[6px]"
+         >
+           Voltar ao início
+diff --git a/src/app/(portal)/portal/[projectId]/projeto/page.tsx b/src/app/(portal)/portal/[projectId]/projeto/page.tsx
+index 5465969..3815e5c 100644
+--- a/src/app/(portal)/portal/[projectId]/projeto/page.tsx
++++ b/src/app/(portal)/portal/[projectId]/projeto/page.tsx
+@@ -1,22 +1,45 @@
+ import type { Metadata } from 'next'
+ import { ProjectJourney } from '@/components/patterns/project-journey'
+ import { SectionHeading } from '@/components/patterns/section-heading'
++import { listClientTeam, requireVisiblePortalProject } from '@/domains/projects/queries'
+ import { getJourney, getMeetings, getNextDelivery, getProject } from '@/lib/data/portal'
+ import { formatDayMonth, formatFullDate } from '@/lib/format'
+ 
+ export const metadata: Metadata = { title: 'Projeto' }
+ 
+ /*
+- * A pagina do projeto responde "o que combinamos, onde estamos e o que vem".
++ * A pagina do projeto responde "onde estamos e o que vem".
+  * Nao e gestao interna: nao ha tarefa, responsavel, prazo interno nem esforco.
++ *
++ * ## O bloco "O que combinamos" saiu (D-16)
++ *
++ * Ele listava `project.scope`, que era um array de quatro frases no mock e
++ * **nao tem coluna no banco** — nem entrou, nem esta entre as tabelas adiadas
++ * de `docs/data-model.md`. Com dado real havia tres saidas: inventar colunas
++ * para um acordo comercial que ninguem especificou, manter o mock ao lado de
++ * dado verdadeiro na mesma tela, ou tirar o bloco. A terceira e a unica que
++ * nao mente. Bloco sem origem desaparece (.claude/rules/frontend.md).
++ *
++ * ## "Quem esta no projeto" ficou, e agora e real
++ *
++ * Vem de `client_memberships` cruzado com `profiles`: as pessoas da Boop com
++ * VINCULO EXPLICITO neste cliente. Um `boop_admin` alcanca todos os clientes
++ * por D-08 e isso nao o coloca na equipe de nenhum — acesso nao e alocacao.
++ *
++ * Sem cargo. A V0 nao guarda cargo, e transformar `boop_member` em
++ * "Estrategista" seria escrever ficcao na tela do cliente. Sem ninguem
++ * vinculado, o bloco some.
+  */
+ export default async function ProjectPage({ params }: { params: Promise<{ projectId: string }> }) {
+   const { projectId } = await params
+-  const [project, journey, delivery, meetings] = await Promise.all([
++  const scoped = await requireVisiblePortalProject(projectId)
++
++  const [project, journey, delivery, meetings, team] = await Promise.all([
+     getProject(projectId),
+     getJourney(projectId),
+     getNextDelivery(projectId),
+     getMeetings(projectId),
++    listClientTeam(scoped.clientId),
+   ])
+ 
+   const past = meetings.filter((m) => m.status === 'completed')
+@@ -25,39 +48,34 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
+     <>
+       <section className="content py-14 md:py-20">
+         <p className="t-meta text-muted">
+-          {project.clientName} · desde {formatFullDate(project.startedOn)}
++          {project.clientName}
++          {/* `starts_on` e nullable: sem data combinada, a linha simplesmente
++              nao a menciona — nunca "desde hoje" inventado. */}
++          {project.startedOn && ` · desde ${formatFullDate(project.startedOn)}`}
+         </p>
+         <h1 className="t-display text-foreground mt-5 max-w-[12ch]">{project.name}</h1>
+       </section>
+ 
+-      <section aria-labelledby="escopo" className="border-rule bg-surface-soft/50 border-y">
+-        <div className="content grid gap-12 py-14 md:grid-cols-[0.9fr_1.1fr] md:py-20">
+-          <div>
+-            <h2 id="escopo" className="t-meta text-muted">
+-              O que combinamos
+-            </h2>
+-            <ul className="mt-6 space-y-4">
+-              {project.scope.map((line) => (
+-                <li key={line} className="t-body text-foreground flex gap-4">
+-                  <span aria-hidden="true" className="bg-accent mt-2.5 h-px w-5 shrink-0" />
+-                  {line}
+-                </li>
+-              ))}
+-            </ul>
+-          </div>
++      {(team.length > 0 || delivery) && (
++        <section aria-labelledby="equipe" className="border-rule bg-surface-soft/50 border-y">
++          <div className="content grid gap-12 py-14 md:grid-cols-2 md:py-20">
++            {team.length > 0 && (
++              <div>
++                <h2 id="equipe" className="t-meta text-muted">
++                  Quem está no projeto
++                </h2>
++                <ul className="divide-rule border-rule mt-6 divide-y border-y">
++                  {team.map((person) => (
++                    <li key={person.name} className="t-title text-foreground py-4">
++                      {person.name}
++                    </li>
++                  ))}
++                </ul>
++              </div>
++            )}
+ 
+-          <div className="md:pl-14">
+-            <h2 className="t-meta text-muted">Quem está no projeto</h2>
+-            <ul className="divide-rule border-rule mt-6 divide-y border-y">
+-              {project.team.map((person) => (
+-                <li key={person.name} className="flex items-baseline justify-between gap-4 py-4">
+-                  <span className="t-title text-foreground">{person.name}</span>
+-                  <span className="t-meta text-muted">{person.role}</span>
+-                </li>
+-              ))}
+-            </ul>
+             {delivery && (
+-              <div className="mt-10">
++              <div className={team.length > 0 ? 'md:pl-14' : undefined}>
+                 <h2 className="t-meta text-muted">Próxima entrega</h2>
+                 <p className="t-title text-foreground mt-3">{delivery.title}</p>
+                 <p className="t-title text-accent-text" data-numeric>
+@@ -66,8 +84,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
+               </div>
+             )}
+           </div>
+-        </div>
+-      </section>
++        </section>
++      )}
+ 
+       <section aria-labelledby="jornada-completa" className="content py-16 md:py-24">
+         <SectionHeading
+diff --git a/src/app/(portal)/portal/page.tsx b/src/app/(portal)/portal/page.tsx
+index b58bb42..b963771 100644
+--- a/src/app/(portal)/portal/page.tsx
++++ b/src/app/(portal)/portal/page.tsx
+@@ -1,13 +1,108 @@
++import type { Metadata } from 'next'
++import Link from 'next/link'
+ import { redirect } from 'next/navigation'
+-import { DEMO_PROJECT_ID } from '@/lib/data/portal'
++import { BoopEyes } from '@/components/brand/boop-eyes'
++import { portalHref } from '@/config/app'
++import { requireActor } from '@/lib/auth/actor'
++import { listPortalProjects } from '@/domains/projects/queries'
++import { resolvePortalEntry } from '@/domains/projects/visibility'
++import { formatFullDate } from '@/lib/format'
++
++export const metadata: Metadata = { title: 'Seus projetos' }
+ 
+ /**
+- * Com um unico projeto acessivel, `/portal` leva direto a ele e nenhum
+- * seletor aparece — a complexidade fica invisivel (docs/product.md).
++ * `/portal` é um RESOLVEDOR, não uma tela.
++ *
++ * Até a FASE 5 ele redirecionava para uma constante — `DEMO_PROJECT_ID` — e
++ * levava todo mundo ao mesmo projeto de mock. Agora ele pergunta ao banco quais
++ * projetos este ator alcança (RLS) e quais deles devem aparecer para ele
++ * (visibilidade de produto, D-18), e decide:
++ *
++ *   nenhum   →  estado vazio com voz
++ *   um       →  redireciona direto, sem seletor (docs/product.md)
++ *   vários   →  mostra a escolha
++ *
++ * A decisão vive em `resolvePortalEntry()`, que é pura e testada sem Next.
++ * Aqui fica só o que é da rota: redirecionar ou renderizar.
+  *
+- * Na FASE 6 isto passa a consultar os projetos do usuario: um projeto
+- * redireciona, dois ou mais mostram a escolha.
++ * ## Por que `completed` e `archived` não redirecionam
++ *
++ * Eles continuam alcançáveis por URL e continuam no histórico do cliente. O que
++ * não fazem é participar da escolha automática: mandar alguém direto para um
++ * projeto encerrado responderia "onde estamos?" com um projeto do ano passado.
++ * Um cliente cujo único projeto terminou vê o estado vazio — que é a verdade.
+  */
+-export default function PortalIndex() {
+-  redirect(`/portal/${DEMO_PROJECT_ID}`)
++export default async function PortalIndex() {
++  const actor = await requireActor()
++  const projects = await listPortalProjects()
++  const resolution = resolvePortalEntry(projects, actor)
++
++  if (resolution.kind === 'single') redirect(portalHref(resolution.project.id, ''))
++
++  const isBoop = actor.role !== 'client_user'
++
++  if (resolution.kind === 'empty') {
++    return (
++      <main id="main" className="content flex min-h-dvh flex-col justify-center py-20">
++        <BoopEyes blink className="w-16 opacity-90" />
++
++        <h1 className="t-display text-foreground mt-10 max-w-[14ch]">
++          Seu espaço está sendo preparado.
++        </h1>
++
++        <p className="t-lead text-muted measure mt-8">
++          Seu acesso está certo — é aqui mesmo. A Boop ainda está montando o seu projeto, e ele
++          aparece nesta tela assim que estiver pronto. Você não precisa fazer nada até lá.
++        </p>
++
++        {/*
++          Para quem é da Boop, o vazio tem uma saída: é quase sempre alguém
++          conferindo o portal antes de o projeto existir. Para o cliente não há
++          CTA nenhum — não há nada que ele possa fazer, e um botão sugeriria
++          que há (.claude/rules/frontend.md).
++        */}
++        {isBoop && (
++          <p className="t-meta mt-12">
++            <Link
++              href="/admin/clientes"
++              className="text-muted decoration-rule-strong hover:text-foreground hover:decoration-accent underline underline-offset-[6px]"
++            >
++              Ir para a administração →
++            </Link>
++          </p>
++        )}
++      </main>
++    )
++  }
++
++  return (
++    <main id="main" className="content py-20 md:py-28">
++      <h1 className="t-display text-foreground max-w-[14ch]">Seus projetos</h1>
++
++      <p className="t-lead text-muted measure mt-8">
++        Você acompanha mais de um projeto com a Boop. Escolha por onde quer começar.
++      </p>
++
++      <ul className="divide-rule border-rule mt-14 divide-y border-y">
++        {resolution.projects.map((project) => (
++          <li key={project.id}>
++            <Link
++              href={portalHref(project.id, '')}
++              className="group flex min-h-[4.5rem] flex-wrap items-baseline justify-between gap-x-6 gap-y-1 py-6"
++            >
++              <span className="t-title text-foreground group-hover:text-accent-text transition-colors">
++                {project.name}
++              </span>
++              <span className="t-meta text-muted">
++                {project.startedOn
++                  ? `desde ${formatFullDate(project.startedOn)}`
++                  : `Ciclo ${project.cycle}`}
++                {project.status === 'paused' && ' · pausado'}
++              </span>
++            </Link>
++          </li>
++        ))}
++      </ul>
++    </main>
++  )
+ }
+diff --git a/src/components/layout/portal-shell.tsx b/src/components/layout/portal-shell.tsx
+index f81296d..ba40ad4 100644
+--- a/src/components/layout/portal-shell.tsx
++++ b/src/components/layout/portal-shell.tsx
+@@ -11,6 +11,13 @@ export interface PortalShellProps {
+   clientName: string
+   projectName: string
+   cycle: number
++  /**
++   * Todos os projetos que esta pessoa alcanca. Com um so, nada muda na tela.
++   *
++   * So `id` e `name` — o cabecalho nao precisa de mais nada, e o que nao e
++   * necessario nao atravessa a fronteira do RSC.
++   */
++  projects?: readonly { id: string; name: string }[]
+   children: ReactNode
+ }
+ 
+@@ -27,8 +34,11 @@ export function PortalShell({
+   clientName,
+   projectName,
+   cycle,
++  projects,
+   children,
+ }: PortalShellProps) {
++  const others = (projects ?? []).filter((project) => project.id !== projectId)
++
+   return (
+     <div className="bg-background flex min-h-dvh flex-col">
+       <header className="border-rule bg-background/92 sticky top-0 z-30 border-b backdrop-blur-sm">
+@@ -47,16 +57,44 @@ export function PortalShell({
+             </Link>
+ 
+             <div className="flex items-center gap-4">
++              {/*
++                Seletor de projeto — so com mais de um (docs/product.md).
++
++                `details`/`summary` e nao um menu com estado: nao precisa de
++                `'use client'`, funciona sem JavaScript, abre e fecha pelo
++                teclado e ja e anunciado como expansivel pelo leitor de tela.
++                Uma biblioteca de dropdown resolveria o mesmo com um bundle a
++                mais (ADR-0018).
++              */}
++              {others.length > 0 && (
++                <details className="relative">
++                  <summary className="t-meta text-muted hover:text-foreground flex min-h-11 cursor-pointer list-none items-center gap-1.5 transition-colors marker:content-none">
++                    <span className="max-w-[14ch] truncate">{projectName}</span>
++                    <span aria-hidden="true" className="text-rule-strong">
++                      ▾
++                    </span>
++                    <span className="sr-only">Trocar de projeto</span>
++                  </summary>
++
++                  <div className="border-rule bg-background absolute top-full right-0 z-40 mt-2 min-w-56 border py-2 shadow-sm">
++                    <ul>
++                      {others.map((project) => (
++                        <li key={project.id}>
++                          <Link
++                            href={portalHref(project.id, '')}
++                            className="t-meta text-muted hover:bg-surface-soft hover:text-foreground flex min-h-11 items-center px-4 transition-colors"
++                          >
++                            {project.name}
++                          </Link>
++                        </li>
++                      ))}
++                    </ul>
++                  </div>
++                </details>
++              )}
++
+               <p className="t-meta text-muted text-right">
+                 <span className="text-foreground">Ciclo {cycle}</span>
+-                {/* O rotulo de prototipo cede espaco no celular, como ja
+-                    acontece com o nome do cliente ao lado da marca. */}
+-                <span aria-hidden="true" className="text-rule-strong mx-2 max-sm:hidden">
+-                  /
+-                </span>
+-                <span title="Todos os dados desta tela são fictícios" className="max-sm:hidden">
+-                  Protótipo
+-                </span>
+               </p>
+ 
+               <span aria-hidden="true" className="bg-rule-strong h-5 w-px" />
+@@ -76,7 +114,12 @@ export function PortalShell({
+ 
+       <footer className="border-rule mt-16 border-t py-8 max-md:hidden">
+         <div className="content flex items-center justify-between gap-4">
+-          <p className="t-meta text-muted">Boop OS · Protótipo visual · Dados fictícios</p>
++          {/*
++            O rodape dizia "Dados ficticios", e desde a FASE 6 isso deixou de
++            ser verdade: projeto e jornada vem do banco. Continuar afirmando
++            seria o produto mentindo para o cliente sobre o que ele esta vendo.
++          */}
++          <p className="t-meta text-muted">Boop OS</p>
+           <p className="t-meta text-muted">{clientName}</p>
+         </div>
+       </footer>
+diff --git a/src/components/patterns/dashboard-hero.tsx b/src/components/patterns/dashboard-hero.tsx
+index b8ce445..a94edad 100644
+--- a/src/components/patterns/dashboard-hero.tsx
++++ b/src/components/patterns/dashboard-hero.tsx
+@@ -34,7 +34,9 @@ export function DashboardHero({
+           {greeting()}, {project.clientName}.
+         </h1>
+ 
+-        {currentStage && (
++        {/* Sem etapa corrente — jornada concluida — ou sem texto de apoio, a
++            linha desaparece em vez de virar um paragrafo vazio. */}
++        {currentStage?.summary && (
+           <p className="t-lead rise rise-3 text-navy mt-8 max-w-[34ch]">{currentStage.summary}</p>
+         )}
+       </div>
+diff --git a/src/components/patterns/project-journey.tsx b/src/components/patterns/project-journey.tsx
+index 064bb31..ac1e715 100644
+--- a/src/components/patterns/project-journey.tsx
++++ b/src/components/patterns/project-journey.tsx
+@@ -17,6 +17,10 @@ import { cn } from '@/lib/cn'
+  * Não existe percentual (docs/design-direction.md). "67%" não responde "em que
+  * etapa estamos" — o bloco responde.
+  *
++ * `summary` é opcional e pode ser `null`: um projeto criado com um template
++ * depois aposentado perde o texto de apoio, e não a etapa. A linha some; o
++ * bloco, o rótulo e o estado continuam (`src/config/journeys.ts`).
++ *
+  * Duas composições, não uma redimensionada: no desktop os blocos ficam em
+  * fileira, no celular viram uma trilha vertical contínua. No celular os olhos
+  * ficam à direita da linha, nunca por cima do rótulo.
+@@ -80,7 +84,9 @@ export function ProjectJourney({
+                   <span className="sr-only">{STATE_LABEL[stage.state]}. </span>
+                   {stageMeta(stage)}
+                 </p>
+-                {detailed && <p className="t-body text-muted mt-2">{stage.summary}</p>}
++                {detailed && stage.summary && (
++                  <p className="t-body text-muted mt-2">{stage.summary}</p>
++                )}
+               </div>
+             </li>
+           )
+@@ -111,7 +117,9 @@ export function ProjectJourney({
+                 <span className="sr-only">{STATE_LABEL[stage.state]}. </span>
+                 {stageMeta(stage)}
+               </p>
+-              {detailed && <p className="t-body text-muted mt-3 max-w-[32ch]">{stage.summary}</p>}
++              {detailed && stage.summary && (
++                <p className="t-body text-muted mt-3 max-w-[32ch]">{stage.summary}</p>
++              )}
+             </li>
+           )
+         })}
+diff --git a/src/config/activity.ts b/src/config/activity.ts
+index 01ef3c6..883b14d 100644
+--- a/src/config/activity.ts
++++ b/src/config/activity.ts
+@@ -8,9 +8,16 @@
+  * docs/workflows.md listado aqui hoje seria uma lista de acoes que nenhum
+  * codigo emite, e ninguem saberia quais ja valem.
+  *
+- * FASE 3 emitiu uma. FASE 5 acrescenta as seis de `docs/workflows.md#clientes-
+- * e-usuarios`, e nenhuma alem delas — nome de evento inventado polui auditoria
+- * e nunca mais sai, porque a tabela e append-only.
++ * FASE 3 emitiu uma. FASE 5 acrescentou as seis de `docs/workflows.md#clientes-
++ * e-usuarios`. FASE 6 acrescenta as quatro de projeto, e nenhuma alem delas —
++ * nome de evento inventado polui auditoria e nunca mais sai, porque a tabela e
++ * append-only.
++ *
++ * ⚠️ Tres das quatro de projeto NAO sao emitidas por `logActivity()`: quem as
++ * grava sao as funcoes SQL de `20260903010440_project_journey_boundaries.sql`,
++ * de dentro da transacao que muda o dominio. O catalogo vale igual — o formato
++ * e conferido pelo `check` da tabela, e o vocabulario, por este arquivo e pelo
++ * teste que le as duas pontas.
+  *
+  * Duas ausencias deliberadas:
+  *
+@@ -31,6 +38,35 @@ export const ACTIVITY_ACTIONS = [
+   'membership.granted',
+   'membership.revoked',
+   'user.disabled',
++  /*
++   * FASE 6 — projetos e jornada. Quatro verbos, e a escolha de cada um:
++   *
++   *   `project.created`         cria o projeto E materializa a jornada. Um
++   *                             evento, porque é uma transacao (a funcao SQL
++   *                             grava esta linha de dentro dela).
++   *   `project.updated`         nome e periodo.
++   *   `project.status_changed`  draft -> active -> paused -> completed ->
++   *                             archived. Verbo proprio, e nao `updated` com
++   *                             metadata, porque status e a mudanca que o
++   *                             cliente sente: e a que decide se o projeto
++   *                             aparece no portal.
++   *   `project.stage_changed`   avanco E correcao manual. Um verbo para os
++   *                             dois: o que aconteceu com a jornada e o mesmo
++   *                             fato — uma etapa mudou de estado —, e a
++   *                             diferenca vive em `metadata.correction`.
++   *
++   * Nao existe `project.archived` separado: arquivar e uma transicao de status
++   * como as outras, e sai como `project.status_changed`. A mesma decisao de
++   * `client.restored`, escrita acima.
++   *
++   * Nao existe `project.stage_advanced` + `project.stage_corrected`: seria
++   * dobrar o vocabulario sem dobrar a informacao, e o log e append-only — nome
++   * de evento inventado nunca mais sai.
++   */
++  'project.created',
++  'project.updated',
++  'project.status_changed',
++  'project.stage_changed',
+ ] as const
+ 
+ export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number]
+@@ -39,7 +75,13 @@ export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number]
+  * `entity_type` e texto livre no banco. Aqui ele e fechado, para que duas
+  * fases nao escrevam "profile" e "user" para a mesma coisa.
+  */
+-export const ACTIVITY_ENTITY_TYPES = ['profile', 'client', 'client_membership'] as const
++export const ACTIVITY_ENTITY_TYPES = [
++  'profile',
++  'client',
++  'client_membership',
++  'project',
++  'project_stage',
++] as const
+ export type ActivityEntityType = (typeof ACTIVITY_ENTITY_TYPES)[number]
+ 
+ /**
+@@ -58,4 +100,8 @@ export const ACTIVITY_ACTION_LABEL: Record<ActivityAction, string> = {
+   'membership.granted': 'deu acesso a',
+   'membership.revoked': 'removeu o acesso de',
+   'user.disabled': 'desligou',
++  'project.created': 'criou o projeto',
++  'project.updated': 'editou o projeto',
++  'project.status_changed': 'mudou o status do projeto',
++  'project.stage_changed': 'moveu a jornada de',
+ }
+diff --git a/src/config/enums.ts b/src/config/enums.ts
+index 4b925cc..c9b6c4f 100644
+--- a/src/config/enums.ts
++++ b/src/config/enums.ts
+@@ -193,6 +193,22 @@ export const CLIENT_STATUS_LABEL: Record<ClientStatus, string> = {
+   archived: 'Arquivado',
+ }
+ 
++export const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {
++  draft: 'Rascunho',
++  active: 'Ativo',
++  paused: 'Pausado',
++  completed: 'Concluído',
++  archived: 'Arquivado',
++}
++
++export const PROJECT_TYPE_LABEL: Record<ProjectType, string> = {
++  social: 'Social media',
++  website: 'Site',
++  branding: 'Marca',
++  automation: 'Automação',
++  custom: 'Sob medida',
++}
++
+ export const USER_ROLE_LABEL: Record<UserRole, string> = {
+   boop_admin: 'Admin Boop',
+   boop_member: 'Time Boop',
+diff --git a/src/config/journeys.ts b/src/config/journeys.ts
+new file mode 100644
+index 0000000..da7cc0a
+--- /dev/null
++++ b/src/config/journeys.ts
+@@ -0,0 +1,336 @@
++import { PROJECT_TYPES, type ProjectType } from '@/config/enums'
++
++/**
++ * Templates de jornada — o catálogo tipado que a ADR-0006 escolheu em vez de
++ * um editor visual.
++ *
++ * ## As duas metades da jornada
++ *
++ * O **template** vive aqui, versionado com o código, revisado em PR. A
++ * **instância** são linhas em `project_stages`, materializadas na criação do
++ * projeto. `projects.journey_key` guarda com qual template o projeto nasceu, e
++ * é imutável no banco desde a FASE 6 — trocar o template não pode reescrever
++ * as etapas já materializadas.
++ *
++ * A consequência prática, e é ela que dá segurança para editar este arquivo:
++ * mudar um `label` aqui **não** muda nenhum projeto existente, porque `label` é
++ * copiado para a linha na criação. O que este arquivo decide é como os projetos
++ * FUTUROS nascem.
++ *
++ * ## O que fica aqui e o que fica no banco
++ *
++ * | Dado       | Fonte da verdade depois da criação |
++ * | ---------- | ---------------------------------- |
++ * | ordem      | `project_stages.position`          |
++ * | rótulo     | `project_stages.label` (snapshot)  |
++ * | estado     | `project_stages.state`             |
++ * | **resumo** | **este arquivo**, por `stage_key`  |
++ *
++ * `summary` é a única coisa que continua vindo do template em tempo de
++ * leitura, e por um motivo deliberado: é texto editorial, dirigido ao cliente,
++ * e melhorar a redação de uma frase não deveria exigir migration. O preço é
++ * que uma `stage_key` histórica precisa continuar existindo aqui — ver
++ * `stageSummary()`.
++ *
++ * ## Chave nova, e não edição de chave
++ *
++ * Jornada diferente é chave nova (`social.v2`), nunca reescrita de `social.v1`.
++ * Chaves antigas permanecem enquanto existir projeto que as use. É o mesmo
++ * princípio das migrations: forward-only.
++ */
++
++export interface JourneyStageTemplate {
++  /** Estável e imutável: é a chave que casa a linha do banco com este texto. */
++  key: string
++  /** Copiado para `project_stages.label` na criação. Snapshot, não referência. */
++  label: string
++  /** Uma linha, em pt-BR, visível ao cliente. Lida em tempo de leitura. */
++  summary: string
++}
++
++export interface JourneyTemplate {
++  /** O valor de `projects.journey_key`. Formato `<tipo>.v<n>`. */
++  key: string
++  /** Para qual `project_type` este template é o padrão. */
++  type: ProjectType
++  /** Como a jornada se chama para quem administra. Não aparece no portal. */
++  label: string
++  /** Em ordem. `position` no banco é o índice + 1. */
++  stages: readonly JourneyStageTemplate[]
++}
++
++/**
++ * `social.v1` — a única jornada completa da V0.
++ *
++ * As oito etapas são as de `docs/product.md#jornada-social-v1`, na ordem de lá.
++ * Os mocks do protótipo tinham seis, sem `kickoff` e sem `onboarding`: eram
++ * ilustração de tela, não especificação, e a especificação é que vale.
++ *
++ * A jornada é cíclica — o review reabre `production → publishing → review` para
++ * o ciclo seguinte (`projects.cycle`). Quem faz isso é `publishReview`, na
++ * FASE 15. A FASE 6 materializa o primeiro ciclo e sabe avançar dentro dele.
++ */
++const SOCIAL_V1: JourneyTemplate = {
++  key: 'social.v1',
++  type: 'social',
++  label: 'Social media',
++  stages: [
++    {
++      key: 'kickoff',
++      label: 'Início do projeto',
++      summary: 'Combinamos escopo, ritmo e por onde a gente começa.',
++    },
++    {
++      key: 'onboarding',
++      label: 'Onboarding',
++      summary: 'Você conta o que só quem está por dentro do negócio sabe.',
++    },
++    {
++      key: 'immersion',
++      label: 'Imersão',
++      summary: 'Entendemos o negócio, a história e o que a marca quer construir.',
++    },
++    {
++      key: 'research',
++      label: 'Pesquisa',
++      summary: 'Estudamos a categoria, as concorrentes e como as pessoas compram hoje.',
++    },
++    {
++      key: 'strategy',
++      label: 'Estratégia',
++      summary: 'Definimos posicionamento, territórios editoriais e o que vamos medir.',
++    },
++    {
++      key: 'production',
++      label: 'Produção',
++      summary: 'Criamos o ciclo editorial. Parte dele chega para a sua aprovação.',
++    },
++    {
++      key: 'publishing',
++      label: 'Publicação',
++      summary: 'O que for aprovado entra no ar na ordem combinada.',
++    },
++    {
++      key: 'review',
++      label: 'Review',
++      summary: 'Olhamos os números juntas e decidimos o que muda no próximo ciclo.',
++    },
++  ],
++}
++
++/**
++ * As quatro jornadas mínimas.
++ *
++ * Elas existem para provar o que a §15 do briefing exige: a arquitetura não
++ * depende de social. Um projeto de site nasce com etapas de site, não com
++ * "Publicação" e "Review" editorial.
++ *
++ * São curtas de propósito. `docs/product.md` diz que serão detalhadas "quando
++ * houver um projeto real" — inventar dez etapas de branding agora seria
++ * escrever ficção que alguém teria de manter. Quatro etapas honestas valem
++ * mais do que dez adivinhadas, e a jornada nova é um PR de cinco linhas.
++ */
++const WEBSITE_V1: JourneyTemplate = {
++  key: 'website.v1',
++  type: 'website',
++  label: 'Site',
++  stages: [
++    {
++      key: 'kickoff',
++      label: 'Início do projeto',
++      summary: 'Combinamos escopo, prazo e por onde a gente começa.',
++    },
++    {
++      key: 'discovery',
++      label: 'Descoberta',
++      summary: 'Entendemos o que o site precisa resolver e para quem.',
++    },
++    {
++      key: 'design',
++      label: 'Design',
++      summary: 'Desenhamos as telas e a forma como a marca aparece nelas.',
++    },
++    {
++      key: 'build',
++      label: 'Construção',
++      summary: 'Construímos o site e testamos no celular antes de tudo.',
++    },
++    {
++      key: 'launch',
++      label: 'Lançamento',
++      summary: 'O site entra no ar e acompanhamos os primeiros dias.',
++    },
++  ],
++}
++
++const BRANDING_V1: JourneyTemplate = {
++  key: 'branding.v1',
++  type: 'branding',
++  label: 'Marca',
++  stages: [
++    {
++      key: 'kickoff',
++      label: 'Início do projeto',
++      summary: 'Combinamos escopo, ritmo e por onde a gente começa.',
++    },
++    {
++      key: 'immersion',
++      label: 'Imersão',
++      summary: 'Entendemos o negócio, a história e o que a marca quer construir.',
++    },
++    {
++      key: 'positioning',
++      label: 'Posicionamento',
++      summary: 'Definimos o que a marca defende e onde ela fica na categoria.',
++    },
++    {
++      key: 'identity',
++      label: 'Identidade',
++      summary: 'Desenhamos como a marca se apresenta e soa.',
++    },
++    {
++      key: 'handover',
++      label: 'Entrega',
++      summary: 'Você recebe os arquivos e o manual de uso da marca.',
++    },
++  ],
++}
++
++const AUTOMATION_V1: JourneyTemplate = {
++  key: 'automation.v1',
++  type: 'automation',
++  label: 'Automação',
++  stages: [
++    {
++      key: 'kickoff',
++      label: 'Início do projeto',
++      summary: 'Combinamos escopo e qual processo entra primeiro.',
++    },
++    {
++      key: 'mapping',
++      label: 'Mapeamento',
++      summary: 'Mapeamos o processo como ele acontece hoje, com quem o executa.',
++    },
++    {
++      key: 'build',
++      label: 'Construção',
++      summary: 'Construímos a automação e testamos com dados reais.',
++    },
++    {
++      key: 'rollout',
++      label: 'Implantação',
++      summary: 'A automação entra em uso e acompanhamos as primeiras semanas.',
++    },
++  ],
++}
++
++/**
++ * `custom` é a jornada de projeto que ainda não tem forma.
++ *
++ * Três etapas genéricas, e é o que se pode afirmar sem saber o que o projeto é.
++ * Quando um projeto `custom` se repetir, ele ganha template próprio — que é
++ * exatamente o gatilho que a ADR-0006 descreve.
++ */
++const CUSTOM_V1: JourneyTemplate = {
++  key: 'custom.v1',
++  type: 'custom',
++  label: 'Projeto sob medida',
++  stages: [
++    {
++      key: 'kickoff',
++      label: 'Início do projeto',
++      summary: 'Combinamos escopo, prazo e por onde a gente começa.',
++    },
++    {
++      key: 'execution',
++      label: 'Execução',
++      summary: 'Tocamos o trabalho combinado e mostramos o andamento aqui.',
++    },
++    {
++      key: 'handover',
++      label: 'Entrega',
++      summary: 'Você recebe o que foi combinado e fechamos o ciclo.',
++    },
++  ],
++}
++
++/**
++ * Todos os templates, indexados por `journey_key`.
++ *
++ * Chave antiga NUNCA sai daqui enquanto houver projeto que a use: `summary` é
++ * lido em tempo de leitura, e remover a chave apagaria o texto da jornada de um
++ * projeto vivo. Quando um template for aposentado, ele deixa de ser oferecido
++ * na criação (sai de `JOURNEY_BY_TYPE`) e continua nesta tabela.
++ */
++export const JOURNEY_TEMPLATES: Record<string, JourneyTemplate> = {
++  [SOCIAL_V1.key]: SOCIAL_V1,
++  [WEBSITE_V1.key]: WEBSITE_V1,
++  [BRANDING_V1.key]: BRANDING_V1,
++  [AUTOMATION_V1.key]: AUTOMATION_V1,
++  [CUSTOM_V1.key]: CUSTOM_V1,
++}
++
++/**
++ * A jornada com que cada tipo de projeto NASCE hoje.
++ *
++ * É esta tabela — e não um campo do formulário — que resolve `journey_key`.
++ * Quem cria um projeto escolhe o TIPO, que é vocabulário de produto; a chave do
++ * template é vocabulário técnico e não aparece na tela (`docs/product.md`).
++ *
++ * O tipo mapear para exatamente uma chave é o que mantém as duas colunas
++ * coerentes. As duas são imutáveis no banco desde a FASE 6, então a coerência
++ * decidida aqui, na criação, é a que vale para sempre.
++ */
++export const JOURNEY_BY_TYPE: Record<ProjectType, string> = {
++  social: SOCIAL_V1.key,
++  website: WEBSITE_V1.key,
++  branding: BRANDING_V1.key,
++  automation: AUTOMATION_V1.key,
++  custom: CUSTOM_V1.key,
++}
++
++/** As chaves que a criação de projeto aceita. Lista fechada, nunca texto livre. */
++export const CREATABLE_JOURNEY_KEYS = PROJECT_TYPES.map((type) => JOURNEY_BY_TYPE[type])
++
++/** O template de um tipo de projeto. Usado na criação. */
++export function journeyForType(type: ProjectType): JourneyTemplate {
++  const template = JOURNEY_TEMPLATES[JOURNEY_BY_TYPE[type]]
++
++  /*
++   * Inalcançável: `JOURNEY_BY_TYPE` é `Record<ProjectType, string>` e o teste
++   * de paridade confere que toda chave existe em `JOURNEY_TEMPLATES`. O throw
++   * está aqui porque o tipo de retorno do índice é `T | undefined` sob
++   * `noUncheckedIndexedAccess`, e devolver um template vazio seria pior:
++   * criaria projeto sem jornada em silêncio.
++   */
++  if (!template) throw new Error(`journey template ausente para o tipo ${type}`)
++
++  return template
++}
++
++/** O template de uma `journey_key`, ou `null` para chave desconhecida. */
++export function journeyByKey(key: string): JourneyTemplate | null {
++  return JOURNEY_TEMPLATES[key] ?? null
++}
++
++/**
++ * O resumo de uma etapa, casando `journey_key` + `stage_key` com o template.
++ *
++ * **Devolve `null` quando não encontra, e isso é o comportamento correto.**
++ *
++ * O caso real é um projeto criado com um template que depois foi aposentado, ou
++ * uma etapa removida de um template em uso. A tela do cliente não pode quebrar
++ * por isso, e também não pode inventar texto: uma frase genérica ("etapa do
++ * projeto") ocuparia o lugar de uma explicação e diria menos do que o silêncio.
++ * Quem consome omite a linha — bloco vazio desaparece
++ * (.claude/rules/frontend.md).
++ *
++ * A etapa continua com rótulo, posição e estado, que vêm do banco: some o
++ * texto de apoio, não a etapa.
++ */
++export function stageSummary(journeyKey: string, stageKey: string): string | null {
++  const template = journeyByKey(journeyKey)
++  if (!template) return null
++
++  return template.stages.find((stage) => stage.key === stageKey)?.summary ?? null
++}
+diff --git a/src/config/messages.ts b/src/config/messages.ts
+index 3ff5ca5..a3290d9 100644
+--- a/src/config/messages.ts
++++ b/src/config/messages.ts
+@@ -36,6 +36,22 @@ export const WORKFLOW_MESSAGE: Record<string, string> = {
+   'client.update.denied': 'Você não tem permissão para editar este cliente.',
+   'client.archive.denied': 'Só um admin da Boop arquiva clientes.',
+ 
++  /* ── Projetos ──────────────────────────────────────────────────────────── */
++  'project.create_failed': 'Não foi possível criar o projeto.',
++  'project.update_failed': 'Não foi possível salvar as alterações.',
++  'project.advance_failed': 'Não foi possível avançar a etapa.',
++  'project.stage_update_failed': 'Não foi possível corrigir a jornada.',
++  'project.immutable_field':
++    'O tipo e a jornada de um projeto são definidos na criação e não mudam. Crie um projeto novo e arquive este.',
++  'project.no_current_stage':
++    'Este projeto não tem etapa em andamento. Escolha por onde retomar antes de avançar.',
++  'project.archived_is_final':
++    'Este projeto está arquivado. Reabrir não é possível pelo painel — crie um projeto novo.',
++  'project.create.denied': 'Só um admin da Boop cria projetos.',
++  'project.update.denied': 'Você não tem permissão para editar este projeto.',
++  'project.advance_stage.denied': 'Você não tem permissão para mover a jornada deste projeto.',
++  'project.change_status.denied': 'Você não tem permissão para mudar o status deste projeto.',
++
+   /* ── Pessoas ───────────────────────────────────────────────────────────── */
+   'user.invite.denied': 'Só um admin da Boop convida pessoas.',
+   'user.disable.denied': 'Só um admin da Boop desliga pessoas.',
+diff --git a/src/domains/projects/actions.ts b/src/domains/projects/actions.ts
+new file mode 100644
+index 0000000..eb27380
+--- /dev/null
++++ b/src/domains/projects/actions.ts
+@@ -0,0 +1,138 @@
++'use server'
++
++import { revalidatePath } from 'next/cache'
++import { redirect } from 'next/navigation'
++import {
++  advanceStage,
++  changeProjectStatus,
++  createProject,
++  setStageState,
++  updateProject,
++} from '@/domains/projects/mutations'
++import type { ActionState } from '@/lib/workflow/action-state'
++
++/**
++ * Server Actions de projeto. Adaptam `FormData` e delegam — não decidem nada.
++ *
++ * Mesma forma da FASE 5. A revalidação é por caminho, nunca global: uma
++ * mudança de etapa invalida o projeto no admin e o portal daquele projeto, e
++ * não o cache da aplicação inteira.
++ *
++ * `/portal` (o resolvedor) entra na revalidação de status porque ativar ou
++ * arquivar um projeto muda o que ele resolve — de "nenhum projeto" para
++ * "redireciona", ou de "redireciona" para "escolha".
++ */
++
++export async function createProjectAction(
++  _prev: ActionState,
++  formData: FormData,
++): Promise<ActionState> {
++  const result = await createProject({
++    clientId: formData.get('clientId'),
++    name: formData.get('name'),
++    type: formData.get('type'),
++    startsOn: formData.get('startsOn'),
++  })
++
++  if (!result.ok) {
++    return {
++      status: 'error',
++      code: result.code,
++      ...(result.fieldErrors ? { fieldErrors: result.fieldErrors } : {}),
++    }
++  }
++
++  revalidatePath(`/admin/clientes/${result.data.clientId}`)
++
++  /* `redirect` lança: vem depois de tudo, e por isso não há `return` de sucesso. */
++  redirect(`/admin/projetos/${result.data.projectId}`)
++}
++
++export async function updateProjectAction(
++  _prev: ActionState,
++  formData: FormData,
++): Promise<ActionState> {
++  const result = await updateProject({
++    projectId: formData.get('projectId'),
++    name: formData.get('name'),
++    startsOn: formData.get('startsOn'),
++    endsOn: formData.get('endsOn'),
++  })
++
++  if (!result.ok) {
++    return {
++      status: 'error',
++      code: result.code,
++      ...(result.fieldErrors ? { fieldErrors: result.fieldErrors } : {}),
++    }
++  }
++
++  /*
++   * O caminho é montado com o id que VOLTOU do workflow, não com o que entrou
++   * pelo formulário: o primeiro passou por `z.uuid()` e pela RLS.
++   */
++  revalidatePath(`/admin/projetos/${result.data.projectId}`)
++  revalidatePath(`/admin/clientes/${result.data.clientId}`)
++
++  return { status: 'success', message: 'Alterações salvas.' }
++}
++
++export async function changeProjectStatusAction(
++  _prev: ActionState,
++  formData: FormData,
++): Promise<ActionState> {
++  const result = await changeProjectStatus({
++    projectId: formData.get('projectId'),
++    status: formData.get('status'),
++  })
++
++  if (!result.ok) return { status: 'error', code: result.code }
++
++  revalidatePath(`/admin/projetos/${result.data.projectId}`)
++  revalidatePath(`/admin/clientes/${result.data.clientId}`)
++  revalidatePath('/portal')
++  revalidatePath(`/portal/${result.data.projectId}`)
++
++  return { status: 'success', message: 'Status atualizado.' }
++}
++
++export async function advanceStageAction(
++  _prev: ActionState,
++  formData: FormData,
++): Promise<ActionState> {
++  const result = await advanceStage({ projectId: formData.get('projectId') })
++
++  if (!result.ok) return { status: 'error', code: result.code }
++
++  revalidatePath(`/admin/projetos/${result.data.projectId}`)
++  /* O cliente precisa ver a mudança: é o critério de pronto da fase. */
++  revalidatePath(`/portal/${result.data.projectId}`)
++  revalidatePath(`/portal/${result.data.projectId}/projeto`)
++
++  return {
++    status: 'success',
++    message:
++      result.data.outcome === 'complete'
++        ? 'Última etapa concluída. A jornada deste ciclo terminou.'
++        : 'Etapa avançada.',
++  }
++}
++
++export async function setStageStateAction(
++  _prev: ActionState,
++  formData: FormData,
++): Promise<ActionState> {
++  const result = await setStageState({
++    projectId: formData.get('projectId'),
++    stageId: formData.get('stageId'),
++    state: formData.get('state'),
++  })
++
++  if (!result.ok) return { status: 'error', code: result.code }
++
++  revalidatePath(`/admin/projetos/${result.data.projectId}`)
++  revalidatePath(`/portal/${result.data.projectId}`)
++  revalidatePath(`/portal/${result.data.projectId}/projeto`)
++
++  return { status: 'success', message: 'Jornada corrigida.' }
++}
+diff --git a/src/domains/projects/components/journey-controls.tsx b/src/domains/projects/components/journey-controls.tsx
+new file mode 100644
+index 0000000..94f8dfe
+--- /dev/null
++++ b/src/domains/projects/components/journey-controls.tsx
+@@ -0,0 +1,209 @@
++'use client'
++
++import { useActionState } from 'react'
++import { Button } from '@/components/ui/button'
++import { Callout } from '@/components/ui/callout'
++import { messageFor } from '@/config/messages'
++import { advanceStageAction, setStageStateAction } from '@/domains/projects/actions'
++import type { ProjectStageAdmin } from '@/domains/projects/types'
++import { IDLE, type ActionState } from '@/lib/workflow/action-state'
++import { formatFullDate } from '@/lib/format'
++import { cn } from '@/lib/cn'
++
++/**
++ * A jornada do lado da Boop: ver onde esta, avancar, e corrigir.
++ *
++ * ## Duas acoes com pesos diferentes, de proposito
++ *
++ * **Avancar** e o gesto normal, e e um botao proprio, grande, no topo. Fechar a
++ * etapa corrente e abrir a proxima e o que acontece toda semana.
++ *
++ * **Corrigir** e excecao — pular uma etapa, voltar — e vive dentro de cada
++ * linha, discreto. Nao e uma acao destrutiva, mas reescreve o que o cliente ve,
++ * e nao deve competir visualmente com o avanco.
++ *
++ * Isso NAO e o par "aprovar / pedir ajuste", que a regra manda ter a mesma
++ * prominencia: aquele e uma decisao do cliente entre duas saidas legitimas.
++ * Aqui sao duas coisas diferentes — o fluxo e o conserto do fluxo.
++ *
++ * ## Sem percentual
++ *
++ * A jornada e o progresso. O que a tela diz e "3 de 8 etapas encerradas", que
++ * e uma frase, e nunca "37%", que e um numero sem significado
++ * (docs/design-direction.md).
++ */
++
++const STATE_LABEL: Record<ProjectStageAdmin['state'], string> = {
++  pending: 'A seguir',
++  current: 'Em andamento',
++  done: 'Concluída',
++  skipped: 'Pulada',
++}
++
++const DOT: Record<ProjectStageAdmin['state'], string> = {
++  pending: 'bg-rule-strong',
++  current: 'bg-accent',
++  done: 'bg-navy',
++  skipped: 'bg-rule-strong/40',
++}
++
++export function JourneyControls({
++  projectId,
++  stages,
++  canManage,
++}: {
++  projectId: string
++  stages: ProjectStageAdmin[]
++  /**
++   * Vem de `can()` no servidor. E conveniencia, nao seguranca: o workflow nega
++   * de novo e as funcoes SQL negam em terceiro lugar
++   * (docs/permissions.md#onde-a-permissao-e-aplicada).
++   */
++  canManage: boolean
++}) {
++  const [advanceState, advance, advancePending] = useActionState(advanceStageAction, IDLE)
++  const [correctState, correct, correctPending] = useActionState(setStageStateAction, IDLE)
++
++  const state: ActionState = correctState.status !== 'idle' ? correctState : advanceState
++  const current = stages.find((stage) => stage.state === 'current')
++  const settled = stages.filter((s) => s.state === 'done' || s.state === 'skipped').length
++  const pending = stages.filter((s) => s.state === 'pending').length
++
++  return (
++    <div className="space-y-8">
++      {state.status === 'error' && <Callout tone="danger">{messageFor(state.code)}</Callout>}
++      {state.status === 'success' && state.message && (
++        <Callout tone="success">{state.message}</Callout>
++      )}
++
++      <div className="flex flex-wrap items-end justify-between gap-6">
++        <div>
++          <p className="t-meta text-muted">Onde estamos</p>
++          <p className="t-title text-foreground mt-2">
++            {current
++              ? current.label
++              : pending > 0
++                ? 'Nenhuma etapa em andamento'
++                : 'Jornada concluída'}
++          </p>
++          <p className="t-label text-muted mt-1">
++            {settled} de {stages.length} etapas encerradas
++          </p>
++        </div>
++
++        {canManage && current && (
++          <form action={advance}>
++            <input type="hidden" name="projectId" value={projectId} />
++            <Button type="submit" disabled={advancePending || correctPending}>
++              {advancePending ? 'Avançando…' : 'Avançar etapa'}
++            </Button>
++          </form>
++        )}
++      </div>
++
++      {/*
++        Sem etapa corrente e com etapa pendente e o estado que `advanceStage`
++        recusa avancar. A tela diz o que fazer em vez de esconder o problema —
++        e a acao esta na propria linha, em "Retomar aqui".
++      */}
++      {canManage && !current && pending > 0 && (
++        <Callout tone="warning">
++          Este projeto não tem etapa em andamento. Escolha por onde retomar antes de avançar.
++        </Callout>
++      )}
++
++      <ol className="divide-rule border-rule divide-y border-y">
++        {stages.map((stage) => (
++          <li key={stage.id} className="flex flex-wrap items-center gap-x-6 gap-y-3 py-5">
++            <span
++              aria-hidden="true"
++              className={cn('h-2 w-2 shrink-0 rounded-full', DOT[stage.state])}
++            />
++
++            <div className="min-w-0 flex-1">
++              <p
++                className={cn(
++                  't-title',
++                  stage.state === 'current' ? 'text-foreground' : 'text-muted',
++                )}
++              >
++                {stage.position}. {stage.label}
++              </p>
++              <p className="t-label text-muted mt-1">
++                {STATE_LABEL[stage.state]}
++                {stage.completedOn && ` · ${formatFullDate(stage.completedOn)}`}
++              </p>
++            </div>
++
++            {canManage && (
++              <div className="flex flex-wrap gap-2">
++                {stage.state !== 'current' && (
++                  <StageAction
++                    action={correct}
++                    projectId={projectId}
++                    stageId={stage.id}
++                    state="current"
++                    pending={correctPending || advancePending}
++                    label="Retomar aqui"
++                  />
++                )}
++                {stage.state === 'pending' && (
++                  <StageAction
++                    action={correct}
++                    projectId={projectId}
++                    stageId={stage.id}
++                    state="skipped"
++                    pending={correctPending || advancePending}
++                    label="Pular"
++                  />
++                )}
++                {(stage.state === 'done' || stage.state === 'skipped') && (
++                  <StageAction
++                    action={correct}
++                    projectId={projectId}
++                    stageId={stage.id}
++                    state="pending"
++                    pending={correctPending || advancePending}
++                    label="Reabrir"
++                  />
++                )}
++              </div>
++            )}
++          </li>
++        ))}
++      </ol>
++
++      <p aria-live="polite" className="sr-only">
++        {advancePending || correctPending ? 'Atualizando a jornada.' : ''}
++      </p>
++    </div>
++  )
++}
++
++/** Um botão de correção. Existe para os três não repetirem o mesmo `form`. */
++function StageAction({
++  action,
++  projectId,
++  stageId,
++  state,
++  pending,
++  label,
++}: {
++  action: (formData: FormData) => void
++  projectId: string
++  stageId: string
++  state: ProjectStageAdmin['state']
++  pending: boolean
++  label: string
++}) {
++  return (
++    <form action={action}>
++      <input type="hidden" name="projectId" value={projectId} />
++      <input type="hidden" name="stageId" value={stageId} />
++      <input type="hidden" name="state" value={state} />
++      <Button type="submit" variant="outline" disabled={pending}>
++        {label}
++      </Button>
++    </form>
++  )
++}
+diff --git a/src/domains/projects/components/project-form.tsx b/src/domains/projects/components/project-form.tsx
+new file mode 100644
+index 0000000..b317721
+--- /dev/null
++++ b/src/domains/projects/components/project-form.tsx
+@@ -0,0 +1,178 @@
++'use client'
++
++import { useActionState } from 'react'
++import { Button } from '@/components/ui/button'
++import { Callout } from '@/components/ui/callout'
++import { Field, Input, Select } from '@/components/ui/field'
++import { PROJECT_TYPE_LABEL, PROJECT_TYPES, type ProjectType } from '@/config/enums'
++import { JOURNEY_TEMPLATES, JOURNEY_BY_TYPE } from '@/config/journeys'
++import { fieldMessage, messageFor } from '@/config/messages'
++import { IDLE, type ActionState } from '@/lib/workflow/action-state'
++
++/**
++ * Formulario de projeto — criar e editar, o mesmo componente.
++ *
++ * ## O que muda entre os dois modos, e por que
++ *
++ * Na CRIACAO existe o campo `type`; na EDICAO ele vira texto. Nao e um campo
++ * desabilitado — campo desabilitado parece defeito —, e nao e uma omissao: o
++ * tipo e a jornada de um projeto sao IMUTAVEIS no banco desde
++ * `20260903010349_immutable_journey_binding.sql`, porque as etapas ja
++ * materializadas nao podem discordar do template que as gerou. Oferecer o campo
++ * produziria um formulario que salva e o banco rejeita.
++ *
++ * ## `journey_key` nao aparece em lugar nenhum
++ *
++ * Quem cria um projeto escolhe "Social media", nao `social.v1`. A chave e
++ * derivada do tipo no servidor (`JOURNEY_BY_TYPE`) e nao existe como campo —
++ * nem visivel, nem escondido. O que a tela mostra e a CONSEQUENCIA da escolha:
++ * quantas etapas a jornada tera, e quais. E a informacao util; a chave e
++ * vocabulario interno (.claude/rules/frontend.md).
++ */
++
++export function ProjectForm({
++  action,
++  submitLabel,
++  clientId,
++  project,
++}: {
++  action: (prev: ActionState, formData: FormData) => Promise<ActionState>
++  submitLabel: string
++  /** Presente só na criação: o projeto nasce dentro de um cliente. */
++  clientId?: string
++  project?: {
++    id: string
++    name: string
++    type: ProjectType
++    startedOn: string | null
++    endsOn: string | null
++  }
++}) {
++  const [state, formAction, isPending] = useActionState(action, IDLE)
++
++  const editing = Boolean(project)
++  const nameError = fieldMessage(state.fieldErrors, 'name')
++  const typeError = fieldMessage(state.fieldErrors, 'type')
++  const startsError = fieldMessage(state.fieldErrors, 'startsOn')
++  const endsError = fieldMessage(state.fieldErrors, 'endsOn')
++
++  return (
++    <form action={formAction} className="max-w-xl space-y-8">
++      {state.status === 'error' && <Callout tone="danger">{messageFor(state.code)}</Callout>}
++
++      {state.status === 'success' && state.message && (
++        <Callout tone="success">{state.message}</Callout>
++      )}
++
++      {project && <input type="hidden" name="projectId" value={project.id} />}
++      {clientId && <input type="hidden" name="clientId" value={clientId} />}
++
++      <Field label="Nome do projeto" required {...(nameError ? { error: nameError } : {})}>
++        {({ id, describedBy, invalid }) => (
++          <Input
++            id={id}
++            aria-describedby={describedBy}
++            aria-invalid={invalid}
++            name="name"
++            required
++            maxLength={120}
++            disabled={isPending}
++            defaultValue={project?.name ?? ''}
++            placeholder="Social Media 2026"
++          />
++        )}
++      </Field>
++
++      {editing ? (
++        <div className="space-y-2.5">
++          <p className="t-label text-foreground">Tipo</p>
++          <p className="t-body text-muted">{project ? PROJECT_TYPE_LABEL[project.type] : ''}</p>
++          <p className="t-label text-muted">
++            Definido na criação. O tipo decide a jornada, e as etapas já criadas não podem discordar
++            dela — para mudar, crie um projeto novo e arquive este.
++          </p>
++        </div>
++      ) : (
++        <Field
++          label="Tipo de projeto"
++          required
++          help="O tipo define a jornada: as etapas que o cliente vai acompanhar."
++          {...(typeError ? { error: typeError } : {})}
++        >
++          {({ id, describedBy, invalid }) => (
++            <Select
++              id={id}
++              aria-describedby={describedBy}
++              aria-invalid={invalid}
++              name="type"
++              required
++              disabled={isPending}
++              defaultValue="social"
++            >
++              {PROJECT_TYPES.map((type) => {
++                const template = JOURNEY_TEMPLATES[JOURNEY_BY_TYPE[type]]
++                return (
++                  <option key={type} value={type}>
++                    {PROJECT_TYPE_LABEL[type]}
++                    {template ? ` — ${template.stages.length} etapas` : ''}
++                  </option>
++                )
++              })}
++            </Select>
++          )}
++        </Field>
++      )}
++
++      <div className="grid gap-8 sm:grid-cols-2">
++        <Field
++          label="Início"
++          help="Opcional. Sem data, o portal não mostra desde quando."
++          {...(startsError ? { error: startsError } : {})}
++        >
++          {({ id, describedBy, invalid }) => (
++            <Input
++              id={id}
++              aria-describedby={describedBy}
++              aria-invalid={invalid}
++              type="date"
++              name="startsOn"
++              disabled={isPending}
++              defaultValue={project?.startedOn ?? ''}
++            />
++          )}
++        </Field>
++
++        {/* `ends_on` só na edição: um projeto raramente nasce com data de fim,
++            e o banco tem `check (ends_on >= starts_on)` — pedir os dois na
++            criação convidaria ao erro antes de haver o que planejar. */}
++        {editing && (
++          <Field label="Fim previsto" {...(endsError ? { error: endsError } : {})}>
++            {({ id, describedBy, invalid }) => (
++              <Input
++                id={id}
++                aria-describedby={describedBy}
++                aria-invalid={invalid}
++                type="date"
++                name="endsOn"
++                disabled={isPending}
++                defaultValue={project?.endsOn ?? ''}
++              />
++            )}
++          </Field>
++        )}
++      </div>
++
++      <div className="flex items-center gap-6">
++        <Button type="submit" size="lg" disabled={isPending}>
++          {isPending ? 'Salvando…' : submitLabel}
++        </Button>
++      </div>
++
++      {/* Só o estado de ENVIO: o `Callout` tem `role="status"` e já anuncia o
++          resultado — repetir aqui faria o leitor de tela falar duas vezes. */}
++      <p aria-live="polite" className="sr-only">
++        {isPending ? 'Salvando.' : ''}
++      </p>
++    </form>
++  )
++}
+diff --git a/src/domains/projects/components/project-list.tsx b/src/domains/projects/components/project-list.tsx
+new file mode 100644
+index 0000000..dc39f9a
+--- /dev/null
++++ b/src/domains/projects/components/project-list.tsx
+@@ -0,0 +1,51 @@
++import Link from 'next/link'
++import { PROJECT_TYPE_LABEL } from '@/config/enums'
++import { ProjectStatusMark } from '@/domains/projects/components/project-status-mark'
++import type { ProjectListItem } from '@/domains/projects/types'
++import { formatFullDate } from '@/lib/format'
++
++/**
++ * Os projetos de um cliente, no admin.
++ *
++ * **Lista, nunca tabela.** A regra de mobile-first proibe scroll horizontal no
++ * celular, e uma tabela de cinco colunas so cabe la virando exatamente isso.
++ * Cada linha empilha e continua legivel a 360px (.claude/rules/frontend.md).
++ *
++ * Sem `<Suspense>` e sem estado de carregamento proprio: quem carrega e o
++ * Server Component da pagina, e o `loading.tsx` da rota cobre o intervalo.
++ */
++export function ProjectList({ projects }: { projects: ProjectListItem[] }) {
++  if (projects.length === 0) {
++    return (
++      <p className="t-body text-muted measure">
++        Este cliente ainda não tem projeto. O primeiro projeto é o que faz o portal existir para ele
++        — antes disso, ele entra e encontra uma tela de espera.
++      </p>
++    )
++  }
++
++  return (
++    <ul className="divide-rule border-rule divide-y border-y">
++      {projects.map((project) => (
++        <li key={project.id}>
++          <Link
++            href={`/admin/projetos/${project.id}`}
++            className="group flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 py-5"
++          >
++            <span className="min-w-0">
++              <span className="t-title text-foreground group-hover:text-accent-text block transition-colors">
++                {project.name}
++              </span>
++              <span className="t-label text-muted mt-1 block">
++                {PROJECT_TYPE_LABEL[project.type]} · Ciclo {project.cycle}
++                {project.startedOn && ` · desde ${formatFullDate(project.startedOn)}`}
++              </span>
++            </span>
++
++            <ProjectStatusMark status={project.status} />
++          </Link>
++        </li>
++      ))}
++    </ul>
++  )
++}
+diff --git a/src/domains/projects/components/project-status-controls.tsx b/src/domains/projects/components/project-status-controls.tsx
+new file mode 100644
+index 0000000..61f365d
+--- /dev/null
++++ b/src/domains/projects/components/project-status-controls.tsx
+@@ -0,0 +1,112 @@
++'use client'
++
++import { useActionState } from 'react'
++import { Button } from '@/components/ui/button'
++import { Callout } from '@/components/ui/callout'
++import { messageFor } from '@/config/messages'
++import type { ProjectStatus } from '@/config/enums'
++import { changeProjectStatusAction } from '@/domains/projects/actions'
++import { IDLE } from '@/lib/workflow/action-state'
++
++/**
++ * As transicoes de status de um projeto.
++ *
++ * ## Uma capacidade so, e por isso um workflow so
++ *
++ * Diferente de cliente — que tem `client.update` para pausar e `client.archive`
++ * para arquivar, capacidades diferentes com papeis diferentes —, projeto tem
++ * uma linha unica na matriz: `project.change_status`, da Boop inteira. Entao
++ * nao ha assimetria a modelar, e os botoes saem todos da mesma action.
++ *
++ * ## As transicoes oferecidas dependem de onde o projeto esta
++ *
++ * `draft` e o estado de nascimento: dali so se sai para `active`, e esse gesto
++ * — "Ativar" — e o que faz o projeto aparecer no portal do cliente. E por isso
++ * que a criacao nao ativa sozinha: um projeto meio configurado nao deve
++ * aparecer para ninguem por acidente.
++ *
++ * `archived` nao oferece nada: e final nesta fase, e o texto diz isso em vez de
++ * mostrar um botao que o workflow recusaria.
++ */
++
++/** O que se pode fazer a partir de cada status. Tabela, nao cadeia de `if`. */
++const NEXT: Record<ProjectStatus, { status: ProjectStatus; label: string }[]> = {
++  draft: [{ status: 'active', label: 'Ativar projeto' }],
++  active: [
++    { status: 'paused', label: 'Pausar' },
++    { status: 'completed', label: 'Concluir' },
++    { status: 'archived', label: 'Arquivar' },
++  ],
++  paused: [
++    { status: 'active', label: 'Retomar' },
++    { status: 'completed', label: 'Concluir' },
++    { status: 'archived', label: 'Arquivar' },
++  ],
++  completed: [
++    { status: 'active', label: 'Reabrir' },
++    { status: 'archived', label: 'Arquivar' },
++  ],
++  archived: [],
++}
++
++export function ProjectStatusControls({
++  projectId,
++  status,
++  canManage,
++}: {
++  projectId: string
++  status: ProjectStatus
++  canManage: boolean
++}) {
++  const [state, action, pending] = useActionState(changeProjectStatusAction, IDLE)
++
++  const options = canManage ? NEXT[status] : []
++
++  return (
++    <div className="space-y-4">
++      {state.status === 'error' && <Callout tone="danger">{messageFor(state.code)}</Callout>}
++      {state.status === 'success' && state.message && (
++        <Callout tone="success">{state.message}</Callout>
++      )}
++
++      {status === 'draft' && (
++        <p className="t-body text-muted measure">
++          Um projeto em rascunho não aparece para o cliente. Ative quando a jornada estiver como
++          você quer.
++        </p>
++      )}
++
++      {options.length > 0 && (
++        <div className="flex flex-wrap items-center gap-3">
++          {options.map((option) => (
++            <form key={option.status} action={action}>
++              <input type="hidden" name="projectId" value={projectId} />
++              <input type="hidden" name="status" value={option.status} />
++              <Button
++                type="submit"
++                /* Ativar um rascunho é o gesto principal desta tela; os demais
++                   são movimentos de rotina e ficam em contorno. */
++                variant={option.status === 'active' && status === 'draft' ? 'primary' : 'outline'}
++                disabled={pending}
++              >
++                {option.label}
++              </Button>
++            </form>
++          ))}
++        </div>
++      )}
++
++      {status === 'archived' && (
++        <p className="t-label text-muted">
++          Projeto arquivado. Nada foi apagado — a jornada e o histórico continuam. Reabrir não é
++          possível pelo painel nesta versão.
++        </p>
++      )}
++
++      {/* Só o envio: o `Callout` já anuncia o resultado (role="status"). */}
++      <p aria-live="polite" className="sr-only">
++        {pending ? 'Atualizando status.' : ''}
++      </p>
++    </div>
++  )
++}
+diff --git a/src/domains/projects/components/project-status-mark.tsx b/src/domains/projects/components/project-status-mark.tsx
+new file mode 100644
+index 0000000..f9420d1
+--- /dev/null
++++ b/src/domains/projects/components/project-status-mark.tsx
+@@ -0,0 +1,48 @@
++import { PROJECT_STATUS_LABEL, type ProjectStatus } from '@/config/enums'
++import { cn } from '@/lib/cn'
++
++/**
++ * Status do projeto como ponto + rotulo, no mesmo desenho de
++ * `ui/status.tsx` e `clients/components/client-status-mark.tsx`.
++ *
++ * Terceira lista de tres linhas, e nao uma abstracao sobre as tres: os enums
++ * sao vocabularios distintos que so por acaso tem a mesma forma visual, e
++ * generalizar acoplaria conteudo, cliente e projeto num tipo comum que nao
++ * existe no dominio (a mesma razao escrita em `client-status-mark.tsx`).
++ *
++ * `draft` merece uma nota: e o unico status que o `client_user` NUNCA ve, em
++ * lugar nenhum. Ele aparece so aqui, no admin, e a cor discreta e proposital —
++ * um rascunho e trabalho em andamento da Boop, nao um estado do cliente.
++ *
++ * A cor nunca carrega o significado sozinha: o rotulo em pt-BR esta ao lado.
++ */
++const TONE: Record<ProjectStatus, string> = {
++  draft: 'text-muted',
++  active: 'text-success',
++  paused: 'text-warning',
++  completed: 'text-accent-text',
++  archived: 'text-muted',
++}
++
++const DOT: Record<ProjectStatus, string> = {
++  draft: 'bg-rule-strong',
++  active: 'bg-success',
++  paused: 'bg-warning',
++  completed: 'bg-accent',
++  archived: 'bg-muted',
++}
++
++export function ProjectStatusMark({
++  status,
++  className,
++}: {
++  status: ProjectStatus
++  className?: string
++}) {
++  return (
++    <span className={cn('inline-flex items-center gap-2', className)}>
++      <span aria-hidden="true" className={cn('size-1.5 rounded-full', DOT[status])} />
++      <span className={cn('t-meta', TONE[status])}>{PROJECT_STATUS_LABEL[status]}</span>
++    </span>
++  )
++}
+diff --git a/src/domains/projects/journey.ts b/src/domains/projects/journey.ts
+new file mode 100644
+index 0000000..843e734
+--- /dev/null
++++ b/src/domains/projects/journey.ts
+@@ -0,0 +1,98 @@
++import type { ProjectStage } from '@/domains/projects/types'
++
++/**
++ * Derivação da jornada — funções puras, sem banco e sem Next.
++ *
++ * A jornada tem UMA fonte da verdade por pergunta, e este arquivo não cria
++ * nenhuma nova: ele só lê o que o banco já decidiu.
++ *
++ * | Pergunta      | Fonte                                          |
++ * | ------------- | ---------------------------------------------- |
++ * | ordem         | `position` (único por projeto, contíguo desde 1)|
++ * | onde estamos  | `state = 'current'` (único, por índice parcial) |
++ * | o que acabou  | `state = 'done'` + `completed_at`              |
++ * | o que vem     | menor `position` maior que a corrente, `pending`|
++ *
++ * ## O que NÃO existe aqui, e é decisão
++ *
++ * **Percentual.** `docs/design-direction.md` é explícito, e o componente da
++ * jornada repete: "não existe percentual. '67%' não responde 'em que etapa
++ * estamos' — o bloco responde". A jornada É o progresso; um número ao lado
++ * dela seria uma segunda representação do mesmo fato, e a pior das duas.
++ *
++ * **Heurística para "corrente".** Não há fallback do tipo "a primeira não
++ * concluída". Se o banco diz que não há etapa corrente, é isso que a aplicação
++ * diz — e `journeyState()` distingue os dois motivos possíveis.
++ */
++
++/** Ordena por `position`. O banco garante unicidade; a ordem é total. */
++export function sortStages(stages: readonly ProjectStage[]): ProjectStage[] {
++  return [...stages].sort((a, b) => a.position - b.position)
++}
++
++/**
++ * A etapa corrente, ou `undefined`.
++ *
++ * `undefined` não é um erro: pode ser jornada concluída (legítimo) ou estado a
++ * corrigir. Quem precisa da diferença chama `journeyState()`.
++ */
++export function currentStage(stages: readonly ProjectStage[]): ProjectStage | undefined {
++  return stages.find((stage) => stage.state === 'current')
++}
++
++/**
++ * A próxima etapa: menor `position` acima da corrente, ainda `pending`.
++ *
++ * `skipped` **não** é próxima — foi pulada de propósito, e oferecê-la como
++ * "o que vem a seguir" desfaria a decisão de quem a pulou. `done` também não,
++ * pelo motivo óbvio.
++ *
++ * Sem etapa corrente não há "próxima": a pergunta pressupõe um lugar de onde
++ * sair, e responder a partir do começo seria inventá-lo.
++ */
++export function nextStage(stages: readonly ProjectStage[]): ProjectStage | undefined {
++  const current = currentStage(stages)
++  if (!current) return undefined
++
++  return sortStages(stages).find(
++    (stage) => stage.position > current.position && stage.state === 'pending',
++  )
++}
++
++/**
++ * O estado da jornada como um todo. Quatro valores, e cada um é uma tela.
++ *
++ * - `empty`       o projeto não tem etapas. Não deveria acontecer — a criação
++ *                 é transacional (FASE 6) —, e existe porque um estado que "não
++ *                 deveria acontecer" e não tem nome vira um `map` sobre lista
++ *                 vazia e uma tela em branco sem explicação.
++ * - `in_progress` há etapa corrente.
++ * - `complete`    não há corrente e não há `pending`: acabou.
++ * - `stalled`     não há corrente e ainda há `pending`. É o estado que
++ *                 `advanceStage` recusa avançar (`no_current`) e que
++ *                 `setStageState` conserta.
++ */
++export type JourneyState = 'empty' | 'in_progress' | 'complete' | 'stalled'
++
++export function journeyState(stages: readonly ProjectStage[]): JourneyState {
++  if (stages.length === 0) return 'empty'
++  if (currentStage(stages)) return 'in_progress'
++
++  return stages.some((stage) => stage.state === 'pending') ? 'stalled' : 'complete'
++}
++
++/**
++ * Quantas etapas foram encerradas e quantas existem.
++ *
++ * Devolve a CONTAGEM, nunca uma razão nem um percentual — quem chama mostra
++ * "3 de 8", que é uma frase, e não "37%", que é um número sem significado.
++ *
++ * `skipped` conta como encerrada: uma etapa pulada não está pendente, e
++ * deixá-la fora do numerador faria a jornada parecer parada quando ela andou.
++ */
++export function stageTally(stages: readonly ProjectStage[]): { settled: number; total: number } {
++  return {
++    settled: stages.filter((stage) => stage.state === 'done' || stage.state === 'skipped').length,
++    total: stages.length,
++  }
++}
+diff --git a/src/domains/projects/mutations.ts b/src/domains/projects/mutations.ts
+new file mode 100644
+index 0000000..d205e7f
+--- /dev/null
++++ b/src/domains/projects/mutations.ts
+@@ -0,0 +1,283 @@
++import 'server-only'
++
++import type { ProjectStatus } from '@/config/enums'
++import { JOURNEY_BY_TYPE, journeyForType } from '@/config/journeys'
++import {
++  advanceStageSchema,
++  changeProjectStatusSchema,
++  createProjectSchema,
++  setStageStateSchema,
++  updateProjectSchema,
++} from '@/domains/projects/schemas'
++import { defineWorkflow, scopeAllowed, scopeDenied } from '@/lib/workflow/define'
++import { WorkflowError } from '@/lib/workflow/errors'
++import type { SupabaseServerClient } from '@/lib/supabase/server'
++
++/**
++ * Workflows de projeto e jornada. São cinco, e cobrem quatro linhas da matriz:
++ * `project.create`, `project.update`, `project.advance_stage` e
++ * `project.change_status`.
++ *
++ * ## Três deles não escrevem por `supabase-js`
++ *
++ * `createProject`, `advanceStage` e `setStageState` chamam RPC, porque cada um
++ * toca mais de uma linha e não pode ficar pela metade
++ * (`20260903010440_project_journey_boundaries.sql`, revisão da ADR-0011).
++ *
++ * Consequência importante para quem lê: **eles não chamam `ctx.activity()`**. O
++ * activity log é escrito DENTRO da função SQL, na mesma transação da mudança —
++ * que é o que `docs/workflows.md` pede quando existe função SQL. Chamar aqui
++ * também produziria duas linhas para um evento.
++ *
++ * `updateProject` e `changeProjectStatus` escrevem uma linha só, e seguem o
++ * caminho normal da FASE 5: UPDATE pelo JWT + `ctx.activity()`.
++ *
++ * ## Nenhum usa `service_role`
++ *
++ * Nem os workflows, nem as funções SQL: elas são `security definer` (rodam como
++ * dona para poder chamar `app.*`, que é invisível para `authenticated`), e
++ * checam papel e escopo no próprio corpo, com as mesmas funções que as policies
++ * usam. Ver o cabeçalho da migration.
++ */
++
++/** `23514` é violação de `check` — inclui os triggers de imutabilidade. */
++const CHECK_VIOLATION = '23514'
++
++/**
++ * Lê o projeto por dentro do workflow, sem `notFound()`.
++ *
++ * Mesma razão de `readClientStatus` na FASE 5: os guards de `authorization.ts`
++ * lançam navegação do Next, o que em Server Action viraria 404 na página
++ * inteira em vez de uma mensagem no formulário. A pergunta é feita do mesmo
++ * jeito — tentando ler pelo JWT, sob RLS — e a resposta vira `ScopeDecision`.
++ */
++async function readProject(
++  db: SupabaseServerClient,
++  projectId: string,
++): Promise<{ id: string; clientId: string; status: ProjectStatus } | null> {
++  const { data } = await db
++    .from('projects')
++    .select('id, client_id, status')
++    .eq('id', projectId)
++    .maybeSingle()
++
++  return data ? { id: data.id, clientId: data.client_id, status: data.status } : null
++}
++
++/**
++ * Cria o projeto e materializa a jornada — uma transação, no banco.
++ *
++ * `journey_key` e as etapas são resolvidos AQUI, a partir do `type`, e nunca
++ * vêm do formulário. É o que mantém as duas colunas coerentes na única hora em
++ * que elas podem ser decididas: as duas são imutáveis depois.
++ */
++export const createProject = defineWorkflow({
++  name: 'project.create',
++  input: createProjectSchema,
++  capability: 'project.create',
++  /*
++   * Escopo conferido pela leitura do cliente sob RLS — a mesma pergunta que
++   * `requireClientAccess` faz. Para `boop_admin` isso passa em qualquer
++   * cliente, e é o correto: D-08 é global, e vínculo não é pré-requisito para
++   * criar projeto. Quem não é admin já parou em `can()`.
++   */
++  authorize: async ({ input, ctx }) => {
++    const { data } = await ctx.db
++      .from('clients')
++      .select('id')
++      .eq('id', input.clientId)
++      .maybeSingle()
++
++    return data ? scopeAllowed() : scopeDenied()
++  },
++  handler: async ({ input, ctx }) => {
++    const template = journeyForType(input.type)
++
++    /*
++     * Só `key` e `label` viajam para o banco. `summary` fica no template e é
++     * lido em tempo de leitura: é texto editorial, e melhorar a redação de uma
++     * frase não deveria exigir migration nem tocar linha de projeto existente.
++     * `label`, ao contrário, é snapshot — muda o template, não muda o passado.
++     */
++    const stages = template.stages.map((stage) => ({ key: stage.key, label: stage.label }))
++
++    const { data, error } = await ctx.db.rpc('create_project_with_journey', {
++      p_client_id: input.clientId,
++      p_name: input.name,
++      p_type: input.type,
++      p_journey_key: JOURNEY_BY_TYPE[input.type],
++      p_stages: stages,
++      ...(input.startsOn ? { p_starts_on: input.startsOn } : {}),
++    })
++
++    if (error) throw new WorkflowError('project.create_failed', { code: error.code ?? null })
++    if (!data) throw new WorkflowError('project.create_failed')
++
++    /* Sem `ctx.activity()`: `project.created` foi gravado na mesma transação. */
++    return { projectId: data, clientId: input.clientId, stages: stages.length }
++  },
++})
++
++/**
++ * Edição administrativa: nome e período. Uma linha, um UPDATE.
++ *
++ * `type` e `journey_key` não estão no schema nem aqui — são imutáveis no banco.
++ * Se um deles chegasse por outro caminho, o trigger devolveria `23514`, e é por
++ * isso que o código está traduzido: o erro precisa virar frase, não stack.
++ */
++export const updateProject = defineWorkflow({
++  name: 'project.update',
++  input: updateProjectSchema,
++  capability: 'project.update',
++  authorize: async ({ input, ctx }) => {
++    const project = await readProject(ctx.db, input.projectId)
++    return project ? scopeAllowed() : scopeDenied()
++  },
++  handler: async ({ input, ctx }) => {
++    const { data, error } = await ctx.db
++      .from('projects')
++      .update({ name: input.name, starts_on: input.startsOn, ends_on: input.endsOn })
++      .eq('id', input.projectId)
++      .select('id, client_id, name')
++      .maybeSingle()
++
++    if (error) {
++      if (error.code === CHECK_VIOLATION) throw new WorkflowError('project.immutable_field')
++      throw new WorkflowError('project.update_failed', { code: error.code })
++    }
++    /* A RLS pode recusar o UPDATE devolvendo zero linhas, sem erro. */
++    if (!data) throw new WorkflowError('resource.not_found')
++
++    ctx.activity({
++      action: 'project.updated',
++      entityType: 'project',
++      entityId: data.id,
++      clientId: data.client_id,
++      projectId: data.id,
++      /* Identificadores e transições. Nunca o conteúdo dos campos. */
++      metadata: { has_period: input.startsOn !== null },
++    })
++
++    return { projectId: data.id, clientId: data.client_id, name: data.name }
++  },
++})
++
++/**
++ * Pausar, ativar, concluir, arquivar.
++ *
++ * `draft → active` é a ativação que a criação deliberadamente não faz: o
++ * projeto nasce `draft` e entra em circulação por um gesto separado, para que
++ * um projeto meio configurado não apareça no portal do cliente por acidente.
++ */
++export const changeProjectStatus = defineWorkflow({
++  name: 'project.change_status',
++  input: changeProjectStatusSchema,
++  capability: 'project.change_status',
++  authorize: async ({ input, ctx }) => {
++    const project = await readProject(ctx.db, input.projectId)
++    if (!project) return scopeDenied()
++
++    /*
++     * Sair de `archived` não tem caminho nesta fase, e a recusa é explícita em
++     * vez de silenciosa. Arquivar é tirar de circulação; desarquivar é uma
++     * decisão de produto que a matriz não descreve para projeto (a de cliente
++     * tem `client.archive` para as duas direções, e a de projeto não tem
++     * equivalente). Registrado como dívida da fase.
++     */
++    if (project.status === 'archived') return scopeDenied('project.archived_is_final')
++
++    return scopeAllowed()
++  },
++  handler: async ({ input, ctx }) => {
++    const { data, error } = await ctx.db
++      .from('projects')
++      .update({ status: input.status })
++      .eq('id', input.projectId)
++      .select('id, client_id, status')
++      .maybeSingle()
++
++    if (error) throw new WorkflowError('project.update_failed', { code: error.code })
++    if (!data) throw new WorkflowError('resource.not_found')
++
++    ctx.activity({
++      action: 'project.status_changed',
++      entityType: 'project',
++      entityId: data.id,
++      clientId: data.client_id,
++      projectId: data.id,
++      metadata: { status: data.status },
++    })
++
++    return { projectId: data.id, clientId: data.client_id, status: data.status }
++  },
++})
++
++/**
++ * Avança a jornada. Fecha a corrente, abre a próxima — atomicamente.
++ *
++ * As três respostas da função SQL viram três resultados distintos aqui, e
++ * nenhuma delas é ignorada:
++ *
++ *   'advanced'          seguiu.
++ *   'journey_complete'  a última etapa foi concluída. NÃO é erro, e a tela diz
++ *                       isso — a jornada terminou, o projeto continua no status
++ *                       em que estava (são eixos distintos, I-01).
++ *   'no_current'        não havia etapa corrente e ainda há trabalho. Vira erro
++ *                       de domínio, com frase própria: o conserto é explícito,
++ *                       por `setStageState`, e não uma escolha automática.
++ */
++export const advanceStage = defineWorkflow({
++  name: 'project.advance_stage',
++  input: advanceStageSchema,
++  capability: 'project.advance_stage',
++  authorize: async ({ input, ctx }) => {
++    const project = await readProject(ctx.db, input.projectId)
++    return project ? scopeAllowed() : scopeDenied()
++  },
++  handler: async ({ input, ctx }) => {
++    const { data, error } = await ctx.db.rpc('advance_project_stage', {
++      p_project_id: input.projectId,
++    })
++
++    if (error) throw new WorkflowError('project.advance_failed', { code: error.code ?? null })
++    if (data === 'no_current') throw new WorkflowError('project.no_current_stage')
++
++    /* Sem `ctx.activity()`: gravado na mesma transação, quando houve mudança. */
++    return { projectId: input.projectId, outcome: data === 'advanced' ? 'advanced' : 'complete' }
++  },
++})
++
++/**
++ * Correção manual da jornada: pular, voltar, corrigir a etapa corrente.
++ *
++ * Usa `project.advance_stage` como capacidade, e não uma nova. É a mesma
++ * autoridade sobre a mesma coisa — quem pode mover a jornada para a frente pode
++ * corrigi-la — e um vocabulário a mais precisaria ser mantido na matriz, na
++ * policy declarada nos testes e aqui, sem nenhum caso que o distinga.
++ */
++export const setStageState = defineWorkflow({
++  name: 'project.set_stage_state',
++  input: setStageStateSchema,
++  capability: 'project.advance_stage',
++  authorize: async ({ input, ctx }) => {
++    const project = await readProject(ctx.db, input.projectId)
++    return project ? scopeAllowed() : scopeDenied()
++  },
++  handler: async ({ input, ctx }) => {
++    /*
++     * O par (projeto, etapa) é conferido DENTRO da função, que recusa uma etapa
++     * que não pertence ao projeto informado. Não há checagem equivalente aqui
++     * de propósito: repeti-la criaria duas verdades sobre a mesma relação, e a
++     * que vale é a do banco.
++     */
++    const { data, error } = await ctx.db.rpc('set_project_stage_state', {
++      p_project_id: input.projectId,
++      p_stage_id: input.stageId,
++      p_state: input.state,
++    })
++
++    if (error) throw new WorkflowError('project.stage_update_failed', { code: error.code ?? null })
++
++    return { projectId: input.projectId, outcome: data ?? 'updated' }
++  },
++})
+diff --git a/src/domains/projects/queries.ts b/src/domains/projects/queries.ts
+new file mode 100644
+index 0000000..d039f73
+--- /dev/null
++++ b/src/domains/projects/queries.ts
+@@ -0,0 +1,310 @@
++import 'server-only'
++
++import { notFound } from 'next/navigation'
++import { cache } from 'react'
++import { stageSummary } from '@/config/journeys'
++import { requireActor } from '@/lib/auth/actor'
++import { requireBoop, requireClientAccess, requireProjectAccess } from '@/lib/auth/authorization'
++import { logger } from '@/lib/logging/logger'
++import { createSupabaseServerClient } from '@/lib/supabase/server'
++import { isPortalVisible } from '@/domains/projects/visibility'
++import {
++  PROJECT_DETAIL_COLUMNS,
++  PROJECT_LIST_COLUMNS,
++  PROJECT_PUBLIC_COLUMNS,
++  STAGE_ADMIN_COLUMNS,
++  STAGE_PUBLIC_COLUMNS,
++  type ProjectDetail,
++  type ProjectListItem,
++  type ProjectPublic,
++  type ProjectStage,
++  type ProjectStageAdmin,
++  type TeamMemberPublic,
++} from '@/domains/projects/types'
++
++/**
++ * Leituras de `projects` e `project_stages`. Sob RLS, com projeção explícita.
++ *
++ * Como em `clients/queries.ts`, cada função carrega o próprio guard.
++ *
++ * ## A distinção que esta fase acrescenta
++ *
++ * A RLS responde **tenant**: "este ator alcança este projeto?". Ela não
++ * responde **visibilidade de produto**: "este projeto deve aparecer para este
++ * ator?". As duas não são a mesma pergunta, e a diferença tem nome — `draft`.
++ *
++ * Um projeto `draft` pertence ao cliente, e `projects_select` concede a linha
++ * (`has_client_access`). Está certo: `boop_admin` e `boop_member` precisam ver
++ * rascunho para trabalhar nele. O que não pode é o rascunho aparecer para o
++ * `client_user` — é o análogo direto de conteúdo em `idea`, que
++ * `docs/security.md` proíbe expor.
++ *
++ * Apertar a policy resolveria pelo lado errado: `authenticated` é um papel só
++ * para as três personas, e um predicado por status na policy tiraria o rascunho
++ * da Boop junto. Então a regra de produto mora aqui, no servidor, exatamente
++ * como a projeção de `clients.notes` mora na lista de colunas — e a RLS
++ * continua cuidando do que só ela pode cuidar.
++ *
++ * As funções que DECIDEM isso — `isPortalVisible`, `isPortalResolvable` e
++ * `resolvePortalEntry` — vivem em `./visibility.ts`, e não aqui: são puras, e
++ * lógica sem I/O atrás de `server-only` fica cara de testar.
++ */
++
++/* ═══ Boop-side ═════════════════════════════════════════════════════════════ */
++
++/** Os projetos de um cliente, para o admin. Inclui `draft`. */
++export const listProjectsForClientForBoop = cache(
++  async (clientId: string): Promise<ProjectListItem[]> => {
++    await requireBoop()
++    await requireClientAccess(clientId)
++
++    const supabase = await createSupabaseServerClient()
++
++    const { data, error } = await supabase
++      .from('projects')
++      .select(PROJECT_LIST_COLUMNS)
++      .eq('client_id', clientId)
++      /* Ordem total e determinística: sem desempate por `id` duas linhas
++       * empatadas podem trocar de lugar entre requests. */
++      .order('starts_on', { ascending: false, nullsFirst: false })
++      .order('created_at', { ascending: false })
++      .order('id', { ascending: true })
++
++    if (error) {
++      logger.error('projects.list_failed', { code: error.code })
++      throw new Error('projects.list_failed')
++    }
++
++    return (data ?? []).map((row) => ({
++      id: row.id,
++      clientId: row.client_id,
++      name: row.name,
++      type: row.type,
++      status: row.status,
++      cycle: row.cycle,
++      startedOn: row.starts_on,
++      updatedAt: row.updated_at,
++    }))
++  },
++)
++
++/** O projeto inteiro, para a tela interna. A única projeção com `journeyKey`. */
++export const getProjectDetailForBoop = cache(async (projectId: string): Promise<ProjectDetail> => {
++  await requireBoop()
++  await requireProjectAccess(projectId)
++
++  const supabase = await createSupabaseServerClient()
++
++  const { data, error } = await supabase
++    .from('projects')
++    .select(PROJECT_DETAIL_COLUMNS)
++    .eq('id', projectId)
++    .maybeSingle()
++
++  /* Inexistente e inalcançável dão a MESMA resposta (docs/security.md). */
++  if (error || !data) notFound()
++
++  return {
++    id: data.id,
++    clientId: data.client_id,
++    name: data.name,
++    type: data.type,
++    status: data.status,
++    cycle: data.cycle,
++    journeyKey: data.journey_key,
++    startedOn: data.starts_on,
++    endsOn: data.ends_on,
++    createdAt: data.created_at,
++    updatedAt: data.updated_at,
++  }
++})
++
++/** A jornada para o admin: acrescenta quando cada etapa começou. */
++export const getProjectStagesForBoop = cache(
++  async (projectId: string): Promise<ProjectStageAdmin[]> => {
++    const project = await getProjectDetailForBoop(projectId)
++    const supabase = await createSupabaseServerClient()
++
++    const { data, error } = await supabase
++      .from('project_stages')
++      .select(STAGE_ADMIN_COLUMNS)
++      .eq('project_id', projectId)
++      .order('position', { ascending: true })
++
++    if (error) {
++      logger.error('project_stages.list_failed', { code: error.code })
++      throw new Error('project_stages.list_failed')
++    }
++
++    return (data ?? []).map((row) => ({
++      id: row.id,
++      key: row.stage_key,
++      label: row.label,
++      position: row.position,
++      state: row.state,
++      summary: stageSummary(project.journeyKey, row.stage_key),
++      startedOn: row.started_at,
++      completedOn: row.completed_at,
++    }))
++  },
++)
++
++/* ═══ Portal ════════════════════════════════════════════════════════════════ */
++
++/**
++ * O guard do portal — acesso **e** visibilidade, numa pergunta só.
++ *
++ * `requireProjectAccess()` sozinho não basta aqui, e é a correção mais
++ * importante desta fase: ele responde tenant, e responderia "sim" para um
++ * `draft` do próprio cliente. Esta função faz as duas perguntas e devolve a
++ * MESMA resposta para as três recusas possíveis — não existe, não é seu, não
++ * está visível para você. Quem troca uuid na URL não distingue nenhuma delas.
++ *
++ * É ela que o layout de `/portal/[projectId]` chama, e por isso vale para todas
++ * as páginas filhas de uma vez.
++ */
++export const requireVisiblePortalProject = cache(
++  async (projectId: string): Promise<ProjectPublic> => {
++    const actor = await requireActor()
++    /* Tenant primeiro: 404 antes de qualquer leitura de domínio. */
++    await requireProjectAccess(projectId)
++
++    const supabase = await createSupabaseServerClient()
++
++    const { data, error } = await supabase
++      .from('projects')
++      .select(PROJECT_PUBLIC_COLUMNS)
++      .eq('id', projectId)
++      .maybeSingle()
++
++    if (error || !data) notFound()
++    if (!isPortalVisible(data.status, actor)) notFound()
++
++    return {
++      id: data.id,
++      clientId: data.client_id,
++      name: data.name,
++      type: data.type,
++      status: data.status,
++      cycle: data.cycle,
++      startedOn: data.starts_on,
++    }
++  },
++)
++
++/**
++ * Todos os projetos que este ator pode abrir no portal, já ordenados.
++ *
++ * É a base do resolvedor de `/portal`. Não filtra por vínculo em TypeScript:
++ * `projects_select` já faz isso via `has_client_access`, e repetir criaria uma
++ * segunda verdade sobre escopo (ADR-0022). O que ele filtra é VISIBILIDADE, que
++ * a RLS não decide.
++ */
++export const listPortalProjects = cache(async (): Promise<ProjectPublic[]> => {
++  const actor = await requireActor()
++  const supabase = await createSupabaseServerClient()
++
++  const { data, error } = await supabase
++    .from('projects')
++    .select(PROJECT_PUBLIC_COLUMNS)
++    /*
++     * A ordem é declarada por inteiro, e não parcialmente: sem desempate total
++     * o Postgres pode devolver duas linhas empatadas em ordem diferente entre
++     * dois requests, e "o primeiro projeto" mudaria sozinho entre um F5 e
++     * outro. `id` fecha a ordem porque é único.
++     *
++     * `created_at` ordena sem ser projetado — o PostgREST aceita ordenar por
++     * coluna que não está no `select`, e o carimbo não vai para o payload.
++     */
++    .order('starts_on', { ascending: false, nullsFirst: false })
++    .order('created_at', { ascending: false })
++    .order('id', { ascending: true })
++
++  if (error) {
++    logger.error('portal.projects_failed', { code: error.code })
++    throw new Error('portal.projects_failed')
++  }
++
++  return (data ?? [])
++    .filter((row) => isPortalVisible(row.status, actor))
++    .map((row) => ({
++      id: row.id,
++      clientId: row.client_id,
++      name: row.name,
++      type: row.type,
++      status: row.status,
++      cycle: row.cycle,
++      startedOn: row.starts_on,
++    }))
++})
++
++/** A jornada como o cliente a vê, com o texto do template já resolvido. */
++export const getPortalJourney = cache(async (projectId: string): Promise<ProjectStage[]> => {
++  await requireVisiblePortalProject(projectId)
++
++  const supabase = await createSupabaseServerClient()
++
++  /*
++   * `journey_key` é buscado à parte, e não junto da projeção pública: ele
++   * precisa existir no SERVIDOR para resolver os `summary`, e não pode viajar
++   * para o cliente. Duas leituras pequenas, e a chave técnica não atravessa a
++   * fronteira do RSC.
++   */
++  const [project, stages] = await Promise.all([
++    supabase.from('projects').select('journey_key').eq('id', projectId).maybeSingle(),
++    supabase
++      .from('project_stages')
++      .select(STAGE_PUBLIC_COLUMNS)
++      .eq('project_id', projectId)
++      .order('position', { ascending: true }),
++  ])
++
++  if (stages.error) {
++    logger.error('portal.journey_failed', { code: stages.error.code })
++    throw new Error('portal.journey_failed')
++  }
++
++  const journeyKey = project.data?.journey_key ?? ''
++
++  return (stages.data ?? []).map((row) => ({
++    id: row.id,
++    key: row.stage_key,
++    label: row.label,
++    position: row.position,
++    state: row.state,
++    summary: stageSummary(journeyKey, row.stage_key),
++    completedOn: row.completed_at,
++  }))
++})
++
++/**
++ * Quem cuida desta conta pela Boop — só os nomes.
++ *
++ * Sai por `public.list_client_team()`, e não por um `select` daqui, porque um
++ * `client_user` não alcança `client_memberships` de terceiros nem `profiles` de
++ * outra pessoa — as duas policies negam, corretamente. A função é a fronteira
++ * mínima que devolve o que o produto pede (nomes) sem conceder o que ele não
++ * pede (a lista de vínculos, os perfis, os e-mails). Ver a migration.
++ *
++ * Lista vazia é resultado normal, não erro: conta sem pessoa da Boop vinculada
++ * simplesmente não mostra o bloco (D-16).
++ */
++export const listClientTeam = cache(async (clientId: string): Promise<TeamMemberPublic[]> => {
++  await requireClientAccess(clientId)
++
++  const supabase = await createSupabaseServerClient()
++
++  const { data, error } = await supabase.rpc('list_client_team', { p_client_id: clientId })
++
++  if (error) {
++    logger.error('portal.team_failed', { code: error.code })
++    /*
++     * A equipe é decoração informativa, não o conteúdo da página. Derrubar a
++     * tela do projeto porque a lista de nomes falhou seria trocar uma perda
++     * pequena por uma grande — o bloco some, como sumiria se estivesse vazio.
++     */
++    return []
++  }
++
++  return (data ?? []).flatMap((row) => (row.full_name ? [{ name: row.full_name }] : []))
++})
+diff --git a/src/domains/projects/schemas.ts b/src/domains/projects/schemas.ts
+new file mode 100644
+index 0000000..aa5f78c
+--- /dev/null
++++ b/src/domains/projects/schemas.ts
+@@ -0,0 +1,115 @@
++import { z } from 'zod'
++import { PROJECT_TYPES, STAGE_STATES } from '@/config/enums'
++
++/**
++ * Entrada dos workflows de projeto. Zod `.strict()`, sempre.
++ *
++ * O que NÃO aparece em nenhum schema, e por quê:
++ *
++ *   `id`           gerado pelo banco.
++ *   `journeyKey`   **derivado do `type`** por `JOURNEY_BY_TYPE`, no servidor.
++ *                  Aceitá-lo do formulário deixaria quem posta escolher a
++ *                  jornada independentemente do tipo — que é exatamente a
++ *                  incoerência que a migration de imutabilidade fecha do outro
++ *                  lado. Ele também não é vocabulário de produto: quem cria um
++ *                  projeto escolhe "Social media", não `social.v1`.
++ *   `status`       nasce `draft` por default do banco. Mudar é workflow com
++ *                  capacidade própria (`project.change_status`).
++ *   `cycle`        nasce 1. Quem o incrementa é o review (FASE 15).
++ *   `created_by`   vem do ator, dentro da função SQL.
++ *   `clientId` em `updateProject`  — o projeto já tem cliente, e ele é imutável
++ *                  no banco. Aceitá-lo aqui seria oferecer uma mudança que o
++ *                  trigger recusa.
++ *
++ * `type` também não está em `updateProjectSchema`: `type` e `journey_key` são
++ * imutáveis desde `20260903010349_immutable_journey_binding.sql`, porque as
++ * etapas já materializadas não podem discordar do template que as gerou.
++ * Oferecer o campo produziria um formulário que salva e o banco rejeita.
++ */
++
++const clientId = z.uuid({ error: 'client_id_invalid' })
++const projectId = z.uuid({ error: 'project_id_invalid' })
++const stageId = z.uuid({ error: 'stage_id_invalid' })
++
++const name = z
++  .string()
++  .trim()
++  .min(2, { error: 'name_too_short' })
++  .max(120, { error: 'name_too_long' })
++
++const projectType = z.enum(PROJECT_TYPES, { error: 'type_invalid' })
++
++/**
++ * Data opcional de verdade.
++ *
++ * `starts_on` é nullable no banco e a FASE 6 não muda isso: um projeto pode ser
++ * cadastrado antes de a data estar combinada. String vazia — que é o que um
++ * `<input type="date">` não preenchido manda — vira `null`, e não uma data
++ * inventada de hoje. A tela omite a linha quando não há data.
++ */
++const optionalDate = z
++  .string()
++  .trim()
++  .transform((value) => (value.length === 0 ? null : value))
++  .nullable()
++  .refine((value) => value === null || /^\d{4}-\d{2}-\d{2}$/.test(value), {
++    error: 'date_invalid',
++  })
++
++export const createProjectSchema = z
++  .object({ clientId, name, type: projectType, startsOn: optionalDate })
++  .strict()
++
++/**
++ * Edição administrativa. Quatro campos, e são os que não afetam a jornada.
++ *
++ * `endsOn` entra junto com `startsOn` porque o banco tem
++ * `check (ends_on >= starts_on)`: editar um sem o outro tornaria possível
++ * salvar um par que o check recusa sem que a tela pudesse explicar qual dos
++ * dois estava errado.
++ */
++export const updateProjectSchema = z
++  .object({ projectId, name, startsOn: optionalDate, endsOn: optionalDate })
++  .strict()
++  .refine(
++    (input) => input.startsOn === null || input.endsOn === null || input.endsOn >= input.startsOn,
++    { error: 'period_invalid', path: ['endsOn'] },
++  )
++
++/**
++ * Transição de status. O enum inteiro, e não um literal reduzido.
++ *
++ * Diferente de `setClientStatusSchema`, que exclui `archived` para impedir que
++ * `client.update` contorne `client.archive`: em projeto **não há essa
++ * assimetria**. A matriz tem uma linha só — `project.change_status` — e ela é
++ * da Boop inteira, arquivamento incluído (docs/permissions.md). Recortar o
++ * enum aqui inventaria uma regra que a matriz não tem.
++ *
++ * `draft` fica de fora por outro motivo: é o estado de nascimento, e voltar
++ * para ele diria que o projeto nunca começou. As transições legítimas são
++ * conferidas em `mutations.ts`, contra o estado lido do banco.
++ */
++export const changeProjectStatusSchema = z
++  .object({
++    projectId,
++    status: z.literal(['active', 'paused', 'completed', 'archived']),
++  })
++  .strict()
++
++export const advanceStageSchema = z.object({ projectId }).strict()
++
++/**
++ * A correção manual. Aceita os quatro estados, inclusive `current`.
++ *
++ * `current` é o caso que exige transação — a corrente anterior precisa sair no
++ * mesmo gesto —, e é resolvido dentro de `set_project_stage_state()`.
++ */
++export const setStageStateSchema = z
++  .object({ projectId, stageId, state: z.enum(STAGE_STATES, { error: 'state_invalid' }) })
++  .strict()
++
++export type CreateProjectInput = z.infer<typeof createProjectSchema>
++export type UpdateProjectInput = z.infer<typeof updateProjectSchema>
++export type ChangeProjectStatusInput = z.infer<typeof changeProjectStatusSchema>
++export type AdvanceStageInput = z.infer<typeof advanceStageSchema>
++export type SetStageStateInput = z.infer<typeof setStageStateSchema>
+diff --git a/src/domains/projects/types.ts b/src/domains/projects/types.ts
+new file mode 100644
+index 0000000..f69ad0b
+--- /dev/null
++++ b/src/domains/projects/types.ts
+@@ -0,0 +1,161 @@
++import type { ProjectStatus, ProjectType, StageState } from '@/config/enums'
++import type { AssertClientFacing } from '@/lib/data/projection'
++
++/**
++ * Projeções de `projects` e `project_stages`, separadas por AUDIÊNCIA.
++ *
++ * Mesma convenção da FASE 5 (`domains/clients/types.ts`): duas formas com dois
++ * nomes, nunca uma com booleano. O que muda aqui é que `INTERNAL_FIELDS` não
++ * pega nenhuma coluna destas duas tabelas — não existe `notes` em `projects` —,
++ * e mesmo assim há campo que o cliente não deve receber.
++ *
++ * ## O que é interno sem estar em `INTERNAL_FIELDS`
++ *
++ * | Coluna        | Por que fica fora da projeção client-facing                 |
++ * | ------------- | ----------------------------------------------------------- |
++ * | `journey_key` | identificador de template (`social.v1`). Jargão técnico na   |
++ * |               | tela do cliente, que a regra de frontend proíbe. Vira        |
++ * |               | `summary` traduzido, não a chave crua.                       |
++ * | `created_by`  | qual pessoa da Boop criou a conta. Bastidor de operação.     |
++ * | `created_at`  | quando a Boop cadastrou o projeto no sistema — que não é     |
++ * |               | quando o trabalho começou (`starts_on`). Confundiria.        |
++ * | `updated_at`  | carimbo de infraestrutura. Não é informação de produto.      |
++ *
++ * `AssertClientFacing` não cobre nenhum desses, e é honesto dizer por quê: ele
++ * protege a lista de campos INTERNOS do sistema, que hoje é `notes` e
++ * `internal_notes`. Os quatro acima não são segredo — são ruído, ou
++ * vocabulário errado para quem lê. A proteção deles é a mesma primeira camada
++ * de sempre: **a coluna não sai do banco**, porque não está na lista do
++ * `select`. O que não é buscado não vaza no payload do RSC.
++ *
++ * O assert continua ao lado de cada projeção client-facing, exportado, porque
++ * é ele que cobra no dia em que `projects` ganhar uma coluna interna de
++ * verdade.
++ */
++
++/* ═══ Listas de colunas — a PRIMEIRA camada ═════════════════════════════════ */
++
++/** Lista administrativa de projetos de um cliente. Boop-side. */
++export const PROJECT_LIST_COLUMNS =
++  'id, client_id, name, type, status, cycle, starts_on, updated_at'
++
++/** Detalhe interno. A única projeção que traz `journey_key` e `created_at`. */
++export const PROJECT_DETAIL_COLUMNS =
++  'id, client_id, name, type, status, cycle, journey_key, starts_on, ends_on, created_at, updated_at'
++
++/**
++ * Client-facing. Sem `journey_key`, sem `created_by`, sem carimbos.
++ *
++ * `client_id` fica: é o próprio tenant de quem lê, e a tela do portal precisa
++ * dele para resolver o nome do cliente e para compor com outros loaders.
++ */
++export const PROJECT_PUBLIC_COLUMNS = 'id, client_id, name, type, status, cycle, starts_on'
++
++/**
++ * Etapas para o portal.
++ *
++ * `started_at` NÃO entra: nenhuma tela desta fase mostra quando uma etapa
++ * começou — a jornada mostra o que foi concluído e o que está em andamento. A
++ * regra é não buscar o que a tela não usa, e ela vale para campo inócuo
++ * também: o dia em que `started_at` aparecer aqui deve ser o dia em que
++ * alguém decidiu mostrá-lo.
++ */
++export const STAGE_PUBLIC_COLUMNS = 'id, stage_key, label, position, state, completed_at'
++
++/** Etapas para o admin: acrescenta `started_at`, que a tela de jornada mostra. */
++export const STAGE_ADMIN_COLUMNS = 'id, stage_key, label, position, state, started_at, completed_at'
++
++/* ═══ Projeções ═════════════════════════════════════════════════════════════ */
++
++/** Uma linha da lista de projetos de um cliente, no admin. */
++export interface ProjectListItem {
++  id: string
++  clientId: string
++  name: string
++  type: ProjectType
++  status: ProjectStatus
++  cycle: number
++  /** `starts_on` é nullable no banco, e o tipo não finge o contrário. */
++  startedOn: string | null
++  updatedAt: string
++}
++
++/** O projeto inteiro, para a tela interna da Boop. */
++export interface ProjectDetail {
++  id: string
++  clientId: string
++  name: string
++  type: ProjectType
++  status: ProjectStatus
++  cycle: number
++  /** ⚠️ Vocabulário interno. Nunca serializar para uma tela do portal. */
++  journeyKey: string
++  startedOn: string | null
++  endsOn: string | null
++  createdAt: string
++  updatedAt: string
++}
++
++/**
++ * O projeto como o cliente pode vê-lo.
++ *
++ * Não tem `journeyKey`: quem precisa dele para resolver os textos da jornada é
++ * o servidor, e ele o busca à parte. O que atravessa a fronteira do RSC é o
++ * texto já resolvido, nunca a chave.
++ */
++export interface ProjectPublic {
++  id: string
++  clientId: string
++  name: string
++  type: ProjectType
++  status: ProjectStatus
++  cycle: number
++  startedOn: string | null
++}
++
++/**
++ * Uma etapa da jornada, já com o texto do template resolvido.
++ *
++ * `summary` é `string | null` porque o template pode não ter a chave — projeto
++ * criado com um template depois aposentado. `null` não é erro: é a tela
++ * omitindo a linha de apoio e mostrando a etapa assim mesmo
++ * (`src/config/journeys.ts#stageSummary`).
++ */
++export interface ProjectStage {
++  id: string
++  key: string
++  label: string
++  position: number
++  state: StageState
++  summary: string | null
++  completedOn: string | null
++}
++
++/** Uma etapa na tela de jornada do admin. Acrescenta quando começou. */
++export interface ProjectStageAdmin extends ProjectStage {
++  startedOn: string | null
++}
++
++/**
++ * O nome de quem cuida da conta pela Boop.
++ *
++ * Um objeto de um campo só, e não `string[]`, porque a tela lista pessoas e um
++ * array de strings soltas convida o próximo campo a virar `${name} — ${role}`
++ * concatenado. Não há papel aqui de propósito: a V0 não guarda cargo, e
++ * inventar "Estrategista" a partir de `boop_member` seria escrever ficção na
++ * tela do cliente (D-16).
++ */
++export interface TeamMemberPublic {
++  name: string
++}
++
++/* ═══ A trava ═══════════════════════════════════════════════════════════════ */
++
++/*
++ * ⚠️ NÃO REMOVER. Se `projects` ou `project_stages` ganharem um campo de
++ * `INTERNAL_FIELDS` — um `notes` de projeto, por exemplo —, o `pnpm typecheck`
++ * para aqui, e não numa revisão de código.
++ */
++export type _ProjectPublicIsSafe = AssertClientFacing<ProjectPublic>
++export type _ProjectStageIsSafe = AssertClientFacing<ProjectStage>
++export type _TeamMemberPublicIsSafe = AssertClientFacing<TeamMemberPublic>
+diff --git a/src/domains/projects/visibility.ts b/src/domains/projects/visibility.ts
+new file mode 100644
+index 0000000..d58f6aa
+--- /dev/null
++++ b/src/domains/projects/visibility.ts
+@@ -0,0 +1,95 @@
++import type { ProjectStatus } from '@/config/enums'
++import type { Actor } from '@/lib/auth/actor'
++import type { ProjectPublic } from '@/domains/projects/types'
++
++/**
++ * Visibilidade de produto — a regra que a RLS NAO decide.
++ *
++ * Puro, sem `server-only`, sem banco: sao funcoes de decisao, e por isso vivem
++ * fora de `queries.ts`. Logica sem I/O atras de `server-only` fica intestavel
++ * sem subir meio Next, e um teste caro e um teste que alguem acaba nao
++ * escrevendo.
++ *
++ * ## As duas perguntas, e por que sao duas
++ *
++ * A RLS responde **tenant**: "este ator alcanca este projeto?". `projects_select`
++ * usa `has_client_access(client_id)` e concede a linha inteira — inclusive de um
++ * projeto `draft`, o que esta certo: a Boop precisa ver rascunho para trabalhar
++ * nele.
++ *
++ * O que a policy nao pode responder e **visibilidade**: `authenticated` e um
++ * papel so para as tres personas, entao um predicado por status na policy
++ * tiraria o rascunho da Boop junto com o do cliente. A regra de produto mora
++ * aqui, no servidor, exatamente como a projecao de `clients.notes` mora na lista
++ * de colunas (§33 do escopo da FASE 6).
++ *
++ *   `isPortalVisible`     pode ABRIR por URL direta?
++ *   `isPortalResolvable`  entra na escolha AUTOMATICA de `/portal`?
++ *
++ * As duas nao sao a mesma: um projeto concluido e visivel e nao e resolvivel.
++ */
++
++/**
++ * O `client_user` nunca alcanca um projeto `draft`, nem por URL direta.
++ *
++ * E o analogo direto de conteudo em `idea`, que `docs/security.md` proibe expor:
++ * trabalho que a Boop ainda nao mostrou.
++ *
++ * Os outros quatro ele alcanca — `active` e `paused` porque sao o trabalho
++ * corrente, `completed` e `archived` porque sao o historico dele, e esconder o
++ * proprio passado seria apagar a conta em vez de encerra-la.
++ */
++const CLIENT_HIDDEN_STATUSES: readonly ProjectStatus[] = ['draft']
++
++/**
++ * O que entra na resolucao AUTOMATICA de `/portal`.
++ *
++ * `completed` e `archived` ficam de fora: continuam alcancaveis por URL e
++ * continuam no historico, mas mandar alguem direto para um projeto encerrado
++ * responderia a pergunta errada. Um cliente cujo unico projeto terminou ve o
++ * estado vazio, que e a verdade (D-18).
++ */
++const RESOLVABLE_STATUSES: readonly ProjectStatus[] = ['active', 'paused']
++
++/** Este ator pode ABRIR um projeto neste status? */
++export function isPortalVisible(status: ProjectStatus, actor: Actor): boolean {
++  if (actor.role !== 'client_user') return true
++  return !CLIENT_HIDDEN_STATUSES.includes(status)
++}
++
++/** Este projeto participa da resolucao automatica de `/portal`? */
++export function isPortalResolvable(status: ProjectStatus, actor: Actor): boolean {
++  return isPortalVisible(status, actor) && RESOLVABLE_STATUSES.includes(status)
++}
++
++/**
++ * A decisao de `/portal`, separada da rota para poder ser testada sem Next.
++ *
++ * Tres saidas, e nenhuma delas escolhe as cegas:
++ *
++ *   `empty`    nenhum projeto resolvivel. Vira estado vazio com voz — nunca
++ *              404, nunca redirect para um projeto encerrado (D-19).
++ *   `single`   exatamente um. Redireciona direto, sem seletor.
++ *   `choice`   dois ou mais. Mostra a escolha; `.first()` seria arbitrario.
++ */
++export type PortalResolution =
++  | { kind: 'empty' }
++  | { kind: 'single'; project: ProjectPublic }
++  | { kind: 'choice'; projects: ProjectPublic[] }
++
++export function resolvePortalEntry(
++  projects: readonly ProjectPublic[],
++  actor: Actor,
++): PortalResolution {
++  const resolvable = projects.filter((project) => isPortalResolvable(project.status, actor))
++
++  if (resolvable.length === 0) return { kind: 'empty' }
++  if (resolvable.length === 1 && resolvable[0]) return { kind: 'single', project: resolvable[0] }
++
++  /*
++   * A ORDEM recebida e preservada. Quem ordena e a consulta, com desempate
++   * total (`starts_on`, `created_at`, `id`): reordenar aqui criaria uma segunda
++   * regra de ordenacao, e as duas discordariam no primeiro empate.
++   */
++  return { kind: 'choice', projects: resolvable }
++}
+diff --git a/src/lib/auth/policy.ts b/src/lib/auth/policy.ts
+index 9774f74..95ea478 100644
+--- a/src/lib/auth/policy.ts
++++ b/src/lib/auth/policy.ts
+@@ -56,6 +56,7 @@ export const CAPABILITIES = [
+   'project.create',
+   'project.update',
+   'project.advance_stage',
++  'project.change_status',
+   /* Onboarding */
+   'onboarding.template.manage',
+   'onboarding.start',
+@@ -114,7 +115,22 @@ const PERMITIDO: Record<Capability, readonly UserRole[]> = {
+   'project.read': ['boop_admin', 'boop_member', 'client_user'],
+   'project.create': ['boop_admin'],
+   'project.update': ['boop_admin', 'boop_member'],
++  /*
++   * `advance_stage` e a autoridade sobre a JORNADA inteira na V0 — avancar e
++   * tambem corrigir (`setStageState`). Nao ha capacidade separada para a
++   * correcao manual: e a mesma decisao, tomada pela mesma pessoa, sobre a
++   * mesma linha. Vocabulario novo sem caso novo so aumenta o que precisa ser
++   * mantido em duas listas (docs/permissions.md, FASE 6).
++   */
+   'project.advance_stage': ['boop_admin', 'boop_member'],
++  /*
++   * Estava na matriz de docs/permissions.md desde a FASE 0 e nao estava aqui.
++   * O banco ja cobria o caso — `projects_update` exige `is_boop()` e vinculo —,
++   * entao nao houve brecha aberta; o que faltava era a linha da matriz ter
++   * representacao em `can()`. Ver a nota sobre paridade em
++   * `tests/unit/permissions.matrix.test.ts` (FASE 6).
++   */
++  'project.change_status': ['boop_admin', 'boop_member'],
+ 
+   'onboarding.template.manage': ['boop_admin'],
+   'onboarding.start': ['boop_admin', 'boop_member'],
+diff --git a/src/lib/data/portal.ts b/src/lib/data/portal.ts
+index 7de4174..625637b 100644
+--- a/src/lib/data/portal.ts
++++ b/src/lib/data/portal.ts
+@@ -1,5 +1,6 @@
+-import { notFound } from 'next/navigation'
+ import { isClientVisible } from '@/config/enums'
++import { getClientPublic } from '@/domains/clients/queries'
++import { getPortalJourney, requireVisiblePortalProject } from '@/domains/projects/queries'
+ import * as hartmann from '@/mocks/hartmann'
+ import type {
+   AttentionItem,
+@@ -18,38 +19,84 @@ import type {
+ /**
+  * Camada de acesso a dados do portal.
+  *
+- * É a única fronteira entre as telas e a origem dos dados. Hoje a origem é
+- * `src/mocks/hartmann.ts`; na FASE 5 passa a ser um repository sobre o
+- * Supabase e nenhuma tela precisa mudar — o contrato é `./types.ts`.
++ * É a única fronteira entre as telas e a origem dos dados. **A partir da FASE 6
++ * ela tem duas origens**, e a divisão é exata:
+  *
+- * Três decisões que deixam essa troca limpa:
++ *   projeto e jornada  →  Supabase, sob RLS, por `domains/projects/queries`
++ *   todo o resto       →  `src/mocks/hartmann.ts`, até a fase de cada domínio
+  *
+- * 1. Toda função é `async`. Hoje resolve na hora; amanhã faz I/O. Nenhum
+- *    componente precisa virar assíncrono depois.
+- * 2. Toda função recebe `projectId` e valida. É onde `requireProjectAccess()`
+- *    vai entrar na FASE 4 — a autorização já tem lugar reservado.
+- * 3. A visibilidade de conteúdo já é filtrada aqui, com a mesma regra que a
+- *    RLS vai aplicar no banco (docs/security.md). O protótipo já não mostra
+- *    rascunho nem backlog.
++ * Nenhuma tela mudou por causa disso, que era o contrato prometido na FASE 1:
++ * `MOCK → DATA LAYER → SUPABASE`, com `./types.ts` no meio.
++ *
++ * ## O que mudou de verdade, e é o ponto da fase
++ *
++ * `assertProject()` comparava uma string com `DEMO_PROJECT_ID` e chamava
++ * `notFound()`. Era a única barreira do portal — e não era barreira nenhuma:
++ * não consultava o banco, não sabia quem estava pedindo, e teria devolvido o
++ * projeto do mock para qualquer pessoa autenticada.
++ *
++ * No lugar dela entrou `requireVisiblePortalProject()`, que faz DUAS perguntas
++ * ao banco: o vínculo (RLS, via `has_project_access`) e a visibilidade de
++ * produto (um `draft` não existe para o `client_user`). As três recusas
++ * possíveis — não existe, não é seu, não está visível — produzem exatamente a
++ * mesma resposta.
++ *
++ * ## Por que as funções mockadas continuam recebendo `projectId`
++ *
++ * Elas passaram a receber um uuid REAL, conferido pelo mesmo guard das outras.
++ * Nenhuma delas usa `DEMO_PROJECT_ID` como atalho: o id é validado primeiro, e
++ * só então o mock responde. Assim, quando a FASE 7 trocar `getOnboarding()` por
++ * uma consulta de verdade, a autorização já está no lugar certo — e o que
++ * mudou foi só de onde vieram as linhas.
+  */
+ 
+-/** Único projeto do protótipo. Na FASE 6 vem do banco. */
+-export const DEMO_PROJECT_ID = hartmann.PROJECT.id
+-
+-function assertProject(projectId: string): void {
+-  // FASE 4: aqui entra requireProjectAccess(projectId), que responde 404
+-  // para recurso inacessível — nunca 403 (docs/security.md).
+-  if (projectId !== DEMO_PROJECT_ID) notFound()
++/**
++ * O guard de todas as funções deste arquivo.
++ *
++ * Cada uma o chama, inclusive as que ainda respondem com mock. Um loader seguro
++ * só porque a página que o chama é segura deixa de ser seguro na segunda
++ * página (docs/security.md).
++ */
++async function assertProject(projectId: string): Promise<void> {
++  await requireVisiblePortalProject(projectId)
+ }
+ 
++/**
++ * O projeto, do banco.
++ *
++ * Duas leituras, e não um embed: o nome do cliente sai de `getClientPublic()`,
++ * que carrega o próprio guard e a própria projeção — a que NÃO tem `notes`.
++ * Pedir `clients(name)` embutido aqui funcionaria e deixaria a decisão sobre
++ * quais colunas de `clients` atravessam a fronteira em dois lugares.
++ */
+ export async function getProject(projectId: string): Promise<ProjectSummary> {
+-  assertProject(projectId)
+-  return hartmann.PROJECT
++  const project = await requireVisiblePortalProject(projectId)
++  const client = await getClientPublic(project.clientId)
++
++  return {
++    id: project.id,
++    clientName: client.name,
++    name: project.name,
++    type: project.type,
++    cycle: project.cycle,
++    startedOn: project.startedOn,
++  }
+ }
+ 
++/**
++ * A jornada, do banco — ordem, rótulo e estado — com o `summary` resolvido do
++ * template em código (ADR-0006).
++ */
+ export async function getJourney(projectId: string): Promise<JourneyStage[]> {
+-  assertProject(projectId)
+-  return hartmann.JOURNEY
++  const stages = await getPortalJourney(projectId)
++
++  return stages.map((stage) => ({
++    key: stage.key,
++    label: stage.label,
++    state: stage.state,
++    summary: stage.summary,
++    completedOn: stage.completedOn,
++  }))
+ }
+ 
+ export async function getCurrentStage(projectId: string): Promise<JourneyStage | undefined> {
+@@ -62,17 +109,17 @@ export async function getCurrentStage(projectId: string): Promise<JourneyStage |
+  * card de "nenhum item" (CLAUDE.md).
+  */
+ export async function getAttention(projectId: string): Promise<AttentionItem[]> {
+-  assertProject(projectId)
++  await assertProject(projectId)
+   return hartmann.ATTENTION.filter((item) => item.count > 0)
+ }
+ 
+ export async function getNextDelivery(projectId: string): Promise<Delivery | null> {
+-  assertProject(projectId)
++  await assertProject(projectId)
+   return hartmann.NEXT_DELIVERY
+ }
+ 
+ export async function getMeetings(projectId: string): Promise<Meeting[]> {
+-  assertProject(projectId)
++  await assertProject(projectId)
+   return [...hartmann.MEETINGS].sort((a, b) => a.startAt.localeCompare(b.startAt))
+ }
+ 
+@@ -82,7 +129,7 @@ export async function getNextMeeting(projectId: string): Promise<Meeting | null>
+ }
+ 
+ export async function getDashboardInsight(projectId: string): Promise<Insight | null> {
+-  assertProject(projectId)
++  await assertProject(projectId)
+   return hartmann.DASHBOARD_INSIGHT
+ }
+ 
+@@ -91,7 +138,7 @@ export async function getDashboardInsight(projectId: string): Promise<Insight |
+  * `idea`, `planned`, `in_production` e `internal_review` nunca chegam aqui.
+  */
+ export async function getContentList(projectId: string): Promise<ContentItem[]> {
+-  assertProject(projectId)
++  await assertProject(projectId)
+   return hartmann.CONTENT.filter((item) => isClientVisible(item.status))
+ }
+ 
+@@ -109,21 +156,21 @@ export async function getAwaitingContent(projectId: string): Promise<ContentItem
+ }
+ 
+ export async function getStrategy(projectId: string): Promise<Strategy> {
+-  assertProject(projectId)
++  await assertProject(projectId)
+   return hartmann.STRATEGY
+ }
+ 
+ export async function getOnboarding(projectId: string): Promise<OnboardingSection[]> {
+-  assertProject(projectId)
++  await assertProject(projectId)
+   return hartmann.ONBOARDING
+ }
+ 
+ export async function getResults(projectId: string): Promise<ResultsPeriod | null> {
+-  assertProject(projectId)
++  await assertProject(projectId)
+   return hartmann.RESULTS
+ }
+ 
+ export async function getFiles(projectId: string): Promise<ProjectFile[]> {
+-  assertProject(projectId)
++  await assertProject(projectId)
+   return hartmann.FILES
+ }
+diff --git a/src/lib/data/types.ts b/src/lib/data/types.ts
+index 525bdd4..16eefd2 100644
+--- a/src/lib/data/types.ts
++++ b/src/lib/data/types.ts
+@@ -21,6 +21,21 @@ import type {
+   StageState,
+ } from '@/config/enums'
+ 
++/**
++ * O projeto, como o portal precisa dele. Preenchido pelo banco desde a FASE 6.
++ *
++ * ## Dois campos sairam daqui na FASE 6, e a ausencia e decisao (D-16)
++ *
++ * `scope: string[]` — "o que combinamos" — **nao tem origem**. Nenhuma coluna
++ * do schema o guarda, e `docs/data-model.md` nao o lista nem entre as tabelas
++ * adiadas. Enquanto o portal lia mock ele existia como texto ilustrativo; com
++ * dado real, mante-lo exigiria inventar o conteudo de um acordo comercial na
++ * tela do cliente. O bloco saiu inteiro — bloco sem origem nao aparece.
++ *
++ * `team` saiu daqui, mas NAO do produto: ele passou a ser carregado a parte,
++ * por `listClientTeam()`, porque vem de outra tabela e tem outra fronteira de
++ * autorizacao. Compor os dois e papel da tela, nao deste tipo.
++ */
+ export interface ProjectSummary {
+   id: string
+   clientName: string
+@@ -28,18 +43,30 @@ export interface ProjectSummary {
+   type: ProjectType
+   /** Ciclo editorial corrente. A jornada e ciclica (docs/product.md). */
+   cycle: number
+-  startedOn: string
+-  scope: string[]
+-  team: { name: string; role: string }[]
++  /**
++   * `projects.starts_on` e nullable, e o tipo nao finge o contrario.
++   *
++   * Um projeto pode ser cadastrado antes de a data de inicio estar combinada.
++   * A tela omite a linha quando nao ha data — nunca inventa "hoje" para
++   * satisfazer o TypeScript.
++   */
++  startedOn: string | null
+ }
+ 
+ export interface JourneyStage {
+   key: string
+   label: string
+   state: StageState
+-  /** Uma linha explicando o que acontece nesta etapa. Visivel ao cliente. */
+-  summary: string
+-  completedOn?: string
++  /**
++   * Uma linha explicando o que acontece nesta etapa. Visivel ao cliente.
++   *
++   * `null` quando a `stage_key` do projeto nao existe mais no template — um
++   * projeto criado com uma jornada depois aposentada. A etapa continua com
++   * rotulo, posicao e estado, que vem do banco; some so o texto de apoio
++   * (`src/config/journeys.ts#stageSummary`).
++   */
++  summary: string | null
++  completedOn?: string | null
+ }
+ 
+ /** O bloco mais importante do dashboard: o que depende do cliente. */
+diff --git a/src/mocks/hartmann.ts b/src/mocks/hartmann.ts
+index 25fa8a6..27d5afc 100644
+--- a/src/mocks/hartmann.ts
++++ b/src/mocks/hartmann.ts
+@@ -14,77 +14,25 @@ import type {
+   ContentItem,
+   Delivery,
+   Insight,
+-  JourneyStage,
+   Meeting,
+   OnboardingSection,
+   ProjectFile,
+-  ProjectSummary,
+   ResultsPeriod,
+   Strategy,
+ } from '@/lib/data/types'
+ 
+-export const PROJECT: ProjectSummary = {
+-  id: 'hartmann-social',
+-  clientName: 'Hartmann',
+-  name: 'Social Media',
+-  type: 'social',
+-  cycle: 1,
+-  startedOn: '2026-07-14',
+-  scope: [
+-    'Imersão de marca e pesquisa de categoria',
+-    'Direção editorial trimestral',
+-    '12 conteúdos por mês para Instagram',
+-    'Review mensal de resultados e aprendizados',
+-  ],
+-  team: [
+-    { name: 'Ana', role: 'Estratégia' },
+-    { name: 'Rafa', role: 'Conteúdo' },
+-    { name: 'Dani', role: 'Design' },
+-  ],
+-}
+-
+-export const JOURNEY: JourneyStage[] = [
+-  {
+-    key: 'immersion',
+-    label: 'Imersão',
+-    state: 'done',
+-    summary: 'Entendemos o negócio, a história e o que a Hartmann quer construir.',
+-    completedOn: '2026-07-24',
+-  },
+-  {
+-    key: 'research',
+-    label: 'Pesquisa',
+-    state: 'done',
+-    summary: 'Estudamos a categoria, as concorrentes e como as pessoas compram joia hoje.',
+-    completedOn: '2026-08-07',
+-  },
+-  {
+-    key: 'strategy',
+-    label: 'Estratégia',
+-    state: 'done',
+-    summary: 'Definimos posicionamento, territórios editoriais e o que vamos medir.',
+-    completedOn: '2026-08-26',
+-  },
+-  {
+-    key: 'production',
+-    label: 'Produção',
+-    state: 'current',
+-    summary: 'Estamos criando o primeiro ciclo editorial. Parte já está com você.',
+-  },
+-  {
+-    key: 'publishing',
+-    label: 'Publicação',
+-    state: 'pending',
+-    summary: 'O que for aprovado entra no ar na ordem combinada.',
+-  },
+-  {
+-    key: 'review',
+-    label: 'Review',
+-    state: 'pending',
+-    summary: 'Olhamos os números juntas e decidimos o que muda no próximo ciclo.',
+-  },
+-]
+-
++/*
++ * `PROJECT` e `JOURNEY` sairam na FASE 6.
++ *
++ * Eles nao foram substituidos por outro mock: projeto e jornada passaram a vir
++ * do Supabase, sob RLS, por `src/domains/projects/queries.ts`. Enquanto
++ * existiam, eram eles que decidiam a IDENTIDADE do portal — `DEMO_PROJECT_ID`
++ * era `PROJECT.id`, e qualquer pessoa autenticada caia no mesmo projeto.
++ *
++ * O resto deste arquivo continua, e continua sendo a unica fonte de dado
++ * ficticio do repositorio: conteudo, estrategia, arquivos, reunioes,
++ * resultados, onboarding, atencao e insight sao das FASES 7+.
++ */
+ export const ATTENTION: AttentionItem[] = [
+   {
+     id: 'content-awaiting',
+-- 
+2.43.0
+
