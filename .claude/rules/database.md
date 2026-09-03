@@ -42,10 +42,19 @@ Raciocínio em [`docs/data-model.md`](../../docs/data-model.md) e
 ## Escrita multi-linha
 
 Se a operação toca mais de uma linha e não pode ficar pela metade, é função SQL
-(`security definer`) chamada por `rpc`. São cinco na V0
+(`security definer`) chamada por `rpc`. São **oito** na V0 desde a FASE 6
 ([`docs/workflows.md`](../../docs/workflows.md#consistência-quando-usar-função-sql)).
-Antes de criar a sexta, releia
-[ADR-0011](../../docs/adr/0011-workflows-transacionais-em-sql.md).
+Antes de criar a nona, releia
+[ADR-0011](../../docs/adr/0011-workflows-transacionais-em-sql.md) e
+[ADR-0023](../../docs/adr/0023-fronteiras-transacionais-de-projeto-e-jornada.md),
+que revisou a contagem e registrou o critério aplicado.
+
+Função `rpc` mora em `public`, **nunca em `app`**: o `config.toml` expõe só
+`public` e `graphql_public`, e `app` tem `revoke all ... from authenticated`
+desde o bootstrap. Pelo mesmo motivo ela é `security definer` — uma função
+`invoker` chamada por `authenticated` não alcança `app.is_boop_admin()`. O preço
+é que a RLS **não** vale dentro dela: toda checagem que a policy faria precisa
+estar escrita no corpo, com as mesmas funções `app.*`.
 
 ## Mudança destrutiva
 

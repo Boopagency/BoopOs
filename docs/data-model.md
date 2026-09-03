@@ -403,16 +403,18 @@ avisos, mesmo com replay do workflow.
 
 ## Tabelas que a especificação pede e que **não** entram agora
 
-| Tabela                                   | Motivo                                                                                                       | Quando                                            |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
-| `research_items`, `research_collections` | Pesquisa é etapa da jornada; o resultado é entregue dentro da Estratégia. Nenhuma fase do roadmap a constrói | Quando houver biblioteca de pesquisa reutilizável |
-| `meeting_notes`                          | Nota de reunião cabe em `meetings.description` na V0                                                         | Quando houver ata estruturada                     |
-| `project_memberships`                    | Cliente vê todos os projetos dele; `boop_member` é escopado por cliente                                      | Quando um cliente exigir separação por projeto    |
-| `strategy_comments`                      | "Solicitar ajuste" cabe em `strategy_approvals.note`                                                         | Quando houver discussão encadeada na estratégia   |
-| `content_publications`                   | Não há publicação automatizada; `published_at` + `published_url` bastam                                      | Quando existir agendador                          |
-| `integrations`, `integration_events`     | Não há integração externa de domínio antes da FASE 17                                                        | FASE 17 (Notion)                                  |
-| `automation_runs`                        | Side-effects rodam inline com registro em `notifications`                                                    | FASE 18, se houver retry automático               |
-| `invitations`                            | Convidar já cria usuário + vínculo; `profiles.status` cobre o resto                                          | Provavelmente nunca                               |
+| Tabela                                   | Motivo                                                                                                                                | Quando                                               |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `research_items`, `research_collections` | Pesquisa é etapa da jornada; o resultado é entregue dentro da Estratégia. Nenhuma fase do roadmap a constrói                          | Quando houver biblioteca de pesquisa reutilizável    |
+| `meeting_notes`                          | Nota de reunião cabe em `meetings.description` na V0                                                                                  | Quando houver ata estruturada                        |
+| `project_memberships`                    | Cliente vê todos os projetos dele; `boop_member` é escopado por cliente                                                               | Quando um cliente exigir separação por projeto       |
+| `strategy_comments`                      | "Solicitar ajuste" cabe em `strategy_approvals.note`                                                                                  | Quando houver discussão encadeada na estratégia      |
+| `content_publications`                   | Não há publicação automatizada; `published_at` + `published_url` bastam                                                               | Quando existir agendador                             |
+| `integrations`, `integration_events`     | Não há integração externa de domínio antes da FASE 17                                                                                 | FASE 17 (Notion)                                     |
+| `automation_runs`                        | Side-effects rodam inline com registro em `notifications`                                                                             | FASE 18, se houver retry automático                  |
+| `invitations`                            | Convidar já cria usuário + vínculo; `profiles.status` cobre o resto                                                                   | Provavelmente nunca                                  |
+| `project_scope` (ou `projects.scope`)    | **D-16, FASE 6.** O bloco "O que combinamos" era texto de protótipo e não tinha origem. Saiu da tela em vez de virar coluna inventada | Quando houver contrato/escopo estruturado de verdade |
+| cargo em `profiles`                      | **D-16, FASE 6.** "Quem está no projeto" mostra só o nome. `boop_member` não é cargo, e derivar "Estrategista" dele seria ficção      | Quando a operação precisar de papel funcional        |
 
 ## Integridade que o banco garante (não a aplicação)
 

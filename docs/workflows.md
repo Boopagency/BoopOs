@@ -62,15 +62,24 @@ falha se um código lançado por um workflow não tiver tradução.
 podem ficar pela metade rodam como função Postgres (`security definer`, chamada
 via `rpc`). Ver [ADR-0011](adr/0011-workflows-transacionais-em-sql.md).
 
-**Rodam em SQL** (V0 — cinco funções, não mais):
+**Rodam em SQL** (V0 — oito funções desde a FASE 6; ver
+[ADR-0023](adr/0023-fronteiras-transacionais-de-projeto-e-jornada.md)):
 
-| Função                     | Por que precisa ser atômica                                |
-| -------------------------- | ---------------------------------------------------------- |
-| `approve_content_version`  | aprovação + status do item + activity log                  |
-| `request_content_changes`  | decisão + status do item + activity log                    |
-| `create_content_version`   | nova versão + `superseded` na anterior + ponteiro + status |
-| `approve_strategy_version` | aprovação + status da versão + activity log                |
-| `submit_onboarding`        | status da submissão + avanço de etapa + activity log       |
+| Função                        | Por que precisa ser atômica                                 | Fase |
+| ----------------------------- | ----------------------------------------------------------- | ---- |
+| `create_project_with_journey` | projeto + TODAS as etapas materializadas                    | 6    |
+| `advance_project_stage`       | corrente → `done` + próxima → `current` (a ordem é imposta) | 6    |
+| `set_project_stage_state`     | etapa alvo + a corrente anterior, quando vira `current`     | 6    |
+| `approve_content_version`     | aprovação + status do item + activity log                   | 11   |
+| `request_content_changes`     | decisão + status do item + activity log                     | 11   |
+| `create_content_version`      | nova versão + `superseded` na anterior + ponteiro + status  | 10   |
+| `approve_strategy_version`    | aprovação + status da versão + activity log                 | 11   |
+| `submit_onboarding`           | status da submissão + avanço de etapa + activity log        | 7    |
+
+As três da FASE 6 têm um agravante que as cinco originais não tinham: o índice
+parcial `project_stages_one_current_idx` **impõe uma ordem** entre os dois
+UPDATEs. Sem transação, a falha do segundo passo deixa o projeto sem etapa
+corrente — estado que nenhuma constraint proíbe e que a tela do CLIENTE exibe.
 
 Todo o resto é escrita de uma linha só, seguida de `logActivity()`. Se essa
 segunda escrita falhar, o log estruturado registra a inconsistência e a operação
@@ -108,13 +117,21 @@ celular é o caso comum, não o ataque.
 
 ### Projetos
 
-| Workflow              | Papel                | Efeitos                                                 | Evento                   |
-| --------------------- | -------------------- | ------------------------------------------------------- | ------------------------ |
-| `createProject`       | `boop_admin`         | cria projeto + materializa `project_stages` do template | `project.created`        |
-| `advanceStage`        | Boop                 | fecha a etapa atual, abre a próxima                     | `project.stage_changed`  |
-| `setStageState`       | Boop                 | correção manual (`skipped`, volta atrás)                | `project.stage_changed`  |
-| `changeProjectStatus` | Boop                 | pausa, conclui, arquiva                                 | `project.status_changed` |
-| `startNextCycle`      | sistema (via review) | `cycle++`, reabre etapas recorrentes                    | `project.cycle_started`  |
+| Workflow              | Papel        | Efeitos                                                 | Evento                   |
+| --------------------- | ------------ | ------------------------------------------------------- | ------------------------ |
+| `createProject`       | `boop_admin` | cria projeto + materializa `project_stages` do template | `project.created`        |
+| `updateProject`       | Boop         | nome e período (`type` e `journey_key` são imutáveis)   | `project.updated`        |
+| `advanceStage`        | Boop         | fecha a etapa atual, abre a próxima                     | `project.stage_changed`  |
+| `setStageState`       | Boop         | correção manual (`skipped`, volta atrás)                | `project.stage_changed`  |
+| `changeProjectStatus` | Boop         | ativa, pausa, conclui, arquiva                          | `project.status_changed` |
+
+Os três primeiros escrevem o activity log **dentro da função SQL**, na mesma
+transação da mudança. Por isso os workflows deles não chamam `ctx.activity()`:
+chamar produziria duas linhas para um evento. `setStageState` usa a capacidade
+`project.advance_stage` — é a mesma autoridade sobre a mesma coisa, e um
+vocabulário a mais precisaria ser mantido em três lugares sem nenhum caso que o
+distinga.
+| `startNextCycle` | sistema (via review) | `cycle++`, reabre etapas recorrentes | `project.cycle_started` |
 
 ### Onboarding
 

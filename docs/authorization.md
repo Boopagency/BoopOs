@@ -209,6 +209,57 @@ idempotente sem precisar de trava.
 segue impossível pela Data API. Há teste adversarial para cada recusa em
 `tests/rls/phase5-people-boundaries.test.ts`.
 
+### As quatro da FASE 6
+
+`create_project_with_journey`, `advance_project_stage` e
+`set_project_stage_state` existem por **atomicidade**, não por privilégio
+([ADR-0023](adr/0023-fronteiras-transacionais-de-projeto-e-jornada.md)). Elas
+são `security definer` por uma razão de infraestrutura, e vale registrar:
+
+> Uma função `invoker` chamada por `authenticated` **não alcança o schema
+> `app`** — o bootstrap o revoga. As policies chamam `app.*` e funcionam porque
+> expressão de policy é avaliada com os privilégios do dono da tabela. Logo, uma
+> função que precise de `app.is_boop_admin()` no corpo precisa ser `definer`.
+
+O preço é explícito: **dentro delas a RLS não vale**. As checagens do corpo
+espelham as policies, usando as mesmas funções:
+
+| Função                        | Papel exigido         | Escopo exigido                                      |
+| ----------------------------- | --------------------- | --------------------------------------------------- |
+| `create_project_with_journey` | `app.is_boop_admin()` | `app.has_client_access()`                           |
+| `advance_project_stage`       | `app.is_boop()`       | `app.has_project_access()`                          |
+| `set_project_stage_state`     | `app.is_boop()`       | `app.has_project_access()` + o par (etapa, projeto) |
+
+A quarta é de **leitura**: `list_client_team(client_id)` devolve apenas
+`full_name` das pessoas da Boop com vínculo explícito. Ela existe porque
+`client_memberships_select` restringe o `client_user` ao próprio vínculo e
+`has_profile_access` nunca lhe concede perfil de terceiro — as duas restrições
+estão certas, e o produto pede menos do que elas negam. Fail closed: sem acesso
+ao cliente, zero linhas.
+
+**`boop_admin` sem vínculo não entra na equipe.** Acesso global (D-08) diz quais
+clientes ele alcança, não de quem ele cuida.
+
+## Visibilidade de produto — o que a RLS não decide
+
+A RLS responde "este ator alcança este projeto?". Ela **não** responde "este
+projeto deve aparecer para ele?", e a diferença tem nome: `draft`.
+
+`projects_select` concede a linha de um rascunho ao próprio cliente, e está
+certo — a Boop precisa dele para trabalhar. Apertar a policy resolveria pelo
+lado errado, porque `authenticated` é um papel só para as três personas.
+
+Então a regra mora no servidor (`src/domains/projects/visibility.ts`), pura e
+testável, e o guard do portal faz as duas perguntas de uma vez:
+
+```ts
+requireVisiblePortalProject(projectId) // tenant (RLS) + visibilidade (produto)
+```
+
+Ele vive no **layout** de `/portal/[projectId]`, não em cada página: um guard por
+página é um guard que a próxima página esquece. As três recusas possíveis — não
+existe, não é seu, não está visível — devolvem 404 idêntico.
+
 ## Como provar que o isolamento vale
 
 ```bash

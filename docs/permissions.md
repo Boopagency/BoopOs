@@ -149,6 +149,18 @@ escopo é estado do banco no instante do request, e uma lista montada no início
 dele seria uma foto — revogar um vínculo no meio não teria efeito, e a aplicação
 passaria a ter uma segunda verdade sobre acesso competindo com a RLS.
 
+**`setStageState` não tem capacidade própria**, e a ausência é decisão: a
+correção manual da jornada usa `project.advance_stage`. É a mesma autoridade
+sobre a mesma coisa — quem move a jornada para a frente pode consertá-la —, e um
+vocabulário a mais precisaria ser mantido na matriz, em `can()` e no teste de
+paridade sem nenhum caso que o distinga (FASE 6).
+
+⚠️ `project.change_status` esteve nesta matriz desde a FASE 0 e **não estava em
+`CAPABILITIES`** até a FASE 6. Não houve brecha — `projects_update` já exigia
+`is_boop()` e vínculo —, mas a linha do documento não tinha representação no
+código. O teste de paridade transcreve a matriz à mão, e foi por isso que a
+ausência sobreviveu cinco fases.
+
 Quem responde escopo são `requireClientAccess()` e `requireProjectAccess()`, que
 perguntam **tentando ler o recurso pelo JWT**: se a RLS devolve a linha, o acesso
 existe. Ver [`authorization.md`](authorization.md).

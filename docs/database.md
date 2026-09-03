@@ -84,6 +84,21 @@ O shim reproduz de propósito duas coisas que seriam fáceis de errar:
 
 ---
 
+### O que o plano B não reproduzia (corrigido na FASE 6)
+
+O shim concedia `execute` em `auth.uid()` a `anon` e `authenticated`, e **não**
+concedia `usage` no schema `auth` — então o grant era inalcançável. A ausência
+ficou invisível por três fases porque toda função que chamava `auth.uid()` até a
+FASE 5 era `security definer` e rodava como dona.
+
+A primeira função `security invoker` que precisou da identidade quebrou só
+localmente, com `permission denied for schema auth`, enquanto passava no
+staging. Conferido contra o `boop-os-staging`: lá `has_schema_privilege` devolve
+`true` para `anon` e `authenticated`. O shim passou a fazer o mesmo.
+
+A lição vale além do caso: **um plano B que não reproduz o ambiente real deixa
+de ser plano B**. Divergência entre os dois é bug do shim, não do código.
+
 ## Migrations
 
 Forward-only, em `supabase/migrations/*.sql`, nomeadas

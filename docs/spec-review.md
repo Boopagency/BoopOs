@@ -423,6 +423,55 @@ tenant. O seed da FASE 2 já materializa os três casos — inclusive um
 | D-13 | Existe caminho para REATIVAR quem foi desligado, ou para desarquivar um convite?                      | **Não na V0.** Ver abaixo                                                                                      | FASE 19     |
 | D-14 | O e-mail `welcome` (produto) entra junto do `invite` (auth)?                                          | **Não.** Só o `invite`, pelo Auth. Ver abaixo                                                                  | FASE 16     |
 | D-15 | `clients.slug` pode ser editado depois da criação?                                                    | **Não.** Identificador não muda. Ver abaixo                                                                    | FASE 19     |
+| D-16 | `scope` e `team` da tela do projeto vêm de onde?                                                      | **Decidida na FASE 6.** `scope` não tem origem e o bloco saiu; `team` vem de `client_memberships`. Ver abaixo  | —           |
+| D-17 | `advanceStage` (e as outras multi-linha) viram função SQL?                                            | **Decidida na FASE 6.** Sim — [ADR-0023](adr/0023-fronteiras-transacionais-de-projeto-e-jornada.md)            | —           |
+| D-18 | Projeto `draft` é visível para o `client_user`?                                                       | **Decidida na FASE 6.** Não, nem por URL direta. Ver abaixo                                                    | —           |
+| D-19 | O que o `client_user` vê em `/portal` com zero projetos?                                              | **Decidida na FASE 6.** Estado vazio com voz, nunca 404. Ver abaixo                                            | —           |
+
+### D-16 — `scope` saiu; `team` virou dado real
+
+O read model do portal tinha `scope: string[]` ("O que combinamos") e
+`team: { name, role }[]` ("Quem está no projeto"). Os dois eram texto fictício
+no mock, e **nenhum dos dois tem coluna no schema** — nem entraram, nem estão
+entre as tabelas deliberadamente adiadas de `data-model.md`.
+
+- **`scope` saiu inteiro.** Não há origem, e com dado real as saídas eram
+  inventar colunas para um acordo comercial que ninguém especificou, ou manter
+  mock ao lado de dado verdadeiro na mesma tela. Bloco sem origem desaparece.
+- **`team` ficou, e virou real:** as pessoas da Boop com vínculo EXPLÍCITO em
+  `client_memberships`. `boop_admin` alcança todos os clientes por D-08 e isso
+  não o coloca na equipe de nenhum — **acesso não é alocação**. Sem ninguém
+  vinculado, o bloco some.
+- **Sem cargo.** A V0 não guarda cargo, e transformar `boop_member` em
+  "Estrategista" seria escrever ficção na tela do cliente. A projeção devolve
+  só o nome.
+
+### D-18 — `draft` não existe para o cliente
+
+`projects_select` concede a linha de um projeto `draft` ao próprio cliente, e
+está certo: `boop_admin` e `boop_member` precisam ver rascunho para trabalhar
+nele, e `authenticated` é um papel só para as três personas — um predicado por
+status na policy tiraria o rascunho da Boop junto.
+
+A regra é de **produto**, e mora no servidor, como a projeção de `clients.notes`:
+
+| Status      | `client_user` abre por URL? | Entra na resolução automática de `/portal`? |
+| ----------- | :-------------------------: | :-----------------------------------------: |
+| `draft`     |           **não**           |                     não                     |
+| `active`    |             sim             |                     sim                     |
+| `paused`    |             sim             |                     sim                     |
+| `completed` |             sim             |              não (é histórico)              |
+| `archived`  |             sim             |              não (é histórico)              |
+
+RLS cuida de TENANT; a projeção do servidor cuida de VISIBILIDADE.
+
+### D-19 — zero projetos é estado vazio, não erro
+
+Um `client_user` autenticado, com vínculo, e sem projeto visível **não** recebe
+404 e **não** é mandado para `/bem-vindo`. Ele vê um estado vazio com a voz da
+Boop: o acesso está certo, a Boop ainda está preparando o projeto, e não há nada
+que ele precise fazer. Sem CTA — não há nada que ele possa fazer, e um botão
+sugeriria que há. Para um ator da Boop, o vazio leva ao `/admin`.
 
 ### D-13 — desligar não tem inverso na V0
 

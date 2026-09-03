@@ -209,27 +209,44 @@ using (app.is_boop_admin() and app.has_client_access(client_id));
 
 ### Regras por papel (resumo)
 
-| Tabela                                | `boop_admin` | `boop_member`                             | `client_user`                              |
-| ------------------------------------- | ------------ | ----------------------------------------- | ------------------------------------------ |
-| `clients`                             | CRUD         | R (com vínculo)                           | R (com vínculo, colunas públicas)          |
-| `client_memberships`                  | CRUD         | R                                         | R (apenas as próprias)                     |
-| `projects`                            | CRUD         | RU (com vínculo)                          | R                                          |
-| `project_stages`                      | CRUD         | RU                                        | R                                          |
-| `onboarding_*` (template)             | CRUD         | R                                         | R (apenas o template da própria submissão) |
-| `onboarding_submissions`              | CRUD         | RU                                        | RU (apenas enquanto `draft`)               |
-| `onboarding_answers`                  | CRUD         | R                                         | CRU (apenas enquanto `draft`)              |
-| `strategies` / `strategy_versions`    | CRUD         | CRU                                       | R (`status <> 'draft'`)                    |
-| `strategy_approvals`                  | R            | R                                         | R — escrita **apenas** via RPC             |
-| `content_items`                       | CRUD         | CRU                                       | R (`status >= awaiting_client`)            |
-| `content_versions`                    | CRUD         | CRU                                       | R (`sent_for_approval_at is not null`)     |
-| `content_comments`                    | CRUD         | CRU                                       | CR (`is_internal = false`)                 |
-| `content_approvals`                   | R            | R                                         | R — escrita **apenas** via RPC             |
-| `files`                               | CRUD         | CRU                                       | R (`visibility = 'client'`)                |
-| `meetings`                            | CRUD         | CRU                                       | R                                          |
-| `account_metrics` / `content_metrics` | CRUD         | CRU                                       | R                                          |
-| `monthly_reviews`                     | CRUD         | CRU                                       | R (`status = 'published'`)                 |
-| `activity_log`                        | R            | R (`visibility='internal'` do seu escopo) | —                                          |
-| `notifications`                       | R            | —                                         | —                                          |
+| Tabela               | `boop_admin` | `boop_member`    | `client_user`                     |
+| -------------------- | ------------ | ---------------- | --------------------------------- |
+| `clients`            | CRUD         | R (com vínculo)  | R (com vínculo, colunas públicas) |
+| `client_memberships` | CRUD         | R                | R (apenas as próprias)            |
+| `projects`           | CRUD         | RU (com vínculo) | R                                 |
+| `project_stages`     | CRUD         | RU               | R                                 |
+
+### FASE 6 — o que a RLS concede e a aplicação esconde
+
+`projects_select` concede a linha de um projeto **`draft`** ao próprio cliente,
+porque a policy é uma só para as três personas e a Boop precisa do rascunho para
+trabalhar nele. Um rascunho é trabalho não mostrado — o análogo de conteúdo em
+`idea`, que esta lista já proíbe expor.
+
+A regra é de produto e mora no servidor
+(`src/domains/projects/visibility.ts`), com a mesma lógica da projeção de
+`clients.notes`: **RLS cuida de tenant, a projeção cuida de visibilidade**.
+Apertar a policy por status tiraria o rascunho da Boop junto (D-18).
+
+`list_client_team()` é a única leitura `security definer` do sistema, e existe
+para devolver ao portal MENOS do que as policies negam: apenas `full_name` de
+quem atende a conta — sem id, sem e-mail, sem papel, sem metadata de vínculo
+([ADR-0023](adr/0023-fronteiras-transacionais-de-projeto-e-jornada.md)).
+| `onboarding_*` (template) | CRUD | R | R (apenas o template da própria submissão) |
+| `onboarding_submissions` | CRUD | RU | RU (apenas enquanto `draft`) |
+| `onboarding_answers` | CRUD | R | CRU (apenas enquanto `draft`) |
+| `strategies` / `strategy_versions` | CRUD | CRU | R (`status <> 'draft'`) |
+| `strategy_approvals` | R | R | R — escrita **apenas** via RPC |
+| `content_items` | CRUD | CRU | R (`status >= awaiting_client`) |
+| `content_versions` | CRUD | CRU | R (`sent_for_approval_at is not null`) |
+| `content_comments` | CRUD | CRU | CR (`is_internal = false`) |
+| `content_approvals` | R | R | R — escrita **apenas** via RPC |
+| `files` | CRUD | CRU | R (`visibility = 'client'`) |
+| `meetings` | CRUD | CRU | R |
+| `account_metrics` / `content_metrics` | CRUD | CRU | R |
+| `monthly_reviews` | CRUD | CRU | R (`status = 'published'`) |
+| `activity_log` | R | R (`visibility='internal'` do seu escopo) | — |
+| `notifications` | R | — | — |
 
 Aprovações não têm policy de INSERT para ninguém: são gravadas por funções
 `security definer` que validam a transição de estado. Isso torna impossível

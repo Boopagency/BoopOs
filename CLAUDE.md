@@ -12,15 +12,32 @@ para ele.
 
 Percepção-alvo: _"Eu sei exatamente o que está acontecendo com minha marca."_
 
-**Status atual: FASE 5 concluída — a Boop administra clientes pelo produto.**
-16 migrations, 19 tabelas com RLS **e políticas**, 11 funções `app.*`, 4
-fronteiras `security definer`, e 622 testes (300 contra Postgres real).
+**Status atual: FASE 6 concluída — a Boop executa projetos pelo produto.**
+19 migrations, 19 tabelas com RLS **e políticas**, 11 funções `app.*`, 8
+fronteiras `security definer`, e 788 testes (393 contra Postgres real).
 Fingerprint local ↔ staging idêntico nas nove partes.
 
 **A superfície administrativa lê e escreve Supabase de verdade.** `/admin`
-(clientes, pessoas, atividade) não tem mock: `src/domains/clients` e
-`src/domains/people` consultam sob RLS, e sete workflows escrevem pelo JWT do
-ator. Os mocks do PORTAL continuam — eles são das FASES 6+.
+(clientes, pessoas, projetos, jornada, atividade) não tem mock, e doze workflows
+escrevem pelo JWT do ator.
+
+**O PORTAL deixou de ter identidade falsa.** `DEMO_PROJECT_ID` não existe mais:
+`/portal` resolve os projetos reais do ator, `/portal/[projectId]` tem guard no
+LAYOUT do grupo, e projeto e jornada vêm do banco. Os outros mocks do portal
+continuam — conteúdo, estratégia, arquivos, reuniões, resultados e onboarding
+são das FASES 7+, e todos passam pelo mesmo guard.
+
+**Projeto e jornada nascem juntos ou não nascem.** `createProject`,
+`advanceStage` e `setStageState` são funções SQL transacionais
+([ADR-0023](docs/adr/0023-fronteiras-transacionais-de-projeto-e-jornada.md)) —
+não existe projeto sem jornada nem projeto sem etapa corrente por falha
+intermediária. O template vive em código (`src/config/journeys.ts`, ADR-0006) e
+`journey_key`/`type` são imutáveis no banco.
+
+**RLS responde tenant; a projeção responde visibilidade.** Um projeto `draft`
+pertence ao cliente e a policy concede a linha — mas ele nunca alcança um
+`client_user`, nem por URL direta (D-18). A regra é de produto e mora no
+servidor, como a de `clients.notes`.
 
 **As duas camadas de autorização valem agora.** `getActor()` lê `profiles` pelo
 JWT; as escritas que precisam de privilégio são fronteiras nomeadas, nenhuma
@@ -42,7 +59,7 @@ entre ela e o cliente: a projeção não pede a coluna, o tipo não a carrega
 ([`docs/security.md`](docs/security.md)). A convenção já cobre
 `content_versions.internal_notes`, que chega na FASE 10.
 
-A próxima fase é a 6 (projetos e jornada).
+A próxima fase é a 7 (onboarding).
 
 ## Vocabulário
 
@@ -92,6 +109,7 @@ compatibilidade verificada com `typescript-eslint` e `eslint-config-next`.
 | O que construir agora                                 | [`docs/roadmap.md`](docs/roadmap.md)                   |
 | Por que decidimos assim                               | [`docs/adr/`](docs/adr/)                               |
 | Estado ao fim da FASE 5                               | [`docs/FASE5ESTADO.md`](docs/FASE5ESTADO.md)           |
+| Estado ao fim da FASE 6                               | [`docs/FASE6ESTADO.md`](docs/FASE6ESTADO.md)           |
 | Inconsistências e decisões pendentes                  | [`docs/spec-review.md`](docs/spec-review.md)           |
 
 Regras imperativas, curtas, para consulta durante o trabalho:
@@ -125,6 +143,10 @@ vive em `.claude/rules/`. Ao mudar uma decisão, atualize os dois no mesmo PR.
 - Sem `select *`. Sem pasta `utils/` genérica. Sem `any`.
 - Status nunca é string solta: vem de `src/config/enums.ts`.
 - Aprovação pertence à **versão**, nunca ao item.
+- **Jornada é progresso.** Não existe percentual: a etapa responde "onde
+  estamos", e "67%" não responde nada.
+- `journey_key` e `type` são decididos na criação e **não mudam** (o banco
+  recusa). O template é código, a instância é linha.
 - **Só `client_user` aprova.** Nem `boop_admin` aprova conteúdo ou estratégia.
 
 **Produto**
@@ -174,6 +196,7 @@ src/app/          (auth) login · bem-vindo   (portal) portal/[projectId]/…   
 src/components/   ui/ (primitivos) · layout/ (cascas) · brand/ (logo, olhos, nuvens)
                   patterns/ (composições de produto)
 src/config/       app.ts (produto) · enums.ts (taxonomias) · env.ts (environment)
+                  journeys.ts (templates de jornada — ADR-0006)
 src/lib/          auth/ (actor, actions, first-login, errors, routes, policy, authorization)
                   data/ (acesso)
                   activity/ · logging/ · supabase/ (fronteira) · cn.ts · format.ts
@@ -190,10 +213,14 @@ tests/rls/        o que exige Postgres de verdade: schema, enums, invariantes, s
 Regras de crescimento:
 
 - **`src/domains/<nome>` nasce na fase do domínio**, nunca como pasta vazia.
-- Rota canônica do portal é `/portal/[projectId]`; `/app` redireciona.
+- Rota canônica do portal é `/portal/[projectId]`; `/app` redireciona. `/portal`
+  é RESOLVEDOR: zero projetos → estado vazio, um → redirect, vários → escolha.
+- **Autorização de rota do portal vive no LAYOUT do grupo**, nunca página a
+  página. Um guard por página é um guard que a próxima página esquece.
 - **Tela nunca importa `src/mocks`.** O admin fala com `src/domains/*/queries`,
-  que lê do Supabase; o portal ainda fala com `src/lib/data/portal.ts`, que lê
-  dos mocks até a FASE 6.
+  que lê do Supabase; o portal fala com `src/lib/data/portal.ts`, que desde a
+  FASE 6 lê projeto e jornada do banco e o resto dos mocks — sempre atrás do
+  mesmo guard.
 - **Projeção client-facing nunca carrega campo interno.** O tipo passa por
   `AssertClientFacing` (`src/lib/data/projection.ts`) e o build quebra se
   carregar. Campo interno novo entra em `INTERNAL_FIELDS`, e a partir daí toda

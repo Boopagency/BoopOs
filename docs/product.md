@@ -71,9 +71,18 @@ projeto guarda as etapas instanciadas.
 | 7     | `publishing` | Publicação        |
 | 8     | `review`     | Review            |
 
-`website`, `branding`, `automation` e `custom` recebem jornadas mínimas na FASE 6
-(apenas para provar que a arquitetura não depende de social) e são detalhadas
-quando houver um projeto real.
+`website`, `branding`, `automation` e `custom` receberam jornadas mínimas na
+FASE 6 (apenas para provar que a arquitetura não depende de social) e são
+detalhadas quando houver um projeto real. As cinco vivem em
+`src/config/journeys.ts`.
+
+### A página do projeto, depois da FASE 6
+
+Ela responde **"onde estamos e o que vem"**. O bloco "O que combinamos" —
+`project.scope` no protótipo — **saiu**: não tinha origem no schema, e mantê-lo
+significaria inventar o conteúdo de um acordo comercial na tela do cliente
+(D-16). "Quem está no projeto" ficou e passou a ser real: as pessoas da Boop com
+vínculo explícito no cliente, só o nome, sem cargo.
 
 ## Navegação do portal
 
@@ -90,8 +99,17 @@ Rotas: `/portal/[projectId]`, `/portal/[projectId]/projeto`, `/conteudo`,
 porque é o nome usado no briefing da FASE 1 — um alias, nunca uma segunda
 página.
 
-Com um único projeto acessível, `/portal` redireciona direto e nenhum seletor
-aparece. Com mais de um, surge um seletor discreto no cabeçalho.
+`/portal` é um **resolvedor**, não uma tela. Ele consulta os projetos que a
+pessoa alcança (RLS) e quais devem aparecer para ela (D-18), e decide:
+
+| Projetos visíveis | O que acontece                                      |
+| ----------------- | --------------------------------------------------- |
+| nenhum            | estado vazio com voz — nunca 404, nunca mock (D-19) |
+| um                | redireciona direto, sem seletor                     |
+| dois ou mais      | tela de escolha + seletor discreto no cabeçalho     |
+
+O seletor **não é um oitavo item de navegação**: é troca de contexto no
+cabeçalho, ao lado do nome do cliente e do projeto, que já estavam lá.
 
 ## Dashboard (Início)
 

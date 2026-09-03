@@ -147,14 +147,20 @@ passa por ela.
 Resend continua na FASE 16. Reativar quem foi desligado não tem caminho pelo
 painel. As duas viraram D-13 e D-14 em [`spec-review.md`](spec-review.md).
 
-### FASE 6 — Projetos e jornada
+### FASE 6 — Projetos e jornada ✅
 
-Templates de jornada tipados, `createProject` materializando `project_stages`,
-`advanceStage`, `changeProjectStatus`, admin de projeto, componente de jornada no
-portal. Jornadas mínimas para os cinco `project_type` — prova de que a
-arquitetura não depende de social.
+Templates de jornada tipados (`src/config/journeys.ts`), `createProject`
+materializando `project_stages` **na mesma transação**, `advanceStage`,
+`setStageState`, `updateProject`, `changeProjectStatus`, admin de projeto e o
+portal lendo projeto e jornada do banco. Jornadas mínimas para os cinco
+`project_type` — prova de que a arquitetura não depende de social.
+`DEMO_PROJECT_ID` deixou de existir.
 **Pronto quando:** a Boop cria um projeto social, avança a etapa e o cliente vê a
-mudança.
+mudança. ✅
+
+Três funções SQL novas ([ADR-0023](adr/0023-fronteiras-transacionais-de-projeto-e-jornada.md))
+e a imutabilidade de `journey_key`/`type` no banco, que a ADR-0006 declarava e o
+schema não garantia. Ver [`docs/FASE6ESTADO.md`](FASE6ESTADO.md).
 
 ### FASE 7 — Onboarding
 

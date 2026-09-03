@@ -55,6 +55,24 @@ Raciocínio em [`docs/security.md`](../../docs/security.md). Aqui só o que é o
   junto: `clients.notes` e `content_versions.internal_notes` dependem de
   projeção explícita no servidor. Nunca `select *` em leitura client-facing.
 
+## Visibilidade de produto (FASE 6)
+
+- **RLS responde TENANT; a projeção do servidor responde VISIBILIDADE.** São
+  perguntas diferentes, e a segunda não cabe na policy: `authenticated` é um
+  papel só para as três personas, então um predicado por status tiraria o
+  rascunho da Boop junto com o do cliente.
+- Projeto `draft` **nunca** alcança um `client_user` — nem por URL direta. É o
+  análogo de conteúdo em `idea` (D-18).
+- `completed` e `archived` são alcançáveis por URL e **não** entram na resolução
+  automática de `/portal`.
+- Rota do portal protegida no **layout do grupo**, nunca página a página: um
+  guard por página é um guard que a próxima página esquece.
+- O guard do portal responde acesso **e** visibilidade numa pergunta só
+  (`requireVisiblePortalProject`). `requireProjectAccess()` sozinho diria "sim"
+  para um rascunho do próprio cliente.
+- As três recusas — não existe, não é seu, não está visível — devolvem 404
+  idêntico.
+
 ## Projeção por audiência (FASE 5)
 
 - Campo interno novo entra em `INTERNAL_FIELDS` (`src/lib/data/projection.ts`).
@@ -97,8 +115,9 @@ Raciocínio em [`docs/security.md`](../../docs/security.md). Aqui só o que é o
 
 ## O que o cliente nunca pode ver
 
-Conteúdo em `idea`, `planned`, `in_production` ou `internal_review`; comentário
-com `is_internal = true`; `internal_notes` de versão; arquivo com
+Projeto com `status = 'draft'`; `projects.journey_key`; conteúdo em `idea`,
+`planned`, `in_production` ou `internal_review`; comentário com
+`is_internal = true`; `internal_notes` de versão; arquivo com
 `visibility = 'internal'`; `clients.notes`; activity log; qualquer dado de outro
 cliente.
 
