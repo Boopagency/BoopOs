@@ -124,6 +124,17 @@ A matriz de `tests/rls/policy-matrix.test.ts` passou `onboarding_submissions` de
 `SIU` para `S`, e a varredura das duas fechaduras continua valendo: policy e
 GRANT saíram juntos.
 
+## Confirmado em ambiente hospedado
+
+O QA humano da FASE 7 exercitou o ciclo inteiro em staging — abrir, responder,
+enviar, reabrir, reenviar — e o `activity_log` de lá registra o que esta decisão
+prometia: quatro eventos, autoria correta em cada um (a Boop abriu e reabriu; o
+cliente enviou as duas vezes), e o segundo envio saindo `submitted_no_advance`
+com o projeto parado em `immersion`.
+
+Nenhuma escrita direta aconteceu, porque nenhuma é possível:
+`onboarding_submissions` responde `SELECT` e mais nada para `authenticated`.
+
 ## Gatilho de revisão
 
 Se uma quarta operação de ciclo de vida do onboarding aparecer, ou se outro

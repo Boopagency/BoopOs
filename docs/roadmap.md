@@ -162,7 +162,7 @@ Três funções SQL novas ([ADR-0023](adr/0023-fronteiras-transacionais-de-proje
 e a imutabilidade de `journey_key`/`type` no banco, que a ADR-0006 declarava e o
 schema não garantia. Ver [`docs/FASE6ESTADO.md`](FASE6ESTADO.md).
 
-### FASE 7 — Onboarding ✅
+### FASE 7 — Onboarding ✅ (validada em ambiente hospedado)
 
 Renderização a partir do schema, uma seção por vez, progresso, autosave com
 `upsert`, rascunho, `submitOnboarding` (função SQL), leitura das respostas no

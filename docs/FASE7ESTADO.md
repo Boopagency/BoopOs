@@ -5,6 +5,9 @@ o envio é uma transação que fecha a etapa e abre a próxima.
 
 Base: `4c88baf` (fim da FASE 6, validada em ambiente hospedado).
 
+**Status: CONCLUÍDA e VALIDADA EM AMBIENTE HOSPEDADO.** QA humano sem problemas;
+validação adversarial final refeita do zero contra Postgres real e staging.
+
 ---
 
 ## O que a fase respondeu
@@ -254,15 +257,65 @@ Varreduras atualizadas: `policy-matrix` (`onboarding_submissions` de `SIU` para
   seções, 12 perguntas, 4 obrigatórias.
 - `onboarding_submissions` em staging: `SELECT` e nada mais para `authenticated`.
 
-### QA hospedado — PENDENTE
+### QA hospedado — CONCLUÍDO, sem problemas
 
-Não foi executado: exige uma pessoa com sessão real no navegador. O checklist
-está no fim deste documento e no relatório da fase.
+O QA humano no ambiente hospedado foi executado e **passou em todos os passos**.
+Projeto: **Velmont Patentes · Social Media** (`social`, `active`), que já estava
+na etapa `onboarding` — nenhum avanço manual foi necessário.
 
-O projeto para o QA já está no estado certo, e isso foi **lido**, não presumido:
-**Velmont Patentes · Social Media**, `type = social`, `status = active`, etapa
-corrente **`onboarding`**, 8 etapas, 0 submissões. Nenhum avanço manual é
-necessário.
+| #   | Passo                                         | Resultado |
+| --- | --------------------------------------------- | --------- |
+| 1   | A Boop abriu o onboarding                     | PASS      |
+| 2   | O `client_user` respondeu no portal           | PASS      |
+| 3   | Autosave gravou                               | PASS      |
+| 4   | Fechar e voltar preservou as respostas        | PASS      |
+| 5   | Obrigatória vazia bloqueou o envio            | PASS      |
+| 6   | Envio funcionou                               | PASS      |
+| 7   | Refresh manteve `submitted`                   | PASS      |
+| 8   | O admin leu as respostas reais                | PASS      |
+| 9   | A jornada avançou para `immersion`            | PASS      |
+| 10  | Reabertura funcionou                          | PASS      |
+| 11  | As respostas foram preservadas na reabertura  | PASS      |
+| 12  | Autosave voltou a funcionar depois de reabrir | PASS      |
+| 13  | Reenvio funcionou                             | PASS      |
+| 14  | A jornada **permaneceu** em `immersion`       | PASS      |
+| 15  | Cross-tenant devolveu 404                     | PASS      |
+| 16  | Celular                                       | PASS      |
+
+**Problemas encontrados: nenhum.**
+
+#### O banco corrobora o QA, sem depender do relato
+
+O `activity_log` de staging conta a mesma história, com carimbo de tempo e
+autoria — e é a prova independente de que D-21 e D-22 se comportam em produção
+como no teste:
+
+```
+19:38  onboarding.started    boop_admin   {"template_id": "40000000-…-01"}
+20:01  onboarding.completed  client_user  {"outcome":"advanced", "onboarding"→"immersion"}
+20:02  onboarding.reopened   boop_admin   {"previous_submitted_at": "20:01"}
+20:03  onboarding.completed  client_user  {"outcome":"submitted_no_advance", "current_stage":"immersion"}
+```
+
+Quatro fatos que essas quatro linhas fixam:
+
+- **a autoria é a certa** — a Boop abriu e reabriu; quem enviou, as duas vezes,
+  foi o cliente. `submitted_by` aponta para ele, não para quem abriu;
+- **o reenvio não empurrou a jornada** — o segundo envio saiu
+  `submitted_no_advance` e o projeto continuou em `immersion`, sem ir para
+  `research`. É D-21 acontecendo com gente de verdade;
+- **um envio, um evento** — nenhuma duplicata;
+- **nenhuma resposta no metadata** — só identificadores e transições, como a
+  regra de log exige.
+
+Estado final em staging: 1 submissão `submitted`, 12 respostas, jornada
+`kickoff=done onboarding=done immersion=current`.
+
+#### O que este QA NÃO cobriu
+
+O caso `boop_member` no ambiente hospedado — o staging não tem um. A célula
+está provada contra Postgres real (a suíte cobre member vinculado, member de
+outro tenant e member sem vínculo), e é a mesma lacuna registrada na FASE 6.
 
 ## Débito técnico assumido
 
