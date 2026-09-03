@@ -17,7 +17,15 @@ import { CAPABILITIES } from '@/lib/auth/policy'
  * descartada: provaria que a constante bate com o mapa, não que o CÓDIGO bate.
  */
 
-const FONTES = ['../../src/domains/clients/mutations.ts', '../../src/domains/people/mutations.ts']
+/*
+ * A lista cresce uma fase por vez, junto com os dominios. A FASE 6 acrescentou
+ * `projects/mutations.ts`, e com ele os codigos de projeto e jornada.
+ */
+const FONTES = [
+  '../../src/domains/clients/mutations.ts',
+  '../../src/domains/people/mutations.ts',
+  '../../src/domains/projects/mutations.ts',
+]
 
 function codigosLancados(): string[] {
   const encontrados = new Set<string>()
@@ -33,7 +41,7 @@ function codigosLancados(): string[] {
 }
 
 describe('WORKFLOW_MESSAGE', () => {
-  it('traduz TODO código lançado pelos workflows da FASE 5', () => {
+  it('traduz TODO código lançado pelos workflows das FASES 5 e 6', () => {
     const codigos = codigosLancados()
 
     /* Guarda contra o regex parar de casar e o teste virar tautologia. */
@@ -43,7 +51,7 @@ describe('WORKFLOW_MESSAGE', () => {
     expect(semTraducao, `sem mensagem em pt-BR: ${semTraducao.join(', ')}`).toEqual([])
   })
 
-  it('traduz a recusa por papel de toda capacidade da FASE 5', () => {
+  it('traduz a recusa por papel de toda capacidade das FASES 5 e 6', () => {
     const daFase = [
       'client.create',
       'client.update',
@@ -52,6 +60,11 @@ describe('WORKFLOW_MESSAGE', () => {
       'user.disable',
       'membership.grant',
       'membership.revoke',
+      /* FASE 6 */
+      'project.create',
+      'project.update',
+      'project.advance_stage',
+      'project.change_status',
     ] as const
 
     for (const capability of daFase) {

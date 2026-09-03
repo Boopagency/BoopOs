@@ -6,6 +6,13 @@ import {
   toClientPublic,
   type ClientDetail,
 } from '@/domains/clients/types'
+import {
+  PROJECT_DETAIL_COLUMNS,
+  PROJECT_LIST_COLUMNS,
+  PROJECT_PUBLIC_COLUMNS,
+  STAGE_ADMIN_COLUMNS,
+  STAGE_PUBLIC_COLUMNS,
+} from '@/domains/projects/types'
 import { findInternalFields, INTERNAL_FIELDS } from '@/lib/data/projection'
 
 /**
@@ -158,3 +165,84 @@ describe('toClientPublic', () => {
  * Deixá-lo no código quebraria o `pnpm typecheck`, que é justamente a prova de
  * que a trava funciona. Os asserts reais estão em `domains/*​/types.ts`.
  */
+
+/**
+ * FASE 6 — as projeções de `projects` e `project_stages`.
+ *
+ * A diferença em relação a `clients` é importante e vale registrar: nenhuma
+ * coluna de `projects` está em `INTERNAL_FIELDS`, então `AssertClientFacing`
+ * passa por todas elas. Mesmo assim há campo que não deve chegar ao cliente —
+ * `journey_key` é jargão técnico, `created_by` é bastidor de operação.
+ *
+ * A proteção deles é a PRIMEIRA camada, e só ela: a coluna não está na lista do
+ * `select`, então não sai do banco. Estes casos são o que impede a lista
+ * crescer por conveniência ("já que estou aqui, trago tudo").
+ */
+describe('as listas de colunas de `projects`', () => {
+  it('a projeção client-facing NÃO pede `journey_key`', () => {
+    /* `social.v1` na tela do cliente é vocabulário interno vazando. */
+    expect(colunas(PROJECT_PUBLIC_COLUMNS)).not.toContain('journey_key')
+  })
+
+  it('a projeção client-facing NÃO pede `created_by`', () => {
+    expect(colunas(PROJECT_PUBLIC_COLUMNS)).not.toContain('created_by')
+  })
+
+  it('a projeção client-facing NÃO pede os carimbos de infraestrutura', () => {
+    expect(colunas(PROJECT_PUBLIC_COLUMNS)).not.toContain('created_at')
+    expect(colunas(PROJECT_PUBLIC_COLUMNS)).not.toContain('updated_at')
+  })
+
+  it('a lista administrativa também não pede `journey_key` — não a usa', () => {
+    expect(colunas(PROJECT_LIST_COLUMNS)).not.toContain('journey_key')
+  })
+
+  it('o detalhe interno TRAZ `journey_key`: é ele que resolve os textos', () => {
+    expect(colunas(PROJECT_DETAIL_COLUMNS)).toContain('journey_key')
+  })
+
+  it('nenhuma delas usa `select *`', () => {
+    for (const lista of [PROJECT_PUBLIC_COLUMNS, PROJECT_LIST_COLUMNS, PROJECT_DETAIL_COLUMNS]) {
+      expect(lista).not.toContain('*')
+      expect(colunas(lista).length).toBeGreaterThan(1)
+    }
+  })
+
+  it('nenhuma delas carrega campo de INTERNAL_FIELDS', () => {
+    for (const lista of [PROJECT_PUBLIC_COLUMNS, PROJECT_LIST_COLUMNS, PROJECT_DETAIL_COLUMNS]) {
+      for (const campo of INTERNAL_FIELDS) {
+        expect(colunas(lista), `${campo} em ${lista}`).not.toContain(campo)
+      }
+    }
+  })
+
+  it('client-facing e admin diferem — e a diferença é exatamente o interno', () => {
+    const publicas = new Set(colunas(PROJECT_PUBLIC_COLUMNS))
+    const soNoDetalhe = colunas(PROJECT_DETAIL_COLUMNS).filter((c) => !publicas.has(c))
+    expect(soNoDetalhe.sort()).toEqual(['created_at', 'ends_on', 'journey_key', 'updated_at'])
+  })
+})
+
+describe('as listas de colunas de `project_stages`', () => {
+  it('a projeção client-facing não pede `started_at` — nenhuma tela a usa', () => {
+    expect(colunas(STAGE_PUBLIC_COLUMNS)).not.toContain('started_at')
+  })
+
+  it('a projeção do admin pede, porque a tela de jornada mostra', () => {
+    expect(colunas(STAGE_ADMIN_COLUMNS)).toContain('started_at')
+  })
+
+  it('as duas trazem o que a jornada precisa: ordem, rótulo e estado', () => {
+    for (const lista of [STAGE_PUBLIC_COLUMNS, STAGE_ADMIN_COLUMNS]) {
+      expect(colunas(lista)).toContain('position')
+      expect(colunas(lista)).toContain('label')
+      expect(colunas(lista)).toContain('state')
+    }
+  })
+
+  it('nenhuma usa `select *`', () => {
+    for (const lista of [STAGE_PUBLIC_COLUMNS, STAGE_ADMIN_COLUMNS]) {
+      expect(lista).not.toContain('*')
+    }
+  })
+})

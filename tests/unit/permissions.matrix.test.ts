@@ -36,6 +36,7 @@ const MATRIZ: [Capability, boolean, boolean, boolean][] = [
   ['project.create', true, false, false],
   ['project.update', true, true, false],
   ['project.advance_stage', true, true, false],
+  ['project.change_status', true, true, false],
 
   ['onboarding.template.manage', true, false, false],
   ['onboarding.start', true, true, false],
