@@ -315,16 +315,43 @@ Dois merecem nota:
 - **Dados preservados.** 2 clientes, 6 pessoas, 5 vínculos, 0 projetos. Nada foi
   apagado, nada foi semeado. O primeiro projeto real nasce pela UI.
 
-### O que NÃO foi validado, e por quê
+### QA hospedado — CONCLUÍDO, sem problemas
 
-**O caminho HTTP do PostgREST, a partir desta sessão.** Não há daemon Docker (o
-banco local cai no plano B — Postgres nu, sem PostgREST) e a política de rede
-recusa CONNECT para `njlkuzrppnwkgrdacmos.supabase.co`.
+O QA humano no ambiente hospedado foi executado e **passou em todos os passos**.
+O que foi de fato exercitado, e nada além disso:
 
-As funções foram exercitadas contra Postgres real, com identidade assumida por
-JWT, cobrindo autorização, transação e rollback. O que resta descoberto é a
-camada HTTP: serialização de `rpc`, o `p_stages` como `jsonb` pelo PostgREST, e
-a UI de ponta a ponta. **Isso exige uma pessoa** — o checklist está abaixo.
+| #   | Passo                                    | Resultado |
+| --- | ---------------------------------------- | --------- |
+| 1   | Projeto criado no cliente Velmont        | PASS      |
+| 2   | Jornada com **8 etapas**                 | PASS      |
+| 3   | Primeira etapa nasce `current`           | PASS      |
+| 4   | Ativação do projeto (`draft → active`)   | PASS      |
+| 5   | Portal do `client_user` com projeto real | PASS      |
+| 6   | Avançar etapa, e o cliente ver a mudança | PASS      |
+| 7   | Cross-tenant: URL da Revenda Mais negada | PASS      |
+| 8   | Múltiplos projetos e seletor             | PASS      |
+| 9   | `draft` invisível para o `client_user`   | PASS      |
+
+**Problemas encontrados: nenhum.**
+
+Isso fecha o que faltava. O caminho HTTP do PostgREST — `rpc` com `p_stages`
+como `jsonb`, serialização, e a UI ponta a ponta — estava descoberto pela suíte
+automatizada e passou a estar coberto por este QA. É o critério de pronto da
+fase, cumprido: _a Boop cria um projeto social, avança a etapa e o cliente vê a
+mudança._
+
+**O que este QA NÃO cobriu**, e continua registrado como tal: o caso
+`boop_member` sem vínculo no ambiente hospedado — o staging não tem um
+`boop_member`. A célula está provada contra Postgres real (`MEM_0` na suíte de
+isolamento e nas fronteiras), não pelo caminho HTTP.
+
+### Limitação desta SESSÃO (não do produto)
+
+Nada de PostgREST foi exercitado **a partir do container de trabalho**: não há
+daemon Docker (o banco local cai no plano B — Postgres nu, sem PostgREST) e a
+política de rede recusa CONNECT para `njlkuzrppnwkgrdacmos.supabase.co`. A
+validação hospedada acima foi feita por uma pessoa, e é ela que cobre a camada
+que a sessão não alcança.
 
 ---
 
@@ -359,30 +386,12 @@ FASE 6 não toca em e-mail, Auth ou variável de ambiente.
 
 ---
 
-## QA hospedado — checklist para uma pessoa
+## QA hospedado — executado
 
-Um projeto real precisa nascer pela UI. Sugestão de ordem:
-
-1. entrar como `boop_admin`; abrir **Velmont Patentes**;
-2. **Novo projeto** → tipo _Social media_ → criar;
-3. conferir: jornada com **8 etapas**, a primeira **em andamento**, status
-   **Rascunho**;
-4. **Ativar projeto**;
-5. convidar/usar um `client_user` da Velmont e entrar como ele;
-6. `/portal` deve **redirecionar direto** para o projeto (é o único visível);
-7. a jornada real aparece no dashboard e em `/projeto`;
-8. como Boop, **Avançar etapa**; como cliente, F5 → a etapa nova aparece;
-9. trocar o uuid da URL para o projeto da **Revenda Mais** → **404**;
-10. criar um **segundo** projeto na Velmont e ativá-lo → `/portal` passa a
-    mostrar a **escolha**, e o seletor aparece no cabeçalho;
-11. deixar um projeto em **rascunho** e tentar abri-lo como cliente pela URL →
-    **404**;
-12. (se quiser fechar D-08 no ambiente hospedado) convidar um `boop_member`,
-    **sem** vínculo com a Velmont, e confirmar que ele não alcança o projeto.
-
-O staging **não** tem `boop_member` hoje — o passo 12 exige criar um. Os testes
-locais já cobrem essa célula contra Postgres real; o passo é para exercitar o
-caminho HTTP.
+O checklist foi percorrido por uma pessoa e passou inteiro. O registro está em
+"QA hospedado — CONCLUÍDO, sem problemas", acima. Resta um único passo não
+exercitado por HTTP, e por falta de ator: `boop_member` sem vínculo, que o
+staging não tem. A célula está provada contra Postgres real.
 
 ---
 

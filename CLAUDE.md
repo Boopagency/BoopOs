@@ -12,7 +12,7 @@ para ele.
 
 Percepção-alvo: _"Eu sei exatamente o que está acontecendo com minha marca."_
 
-**Status atual: FASE 6 concluída — a Boop executa projetos pelo produto.**
+**Status atual: FASE 6 concluída e VALIDADA EM AMBIENTE HOSPEDADO.**
 19 migrations, 19 tabelas com RLS **e políticas**, 11 funções `app.*`, 8
 fronteiras `security definer`, e 788 testes (393 contra Postgres real).
 Fingerprint local ↔ staging idêntico nas nove partes.

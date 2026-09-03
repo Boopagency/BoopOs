@@ -156,7 +156,7 @@ portal lendo projeto e jornada do banco. Jornadas mínimas para os cinco
 `project_type` — prova de que a arquitetura não depende de social.
 `DEMO_PROJECT_ID` deixou de existir.
 **Pronto quando:** a Boop cria um projeto social, avança a etapa e o cliente vê a
-mudança. ✅
+mudança. ✅ **Validado em ambiente hospedado por QA humano, sem problemas.**
 
 Três funções SQL novas ([ADR-0023](adr/0023-fronteiras-transacionais-de-projeto-e-jornada.md))
 e a imutabilidade de `journey_key`/`type` no banco, que a ADR-0006 declarava e o
