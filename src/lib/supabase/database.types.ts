@@ -1075,6 +1075,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      advance_project_stage: { Args: { p_project_id: string }; Returns: string }
       assign_invited_profile_role: {
         Args: {
           p_role: Database["public"]["Enums"]["user_role"]
@@ -1082,7 +1083,24 @@ export type Database = {
         }
         Returns: string
       }
+      create_project_with_journey: {
+        Args: {
+          p_client_id: string
+          p_journey_key: string
+          p_name: string
+          p_stages: Json
+          p_starts_on?: string
+          p_type: Database["public"]["Enums"]["project_type"]
+        }
+        Returns: string
+      }
       disable_profile: { Args: { p_user_id: string }; Returns: string }
+      list_client_team: {
+        Args: { p_client_id: string }
+        Returns: {
+          full_name: string
+        }[]
+      }
       promote_invited_profile: { Args: never; Returns: string }
       record_activity: {
         Args: {
@@ -1095,6 +1113,14 @@ export type Database = {
           p_visibility?: Database["public"]["Enums"]["activity_visibility"]
         }
         Returns: undefined
+      }
+      set_project_stage_state: {
+        Args: {
+          p_project_id: string
+          p_stage_id: string
+          p_state: Database["public"]["Enums"]["stage_state"]
+        }
+        Returns: string
       }
     }
     Enums: {
