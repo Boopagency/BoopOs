@@ -43,6 +43,12 @@ const MATRIZ: [Capability, boolean, boolean, boolean][] = [
   ['onboarding.answer', true, true, true],
   ['onboarding.submit', true, true, true],
   ['onboarding.read_answers', true, true, true],
+  /*
+   * FASE 7. Reabrir devolve uma submissao enviada para `draft`, e
+   * docs/workflows.md reserva a operacao a `boop_admin` — inclusive contra
+   * `boop_member`, que ABRE o onboarding mas nao desfaz um envio.
+   */
+  ['onboarding.reopen', true, false, false],
 
   ['strategy.create', true, true, false],
   ['strategy.read_draft', true, true, false],

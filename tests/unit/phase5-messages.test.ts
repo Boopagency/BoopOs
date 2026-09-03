@@ -19,12 +19,14 @@ import { CAPABILITIES } from '@/lib/auth/policy'
 
 /*
  * A lista cresce uma fase por vez, junto com os dominios. A FASE 6 acrescentou
- * `projects/mutations.ts`, e com ele os codigos de projeto e jornada.
+ * `projects/mutations.ts`, e com ele os codigos de projeto e jornada; a FASE 7,
+ * `onboarding/mutations.ts`.
  */
 const FONTES = [
   '../../src/domains/clients/mutations.ts',
   '../../src/domains/people/mutations.ts',
   '../../src/domains/projects/mutations.ts',
+  '../../src/domains/onboarding/mutations.ts',
 ]
 
 function codigosLancados(): string[] {
@@ -41,7 +43,7 @@ function codigosLancados(): string[] {
 }
 
 describe('WORKFLOW_MESSAGE', () => {
-  it('traduz TODO código lançado pelos workflows das FASES 5 e 6', () => {
+  it('traduz TODO código lançado pelos workflows das FASES 5 a 7', () => {
     const codigos = codigosLancados()
 
     /* Guarda contra o regex parar de casar e o teste virar tautologia. */
@@ -51,7 +53,7 @@ describe('WORKFLOW_MESSAGE', () => {
     expect(semTraducao, `sem mensagem em pt-BR: ${semTraducao.join(', ')}`).toEqual([])
   })
 
-  it('traduz a recusa por papel de toda capacidade das FASES 5 e 6', () => {
+  it('traduz a recusa por papel de toda capacidade das FASES 5 a 7', () => {
     const daFase = [
       'client.create',
       'client.update',
@@ -65,6 +67,11 @@ describe('WORKFLOW_MESSAGE', () => {
       'project.update',
       'project.advance_stage',
       'project.change_status',
+      /* FASE 7 */
+      'onboarding.start',
+      'onboarding.answer',
+      'onboarding.submit',
+      'onboarding.reopen',
     ] as const
 
     for (const capability of daFase) {

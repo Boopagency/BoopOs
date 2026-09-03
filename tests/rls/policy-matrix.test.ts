@@ -64,10 +64,23 @@ const MATRIZ: Record<string, { policies: Operacoes; grants: Operacoes; porque: s
   },
   onboarding_sections: { policies: 'SIUD', grants: 'SIUD', porque: 'idem catalogo' },
   onboarding_questions: { policies: 'SIUD', grants: 'SIUD', porque: 'idem catalogo' },
+  /*
+   * FASE 7: caiu de `SIU` para `S`.
+   *
+   * Escrever aqui deixou de ser possivel pela API. O ciclo de vida inteiro —
+   * abrir, enviar, reabrir — passa por `start_onboarding()`,
+   * `submit_onboarding()` e `reopen_onboarding()`, e por mais nada. Com o
+   * UPDATE aberto, um `client_user` movia `draft -> submitted` pelo PostgREST,
+   * sem avancar a jornada e sem gravar activity: uma submissao enviada que o
+   * sistema nao sabia que existia.
+   *
+   * E a mesma decisao de `strategy_approvals` e `content_approvals`, tomada na
+   * FASE 4 pela mesma razao.
+   */
   onboarding_submissions: {
-    policies: 'SIU',
-    grants: 'SIU',
-    porque: 'e o registro do que o cliente respondeu',
+    policies: 'S',
+    grants: 'S',
+    porque: 'ciclo de vida so por RPC; escrita direta nao existe',
   },
   onboarding_answers: {
     policies: 'SIU',

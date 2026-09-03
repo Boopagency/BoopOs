@@ -239,6 +239,13 @@ describe('varredura de schema', () => {
       'actor_role',
       'can_answer_submission',
       'derive_client_id',
+      /*
+       * FASE 7. `security definer` para que a decisao sobre a integridade de
+       * uma resposta seja a MESMA para todo papel: sem ele, a busca da pergunta
+       * seria filtrada pela RLS de quem escreve, e "pergunta de outro template"
+       * viraria "pergunta inexistente" para um cliente.
+       */
+      'enforce_answer_integrity',
       'handle_auth_user_email_change',
       'handle_new_auth_user',
       'has_client_access',
