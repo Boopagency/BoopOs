@@ -55,11 +55,21 @@ export function ProjectJourney({
   stages,
   className,
   detailed = false,
+  variant = 'full',
 }: {
-  stages: JourneyStage[]
+  stages: readonly JourneyStage[]
   className?: string
   /** `true` mostra o resumo de cada etapa. Usado na página do projeto. */
   detailed?: boolean
+  /**
+   * `glance` é a jornada RESUMIDA da Home: três etapas, anterior · atual ·
+   * próxima. `full` é a de `/projeto`.
+   *
+   * A variante muda SÓ a grade do desktop. Rótulos, estados, os olhos sobre a
+   * etapa corrente e o `sr-only` com o estado por extenso são os mesmos — uma
+   * fonte de estilo, um teste de acessibilidade, dois usos.
+   */
+  variant?: 'full' | 'glance'
 }) {
   return (
     <div className={className}>
@@ -94,7 +104,12 @@ export function ProjectJourney({
       </ol>
 
       {/* ── Desktop: blocos em fileira ────────────────────────────────── */}
-      <ol className="hidden sm:grid sm:grid-cols-3 sm:gap-x-5 sm:gap-y-10 lg:grid-cols-6">
+      <ol
+        className={cn(
+          'hidden sm:grid sm:grid-cols-3 sm:gap-x-5 sm:gap-y-10',
+          variant === 'full' && 'lg:grid-cols-6',
+        )}
+      >
         {stages.map((stage) => {
           const current = stage.state === 'current'
           return (

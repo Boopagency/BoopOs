@@ -85,6 +85,21 @@ export function formatDateTime(iso: string): string {
  * Saudação por período do dia, no fuso de São Paulo.
  * Recebe a data para poder ser testada sem congelar o relógio.
  */
+/**
+ * O primeiro nome, para a saudação.
+ *
+ * `profiles.full_name` é nullable — uma pessoa convidada que nunca preencheu o
+ * cadastro não tem nome. Nesse caso a saudação fica sem nome ("Boa tarde."), e
+ * **nunca** cai para a razão social: cumprimentar uma empresa como se fosse uma
+ * pessoa é o gesto que faz um portal parecer um CRM (D-28).
+ */
+export function firstName(fullName: string | null): string | null {
+  const limpo = (fullName ?? '').trim()
+  if (limpo === '') return null
+
+  return limpo.split(/\s+/)[0] ?? null
+}
+
 export function greeting(now: Date = new Date()): 'Bom dia' | 'Boa tarde' | 'Boa noite' {
   const hour = Number(
     new Intl.DateTimeFormat('en-US', {

@@ -1,35 +1,43 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { DashboardHero } from '@/components/patterns/dashboard-hero'
+import { AttentionState } from '@/components/patterns/attention-state'
+import { CurrentStage } from '@/components/patterns/current-stage'
+import { PortalGreeting } from '@/components/patterns/portal-greeting'
 import { ProjectJourney } from '@/components/patterns/project-journey'
-import { SectionHeading } from '@/components/patterns/section-heading'
 import { portalHref } from '@/config/app'
-import { getCurrentStage, getJourney, getProject } from '@/lib/data/portal'
+import { requireActor } from '@/lib/auth/actor'
+import { getClientAttention } from '@/domains/attention/queries'
+import { getClientPublic } from '@/domains/clients/queries'
+import { currentStage, journeyGlance, journeyState } from '@/domains/projects/journey'
+import { getPortalJourney, requireVisiblePortalProject } from '@/domains/projects/queries'
 
 export const metadata: Metadata = { title: 'Início' }
 
 /*
- * Dashboard.
+ * A Home do cliente.
  *
- * ## O que saiu daqui, e por quê
+ * Ela responde UMA frase, nesta ordem:
  *
- * Até esta fase a Home compunha SETE leituras. Três vinham do banco — projeto,
- * jornada e etapa corrente. As outras quatro vinham de `src/mocks/hartmann.ts`:
- * "precisa da sua atenção", "próxima entrega", "próximo encontro" e o
- * aprendizado. Elas foram removidas.
+ *     quem é você aqui → algo depende de você? → onde estamos → qual é a jornada
  *
- * Não foi decisão de composição: foi correção de defeito. Um cliente real, no
- * ambiente hospedado, lia uma data de entrega que ninguém combinou e um review
- * mensal que ninguém agendou, com a mesma tipografia do dado verdadeiro. E o
- * CTA da laje de atenção apontava para `/portal/hartmann-social/conteudo` — um
- * id que não existe desde a FASE 6 —, então o gesto central do produto levava a
- * um 404.
+ * Quatro blocos, e todos com origem no banco. Nada de próxima entrega, próximo
+ * encontro, aprendizado, produção ou atividade: nenhum desses tem origem hoje —
+ * três deles nem tabela têm — e bloco sem origem não vira estado vazio bonito,
+ * desaparece. É a mesma decisão que a FASE 6 tomou com "o que combinamos" (D-16).
  *
- * Nenhuma das quatro tem origem no schema hoje: `meetings` e as tabelas de
- * métrica não existem (FASES 13 e 14), e a "próxima entrega" nunca teve coluna
- * em lugar nenhum — é irmã do `project.scope` que a FASE 6 cortou (D-16).
+ * ## A ordem não é estética
  *
- * O bloco de atenção volta nesta mesma fase, derivado do banco.
+ * O estado de atenção vem ANTES de tudo que não seja a saudação porque a
+ * pergunta "preciso fazer alguma coisa?" é a razão de o cliente ter aberto o
+ * portal. Em 375 × 667 ela precisa estar respondida sem rolagem — com o CTA
+ * inteiro, ou com a frase de calma, ou com a de degradação.
+ *
+ * ## Quem diz o `summary` da etapa
+ *
+ * No estado de calma, o bloco de atenção já carrega a frase oficial da etapa
+ * corrente — é o "o que a Boop está fazendo" logo na dobra. Nesse caso o bloco
+ * "Agora" não a repete: a mesma frase duas vezes na mesma tela é ruído. A
+ * decisão de composição mora aqui, e não dentro dos componentes.
  */
 export default async function DashboardPage({
   params,
@@ -38,34 +46,60 @@ export default async function DashboardPage({
 }) {
   const { projectId } = await params
 
-  const [project, journey, currentStage] = await Promise.all([
-    getProject(projectId),
-    getJourney(projectId),
-    getCurrentStage(projectId),
+  /*
+   * `requireVisiblePortalProject` roda de novo aqui, e o layout já o chamou: as
+   * duas chamadas compartilham o mesmo resultado no request (`cache()` do
+   * React). O custo é zero e o ganho é que esta página continua segura se
+   * alguém a montar em outro lugar.
+   */
+  const [actor, project, stages, attention] = await Promise.all([
+    requireActor(),
+    requireVisiblePortalProject(projectId),
+    getPortalJourney(projectId),
+    getClientAttention(projectId),
   ])
+
+  const client = await getClientPublic(project.clientId)
+
+  const stage = currentStage(stages)
+  const state = journeyState(stages)
+  const glance = journeyGlance(stages)
+  const summary = stage?.summary ?? null
 
   return (
     <>
-      <DashboardHero project={project} currentStage={currentStage} />
+      <PortalGreeting
+        fullName={actor.fullName}
+        clientName={client.name}
+        projectName={project.name}
+      />
 
-      <section aria-labelledby="jornada" className="content py-16 md:py-24">
-        <SectionHeading
-          eyebrow={`Ciclo ${project.cycle}`}
-          title="Onde estamos"
-          action={
+      <AttentionState result={attention} status={project.status} stageSummary={summary} />
+
+      <CurrentStage
+        cycle={project.cycle}
+        stage={stage}
+        state={state}
+        summary={attention.state === 'calm' ? null : summary}
+      />
+
+      {glance.length > 0 && (
+        <section aria-labelledby="jornada" className="content border-rule border-t py-12 md:py-16">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2">
+            <h2 id="jornada" className="t-meta text-muted">
+              A jornada
+            </h2>
             <Link
               href={portalHref(projectId, 'projeto')}
-              className="t-meta text-muted decoration-rule-strong hover:text-foreground hover:decoration-accent underline underline-offset-[6px]"
+              className="t-meta text-muted decoration-rule-strong hover:text-foreground hover:decoration-accent flex min-h-11 items-center underline underline-offset-[6px]"
             >
-              Ver o projeto
+              Ver a jornada completa →
             </Link>
-          }
-        />
-        <h2 id="jornada" className="sr-only">
-          Jornada do projeto
-        </h2>
-        <ProjectJourney stages={journey} className="mt-12 md:mt-16" />
-      </section>
+          </div>
+
+          <ProjectJourney stages={glance} variant="glance" className="mt-10 md:mt-12" />
+        </section>
+      )}
     </>
   )
 }
