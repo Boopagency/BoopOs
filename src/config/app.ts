@@ -85,6 +85,21 @@ export function visibleSections(type: ProjectType): readonly PortalSection[] {
  */
 export const BOTTOM_NAV_THRESHOLD = 3
 
+/**
+ * A barra inferior existe para este conjunto de seções?
+ *
+ * A pergunta é de PRODUTO, então a resposta mora aqui, ao lado do limiar que a
+ * define — e não dentro da casca, que só desenha. Até a FASE 8.5 a comparação
+ * estava escrita no `portal-shell.tsx`, e um teste lia o código-fonte da casca
+ * para conferi-la: a regra certa no arquivo errado (ADR-0027).
+ *
+ * A FASE 9 liga Estratégia, `sections` chega a três, e a barra acende sozinha —
+ * sem ninguém tocar em layout.
+ */
+export function showsBottomNav(sections: readonly PortalSection[]): boolean {
+  return sections.length >= BOTTOM_NAV_THRESHOLD
+}
+
 export function portalHref(projectId: string, slug: string): string {
   return slug ? `/portal/${projectId}/${slug}` : `/portal/${projectId}`
 }

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { PortalShell } from '@/components/layout/portal-shell'
 import { visibleSections } from '@/config/app'
+import { requireActor } from '@/lib/auth/actor'
 import { getClientPublic } from '@/domains/clients/queries'
 import { listPortalProjects, requireVisiblePortalProject } from '@/domains/projects/queries'
 
@@ -44,9 +45,16 @@ export default async function ProjectLayout({
    * guard: o guard responde uma pergunta de segurança, e misturar leitura de
    * domínio nele faria a próxima pessoa "aproveitá-lo" para buscar dado.
    */
-  const [client, projects] = await Promise.all([
+  const [client, projects, actor] = await Promise.all([
     getClientPublic(project.clientId),
     listPortalProjects(),
+    /*
+     * O nome de quem está logado, para a base da sidebar. `requireActor()` já
+     * rodou no layout do grupo e o resultado vem do cache de request do React:
+     * o custo é zero, e a alternativa — descer o ator por prop desde lá —
+     * acoplaria dois layouts que hoje respondem perguntas diferentes.
+     */
+    requireActor(),
   ])
 
   return (
@@ -54,6 +62,7 @@ export default async function ProjectLayout({
       projectId={project.id}
       clientName={client.name}
       projectName={project.name}
+      fullName={actor.fullName}
       /*
        * A navegacao segue o PRODUTO: uma secao aparece quando a funcionalidade
        * existe, e nunca porque uma tabela ganhou a primeira linha. Um menu que

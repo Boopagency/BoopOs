@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { BOTTOM_NAV_THRESHOLD, PORTAL_SECTIONS, portalHref, visibleSections } from '@/config/app'
+import {
+  BOTTOM_NAV_THRESHOLD,
+  PORTAL_SECTIONS,
+  portalHref,
+  showsBottomNav,
+  visibleSections,
+} from '@/config/app'
 import { PROJECT_TYPES, type ProjectType } from '@/config/enums'
 
 /**
@@ -100,12 +106,43 @@ describe('a barra inferior espera ter o que oferecer', () => {
     expect(visibleSections('social').length).toBeLessThan(BOTTOM_NAV_THRESHOLD)
   })
 
-  it('o shell decide pela contagem, e some com a reserva junto', async () => {
+  /*
+   * A FASE 8.5 mudou o ENDEREÇO desta regra, não a regra.
+   *
+   * Até aqui os dois casos abaixo liam o código-fonte de `portal-shell.tsx`
+   * atrás de duas strings literais — uma comparação e uma expressão de classe.
+   * Isso travava a implementação da casca, não o comportamento do produto: a
+   * reescrita da casca em ADR-0027 os quebraria mesmo mantendo a regra intacta,
+   * que é o sinal de que a asserção estava no lugar errado.
+   *
+   * A decisão virou `showsBottomNav()`, em `src/config/app.ts`, ao lado do
+   * limiar que a define — e agora é testável como função pura, sem ler arquivo.
+   * A reserva de altura continua conferida, e continua conferida onde ela de
+   * fato existe.
+   *
+   * O terceiro caso da FASE 8 — "Ciclo N" saiu do shell — NÃO mudou, e é ele
+   * que força a rail contextual a ser um slot opaco: uma casca que recebesse
+   * `cycle` por prop voltaria a falhar aqui.
+   */
+  it('a decisão é da CONFIG, e é pura', () => {
+    const duas = visibleSections('social')
+    expect(duas.length).toBe(2)
+    expect(showsBottomNav(duas)).toBe(false)
+
+    /* Uma terceira seção — a FASE 9 — acende a barra sem tocar em layout. */
+    expect(showsBottomNav([...duas, PORTAL_SECTIONS[2]!])).toBe(true)
+  })
+
+  it('sem barra, sem reserva de altura no `main`', async () => {
     const { readFileSync } = await import('node:fs')
     const fonte = readFileSync('src/components/layout/portal-shell.tsx', 'utf8')
 
-    expect(fonte).toContain('sections.length >= BOTTOM_NAV_THRESHOLD')
-    expect(fonte).toContain("comBarra ? 'flex-1 pb-24 md:pb-0' : 'flex-1'")
+    /* A casca consome a decisão; não a reimplementa. */
+    expect(fonte).toContain('showsBottomNav(sections)')
+    expect(fonte).not.toContain('sections.length >=')
+
+    /* A reserva é condicionada — senão sobra rodapé fantasma no celular. */
+    expect(fonte).toMatch(/comBarra \? '[^']*pb-24[^']*' : 'flex-1'/)
   })
 })
 

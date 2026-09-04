@@ -70,13 +70,13 @@ não do portal, que é mobile-first e client-facing.
 
 Nenhuma dependência é adicionada nesta fase.
 
-| Opção | Mouse | Touch | Teclado | ARIA | Veredito |
-| --- | --- | --- | --- | --- | --- |
-| HTML5 nativo | ✅ | ❌ | ❌ | ❌ | sem touch e sem teclado |
-| **`@dnd-kit`** | ✅ | ✅ | ✅ sensor próprio | ✅ live region | **preferida** |
-| Pragmatic DnD | ✅ | ⚠️ apoia-se na DnD nativa | parcial | manual | o touch é justamente o problema |
-| `react-aria` DnD | ✅ | ✅ | ✅ | ✅ | melhor a11y do lote, ecossistema grande demais para um caso |
-| Pointer Events à mão | ✅ | ✅ | ✍️ nosso | ✍️ nosso | anúncio de arrasto para leitor de tela é caro de acertar |
+| Opção                | Mouse | Touch                     | Teclado           | ARIA           | Veredito                                                    |
+| -------------------- | ----- | ------------------------- | ----------------- | -------------- | ----------------------------------------------------------- |
+| HTML5 nativo         | ✅    | ❌                        | ❌                | ❌             | sem touch e sem teclado                                     |
+| **`@dnd-kit`**       | ✅    | ✅                        | ✅ sensor próprio | ✅ live region | **preferida**                                               |
+| Pragmatic DnD        | ✅    | ⚠️ apoia-se na DnD nativa | parcial           | manual         | o touch é justamente o problema                             |
+| `react-aria` DnD     | ✅    | ✅                        | ✅                | ✅             | melhor a11y do lote, ecossistema grande demais para um caso |
+| Pointer Events à mão | ✅    | ✅                        | ✍️ nosso          | ✍️ nosso       | anúncio de arrasto para leitor de tela é caro de acertar    |
 
 A escolha por biblioteca em vez de código próprio segue o critério que a
 [ADR-0018](0018-sem-biblioteca-de-ui-e-de-motion.md) já tinha escrito: biblioteca
@@ -109,13 +109,13 @@ Quando a FASE 10 ligar o arrasto no admin, três condições valem:
 
 ## Alternativas descartadas
 
-| Alternativa | Por que não |
-| --- | --- |
-| Construir `KanbanBoard` já sabendo status e card | Congela na geometria o domínio que a FASE 10 precisa decidir. Seria reescrito |
-| Não construir nada agora | A geometria horizontal, o snap e o teclado não dependem do domínio, e são o que custa acertar |
-| Adicionar `@dnd-kit` já, sem usar | Dependência sem consumidor, e o gatilho da ADR-0018 ainda não disparou |
-| Kanban editável no portal | Contradiz o modelo de aprovação: arrasto não expressa "pedir ajuste", e aprovação é RPC validado |
-| Rota interna de demonstração | Dado falso alcançável por usuário é exatamente o que a FASE 8 apagou |
+| Alternativa                                      | Por que não                                                                                      |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Construir `KanbanBoard` já sabendo status e card | Congela na geometria o domínio que a FASE 10 precisa decidir. Seria reescrito                    |
+| Não construir nada agora                         | A geometria horizontal, o snap e o teclado não dependem do domínio, e são o que custa acertar    |
+| Adicionar `@dnd-kit` já, sem usar                | Dependência sem consumidor, e o gatilho da ADR-0018 ainda não disparou                           |
+| Kanban editável no portal                        | Contradiz o modelo de aprovação: arrasto não expressa "pedir ajuste", e aprovação é RPC validado |
+| Rota interna de demonstração                     | Dado falso alcançável por usuário é exatamente o que a FASE 8 apagou                             |
 
 ## Relacionadas
 

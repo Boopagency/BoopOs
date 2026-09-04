@@ -41,10 +41,10 @@ dela.**
 continua exatamente a FASE 8 abaixo disso.**
 
 ```
-DESKTOP ≥ 1024px                          MOBILE / TABLET < 1024px
+DESKTOP ≥ 1024px (rail só em ≥ 1280px)    MOBILE / TABLET < 1024px
 ┌──────────┬──────────────┬──────────┐    ┌────────────────────────┐
 │ SIDEBAR  │  WORKSPACE   │   RAIL   │    │ HEADER sticky (F8)     │
-│ 17rem    │  1fr         │  18rem   │    ├────────────────────────┤
+│ 17rem    │  1fr         │  19rem   │    ├────────────────────────┤
 │          │              │          │    │ Início   Projeto  (F8) │
 │ marca    │  conteúdo    │ contexto │    ├────────────────────────┤
 │ cliente  │  da seção    │ real     │    │                        │
@@ -118,11 +118,11 @@ de roteamento e testável em jsdom.
 **Não** três containers com `overflow`. O documento continua sendo o eixo de
 scroll, e sidebar e rail são `sticky`.
 
-| Região | Desktop (`lg`+) | Mobile |
-| --- | --- | --- |
-| Sidebar | `sticky top-0 h-dvh overflow-y-auto` — só rola se exceder | não renderiza |
-| Workspace | fluxo normal, scroll do documento | idem |
-| Rail | `sticky top-N max-h-[calc(100dvh-N)] overflow-y-auto` — só rola se exceder | vira bloco no fim do fluxo |
+| Região    | Desktop                                                                         | Mobile                     |
+| --------- | ------------------------------------------------------------------------------- | -------------------------- |
+| Sidebar   | `sticky top-0 h-dvh overflow-y-auto` — só rola se exceder                       | não renderiza              |
+| Workspace | fluxo normal, scroll do documento                                               | idem                       |
+| Rail      | em `xl` (1280px): `sticky top-0 max-h-dvh overflow-y-auto` — só rola se exceder | vira bloco no fim do fluxo |
 
 A documentação do Next explica por que esta forma é a robusta:
 
@@ -176,11 +176,11 @@ nenhum. O feedback de navegação vem do marcador de item ativo e do `loading.ts
 Três asserções em `tests/unit/phase8-nav-availability.test.ts` leem o texto de
 `portal-shell.tsx` e travam a implementação, não o comportamento:
 
-| Asserção | O que acontece | Como fica |
-| --- | --- | --- |
-| contém `sections.length >= BOTTOM_NAV_THRESHOLD` | a decisão migra para `src/config/app.ts` (`showsBottomNav`) | passa a ler a função pura, que é onde a regra deve morar |
-| contém `comBarra ? 'flex-1 pb-24 md:pb-0' : 'flex-1'` | a reserva de altura muda de forma com o grid | asserção sobre a regra: sem barra, sem reserva |
-| não contém `cycle` / `Ciclo {` | **mantida sem mudança** | é ela que força a rail opaca |
+| Asserção                                              | O que acontece                                              | Como fica                                                |
+| ----------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------- |
+| contém `sections.length >= BOTTOM_NAV_THRESHOLD`      | a decisão migra para `src/config/app.ts` (`showsBottomNav`) | passa a ler a função pura, que é onde a regra deve morar |
+| contém `comBarra ? 'flex-1 pb-24 md:pb-0' : 'flex-1'` | a reserva de altura muda de forma com o grid                | asserção sobre a regra: sem barra, sem reserva           |
+| não contém `cycle` / `Ciclo {`                        | **mantida sem mudança**                                     | é ela que força a rail opaca                             |
 
 A regra que os três guardam continua valendo palavra por palavra: _a navegação
 segue a feature; a barra inferior só existe com o que oferecer; o cabeçalho é
@@ -203,15 +203,15 @@ afrouxado, e a terceira — a mais importante — fica exatamente como estava.
 
 ## Alternativas descartadas
 
-| Alternativa | Por que não |
-| --- | --- |
-| Manter o cabeçalho e só alargar o container | Não resolve nenhuma das sete causas. O portal continua sem nada persistente |
-| Sidebar a partir de `md` (768px) | 768 − 216 − gutters deixaria ~470px de workspace. Inaceitável |
-| Rail por parallel route `@rail` | Rail obsoleta persiste em soft navigation; `default.js` obrigatório; oito páginas `null` que a próxima rota esquece |
-| Três containers com `overflow` | Compra rolagem independente que a fase não precisa, ao custo de restauração de scroll, âncora e barra de URL do celular |
-| `ViewTransition` do React agora | Anima a casca inteira por padrão; overlay captura ponteiro; reduced motion não alcança; invisível em jsdom |
-| Biblioteca de motion (Motion for React) | Nenhum dos três gatilhos da ADR-0018 disparou nesta fase |
-| Drawer mobile agora | A FASE 9 liga a barra inferior sozinha ao cruzar o limiar de três seções |
+| Alternativa                                 | Por que não                                                                                                             |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Manter o cabeçalho e só alargar o container | Não resolve nenhuma das sete causas. O portal continua sem nada persistente                                             |
+| Sidebar a partir de `md` (768px)            | 768 − 216 − gutters deixaria ~470px de workspace. Inaceitável                                                           |
+| Rail por parallel route `@rail`             | Rail obsoleta persiste em soft navigation; `default.js` obrigatório; oito páginas `null` que a próxima rota esquece     |
+| Três containers com `overflow`              | Compra rolagem independente que a fase não precisa, ao custo de restauração de scroll, âncora e barra de URL do celular |
+| `ViewTransition` do React agora             | Anima a casca inteira por padrão; overlay captura ponteiro; reduced motion não alcança; invisível em jsdom              |
+| Biblioteca de motion (Motion for React)     | Nenhum dos três gatilhos da ADR-0018 disparou nesta fase                                                                |
+| Drawer mobile agora                         | A FASE 9 liga a barra inferior sozinha ao cruzar o limiar de três seções                                                |
 
 ## Relacionadas
 

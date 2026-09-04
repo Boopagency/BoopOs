@@ -82,6 +82,9 @@
   --motion-instant: 90ms;
   --motion-fast: 160ms;
   --motion-default: 240ms;
+  /* Entrada do conteudo de rota. No PISO da faixa util: 320ms numa troca de
+     secao que o usuario ja pediu e atraso percebido, nao refinamento. */
+  --motion-page: 220ms;
   --motion-emphasized: 560ms;
 
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
@@ -220,6 +223,26 @@
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    /*
+     * O cabecalho sticky do celular cobriria o alvo de uma ancora `#id` e o
+     * topo da pagina depois da navegacao: o Next PULA elementos sticky ao
+     * procurar o alvo de scroll, entao a compensacao e nossa. E a receita da
+     * documentacao do proprio Next (`link.md#scroll-offset-with-sticky-headers`).
+     * Em `lg` o cabecalho nao existe, e a compensacao zera.
+     */
+    scroll-padding-top: 3.5rem;
+  }
+
+  @media (min-width: 48rem) {
+    html {
+      scroll-padding-top: 4rem;
+    }
+  }
+
+  @media (min-width: 64rem) {
+    html {
+      scroll-padding-top: 0;
+    }
   }
 
   body {
@@ -329,6 +352,43 @@
   }
   .rise-5 {
     animation-delay: 480ms;
+  }
+
+  /*
+   * Entrada do workspace na troca de rota.
+   *
+   * 8px, e nao os 14px do `boop-rise`: numa troca de secao, 14px leem como
+   * conteudo caindo; 8px leem como foco assentando. So o workspace entra — a
+   * casca nao esta nesta subarvore (ADR-0027).
+   */
+  @keyframes boop-workspace {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 8px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  .workspace-enter {
+    animation: boop-workspace var(--motion-page) var(--ease-out) both;
+  }
+
+  /* Pulso da espera: skeleton, nunca conteudo. */
+  @keyframes boop-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+
+  .skeleton-pulse {
+    animation: boop-pulse 1.6s var(--ease-standard) infinite;
   }
 
   .drift {

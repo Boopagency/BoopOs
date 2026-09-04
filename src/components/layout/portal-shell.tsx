@@ -3,8 +3,11 @@ import Link from 'next/link'
 import { BoopMark } from '@/components/brand/boop-mark'
 import { PortalBottomNav } from '@/components/layout/portal-bottom-nav'
 import { PortalNav } from '@/components/layout/portal-nav'
+import { PortalSidebar } from '@/components/layout/portal-sidebar'
+import { ProjectSwitcher } from '@/components/layout/project-switcher'
+import { Workspace } from '@/components/layout/workspace'
 import { SignOutButton } from '@/components/patterns/sign-out-button'
-import { BOTTOM_NAV_THRESHOLD, portalHref, type PortalSection } from '@/config/app'
+import { portalHref, showsBottomNav, type PortalSection } from '@/config/app'
 
 export interface PortalShellProps {
   projectId: string
@@ -18,20 +21,52 @@ export interface PortalShellProps {
   /**
    * Todos os projetos que esta pessoa alcanca. Com um so, nada muda na tela.
    *
-   * So `id` e `name` — o cabecalho nao precisa de mais nada, e o que nao e
+   * So `id` e `name` — a casca nao precisa de mais nada, e o que nao e
    * necessario nao atravessa a fronteira do RSC.
    */
   projects?: readonly { id: string; name: string }[]
+  /** Nome de quem esta logado, para a base da sidebar. Pode ser nulo. */
+  fullName?: string | null
   children: ReactNode
 }
 
 /**
- * Casca do portal do cliente.
+ * Casca do portal do cliente — um AMBIENTE no desktop, a FASE 8 no celular.
  *
- * A referência é o cabeçalho de uma revista, não o de um SaaS: identificação
- * discreta em cima, sumário em linha embaixo, e uma régua separando. Nenhuma
- * caixa, nenhuma sombra, nenhum ícone — a hierarquia vem do tamanho e do
- * espaço (docs/design-direction.md).
+ * ```
+ * >= lg (1024px)                        < lg
+ * ┌──────────┬─────────────────────┐    ┌────────────────────┐
+ * │ SIDEBAR  │  WORKSPACE          │    │ CABEÇALHO sticky   │
+ * │ 17rem    │  (+ rail em xl,     │    │ marca · projeto ▾  │
+ * │ sticky   │     composta pela   │    │ Início   Projeto   │
+ * │ h-dvh    │     página)         │    ├────────────────────┤
+ * │          │                     │    │  documento rola    │
+ * └──────────┴─────────────────────┘    └────────────────────┘
+ * ```
+ *
+ * ## Duas árvores, um componente
+ *
+ * A sidebar é `hidden lg:block`; o cabeçalho é `lg:hidden`. O celular renderiza
+ * a MESMA árvore da FASE 8 — e a garantia mais cara daquela fase, a resposta de
+ * atenção acima da dobra em 375 × 667, é preservada por construção, não por
+ * medição. Nenhum chrome novo entra abaixo de `lg`.
+ *
+ * Não há drawer mobile de propósito: a FASE 9 liga Estratégia, `sections` chega
+ * a três, e `showsBottomNav()` acende a barra inferior que já existe e já é
+ * testada. Construir um drawer agora seria construir para descartar.
+ *
+ * ## O documento continua sendo o eixo de scroll
+ *
+ * Sidebar `sticky`, rail `sticky`, workspace no fluxo. Nenhum `overflow` fixo:
+ * o Next pula elementos sticky ao procurar o alvo de scroll da navegação, então
+ * restauração de scroll, âncora e barra de URL do celular seguem nativas
+ * (ADR-0027).
+ *
+ * ## O que ela não sabe
+ *
+ * Ciclo, etapa, equipe, atenção, jornada. A casca é MOLDURA (D-29): ela
+ * posiciona `children` e a rail que a página compôs, e não conhece nenhum dos
+ * dois por dentro.
  */
 export function PortalShell({
   projectId,
@@ -39,114 +74,77 @@ export function PortalShell({
   projectName,
   sections,
   projects,
+  fullName = null,
   children,
 }: PortalShellProps) {
-  const others = (projects ?? []).filter((project) => project.id !== projectId)
+  const todos = projects ?? []
 
   /*
-   * A barra inferior so se paga com tres destinos ou mais. Abaixo disso ela
-   * custaria 56px permanentes mais a area de gestos para oferecer um link que a
-   * Home ja da, e o painel "Mais" nao teria o que abrir.
-   *
-   * Quando ela nao renderiza, a RESERVA de espaco no `main` some junto — senao
-   * sobra um rodape fantasma de 96px no celular.
+   * A regra da barra inferior mora em `src/config/app.ts`, ao lado do limiar.
+   * Quando ela existe, o `main` reserva a altura; quando não existe, a reserva
+   * some junto — senão sobra um rodapé fantasma de 96px no celular.
    */
-  const comBarra = sections.length >= BOTTOM_NAV_THRESHOLD
+  const comBarra = showsBottomNav(sections)
 
   return (
-    <div className="bg-background flex min-h-dvh flex-col">
-      <header className="border-rule bg-background/92 sticky top-0 z-30 border-b backdrop-blur-sm">
-        <div className="content">
-          <div className="flex h-14 items-center justify-between gap-4 md:h-16">
-            <Link
-              href={portalHref(projectId, '')}
-              className="flex min-h-11 items-center gap-3"
-              aria-label={`${clientName} — início do projeto`}
-            >
-              <BoopMark className="h-6 w-auto md:h-7" priority />
-              <span aria-hidden="true" className="bg-rule-strong hidden h-5 w-px sm:block" />
-              <span className="t-meta text-muted hidden sm:block">
-                {clientName} · {projectName}
-              </span>
-            </Link>
+    <div className="bg-background lg:grid lg:grid-cols-[17rem_minmax(0,1fr)] lg:items-start">
+      <aside className="border-rule hidden lg:sticky lg:top-0 lg:block lg:h-dvh lg:border-r">
+        <PortalSidebar
+          projectId={projectId}
+          clientName={clientName}
+          projectName={projectName}
+          sections={sections}
+          projects={todos}
+          fullName={fullName}
+        />
+      </aside>
 
-            <div className="flex items-center gap-4">
-              {/*
-                Seletor de projeto — so com mais de um (docs/product.md).
+      <div className="flex min-h-dvh flex-col">
+        {/*
+          O cabeçalho da FASE 8, intacto, e agora só no celular e no tablet: em
+          `lg` a sidebar já carrega marca, cliente, projeto, seções e conta, e
+          duas molduras para a mesma informação é ruído.
+        */}
+        <header className="border-rule bg-background/92 sticky top-0 z-30 border-b backdrop-blur-sm lg:hidden">
+          <div className="content">
+            <div className="flex h-14 items-center justify-between gap-4 md:h-16">
+              <Link
+                href={portalHref(projectId, '')}
+                className="flex min-h-11 items-center gap-3"
+                aria-label={`${clientName} — início do projeto`}
+              >
+                <BoopMark className="h-6 w-auto md:h-7" priority />
+                <span aria-hidden="true" className="bg-rule-strong hidden h-5 w-px sm:block" />
+                <span className="t-meta text-muted hidden sm:block">
+                  {clientName} · {projectName}
+                </span>
+              </Link>
 
-                `details`/`summary` e nao um menu com estado: nao precisa de
-                `'use client'`, funciona sem JavaScript, abre e fecha pelo
-                teclado e ja e anunciado como expansivel pelo leitor de tela.
-                Uma biblioteca de dropdown resolveria o mesmo com um bundle a
-                mais (ADR-0018).
-              */}
-              {others.length > 0 && (
-                <details className="relative">
-                  <summary className="t-meta text-muted hover:text-foreground flex min-h-11 cursor-pointer list-none items-center gap-1.5 transition-colors marker:content-none">
-                    <span className="max-w-[14ch] truncate">{projectName}</span>
-                    <span aria-hidden="true" className="text-rule-strong">
-                      ▾
-                    </span>
-                    <span className="sr-only">Trocar de projeto</span>
-                  </summary>
-
-                  <div className="border-rule bg-background absolute top-full right-0 z-40 mt-2 min-w-56 border py-2 shadow-sm">
-                    <ul>
-                      {others.map((project) => (
-                        <li key={project.id}>
-                          <Link
-                            href={portalHref(project.id, '')}
-                            className="t-meta text-muted hover:bg-surface-soft hover:text-foreground flex min-h-11 items-center px-4 transition-colors"
-                          >
-                            {project.name}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </details>
-              )}
-
-              {/*
-                "Ciclo N" saiu daqui na FASE 8. Ciclo e vocabulario de operacao:
-                ele significa alguma coisa DENTRO da jornada, e nada dentro de
-                uma barra de aplicacao. Desceu para o bloco "Agora", onde tem
-                contexto (D-29, docs/product.md).
-              */}
-              <SignOutButton />
+              <div className="flex items-center gap-4">
+                <ProjectSwitcher
+                  projectId={projectId}
+                  projectName={projectName}
+                  projects={todos}
+                  align="end"
+                />
+                <SignOutButton />
+              </div>
             </div>
+
+            <PortalNav
+              projectId={projectId}
+              sections={sections}
+              className={comBarra ? 'hidden md:block' : ''}
+            />
           </div>
+        </header>
 
-          {/*
-            A linha de palavras vale nos DOIS breakpoints enquanto a barra
-            inferior nao existir. Duas palavras cabem folgado em 375px.
-          */}
-          <PortalNav
-            projectId={projectId}
-            sections={sections}
-            className={comBarra ? 'hidden md:block' : ''}
-          />
-        </div>
-      </header>
+        <main id="main" className={comBarra ? 'flex-1 pb-24 md:pb-0 lg:pb-0' : 'flex-1'}>
+          <Workspace>{children}</Workspace>
+        </main>
 
-      {/* A reserva de altura existe SO quando a barra inferior existe. */}
-      <main id="main" className={comBarra ? 'flex-1 pb-24 md:pb-0' : 'flex-1'}>
-        {children}
-      </main>
-
-      <footer className="border-rule mt-16 border-t py-8 max-md:hidden">
-        <div className="content flex items-center justify-between gap-4">
-          {/*
-            O rodape dizia "Dados ficticios", e desde a FASE 6 isso deixou de
-            ser verdade: projeto e jornada vem do banco. Continuar afirmando
-            seria o produto mentindo para o cliente sobre o que ele esta vendo.
-          */}
-          <p className="t-meta text-muted">Boop OS</p>
-          <p className="t-meta text-muted">{clientName}</p>
-        </div>
-      </footer>
-
-      {comBarra && <PortalBottomNav projectId={projectId} sections={sections} />}
+        {comBarra && <PortalBottomNav projectId={projectId} sections={sections} />}
+      </div>
     </div>
   )
 }
