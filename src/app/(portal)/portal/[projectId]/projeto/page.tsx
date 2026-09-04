@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
+import { WorkspaceColumns } from '@/components/layout/context-rail'
 import { CurrentStage } from '@/components/patterns/current-stage'
+import { ProjectContext } from '@/components/patterns/project-context'
 import { ProjectJourney } from '@/components/patterns/project-journey'
 import { SectionHeading } from '@/components/patterns/section-heading'
 import { getClientPublic } from '@/domains/clients/queries'
@@ -38,12 +40,18 @@ export const metadata: Metadata = { title: 'Projeto' }
  * do tempo para o cliente, ela será superfície própria, com contrato
  * client-facing explícito e origem própria — nunca uma projeção do log (D-30).
  *
- * ## "Quem está no projeto" é real
+ * ## "Quem está no projeto" é real, e mudou de coluna na FASE 8.5
  *
  * Vem de `client_memberships` cruzado com `profiles`: as pessoas da Boop com
  * vínculo EXPLÍCITO neste cliente. Sem cargo — a V0 não guarda cargo, e
  * transformar `boop_member` em "Estrategista" seria escrever ficção na tela do
  * cliente. Sem ninguém vinculado, o bloco some.
+ *
+ * O que mudou é o LUGAR: era uma seção no meio da leitura, e virou a rail de
+ * contexto. Equipe responde "com quem eu falo", e essa pergunta acompanha a
+ * página inteira em vez de interromper a jornada no meio. **Migrou, não foi
+ * duplicado** — a mesma lista em dois lugares seria a mesma informação
+ * competindo consigo mesma (ADR-0027).
  */
 export default async function ProjectPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params
@@ -58,8 +66,14 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
 
   const stage = currentStage(stages)
 
+  /*
+   * "Quem está no projeto" MIGROU para a rail — não foi duplicado. Equipe é
+   * contexto, não conteúdo, e contexto é exatamente o que a coluna da direita
+   * existe para carregar. A data de início continua na linha de cabeçalho
+   * abaixo, então a rail não a repete.
+   */
   return (
-    <>
+    <WorkspaceColumns rail={team.length > 0 ? <ProjectContext team={team} /> : null}>
       <section className="content py-12 md:py-16">
         <p className="t-meta text-muted">
           {client.name}
@@ -78,23 +92,6 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
         />
       </div>
 
-      {team.length > 0 && (
-        <section aria-labelledby="equipe" className="border-rule bg-surface-soft/50 border-y">
-          <div className="content py-12 md:py-16">
-            <h2 id="equipe" className="t-meta text-muted">
-              Quem está no projeto
-            </h2>
-            <ul className="divide-rule border-rule mt-6 divide-y border-y">
-              {team.map((person) => (
-                <li key={person.name} className="t-title text-foreground py-4">
-                  {person.name}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-      )}
-
       {stages.length > 0 && (
         <section aria-labelledby="jornada-completa" className="content py-14 md:py-20">
           <SectionHeading
@@ -108,6 +105,6 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
           <ProjectJourney stages={stages} detailed className="mt-12 md:mt-16" />
         </section>
       )}
-    </>
+    </WorkspaceColumns>
   )
 }

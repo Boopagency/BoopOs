@@ -1,15 +1,21 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { WorkspaceColumns } from '@/components/layout/context-rail'
 import { AttentionState } from '@/components/patterns/attention-state'
 import { CurrentStage } from '@/components/patterns/current-stage'
 import { PortalGreeting } from '@/components/patterns/portal-greeting'
+import { ProjectContext } from '@/components/patterns/project-context'
 import { ProjectJourney } from '@/components/patterns/project-journey'
 import { portalHref } from '@/config/app'
 import { requireActor } from '@/lib/auth/actor'
 import { getClientAttention } from '@/domains/attention/queries'
 import { getClientPublic } from '@/domains/clients/queries'
 import { currentStage, journeyGlance, journeyState } from '@/domains/projects/journey'
-import { getPortalJourney, requireVisiblePortalProject } from '@/domains/projects/queries'
+import {
+  getPortalJourney,
+  listClientTeam,
+  requireVisiblePortalProject,
+} from '@/domains/projects/queries'
 
 export const metadata: Metadata = { title: 'Início' }
 
@@ -59,15 +65,27 @@ export default async function DashboardPage({
     getClientAttention(projectId),
   ])
 
-  const client = await getClientPublic(project.clientId)
+  const [client, team] = await Promise.all([
+    getClientPublic(project.clientId),
+    listClientTeam(project.clientId),
+  ])
 
   const stage = currentStage(stages)
   const state = journeyState(stages)
   const glance = journeyGlance(stages)
   const summary = stage?.summary ?? null
 
+  /*
+   * A rail só existe quando tem o que dizer, e quem decide é esta página —
+   * `WorkspaceColumns` recebe `null` e a coluna some do grid, sem buraco. Um
+   * componente que decidisse por dentro devolveria um `<aside>` vazio de 19rem.
+   */
+  const temContexto = team.length > 0 || project.startedOn !== null
+
   return (
-    <>
+    <WorkspaceColumns
+      rail={temContexto ? <ProjectContext startedOn={project.startedOn} team={team} /> : null}
+    >
       <PortalGreeting
         fullName={actor.fullName}
         clientName={client.name}
@@ -100,6 +118,6 @@ export default async function DashboardPage({
           <ProjectJourney stages={glance} variant="glance" className="mt-10 md:mt-12" />
         </section>
       )}
-    </>
+    </WorkspaceColumns>
   )
 }
