@@ -117,10 +117,48 @@ uma URL que já existiu e passa a dar 404 quebra qualquer link já compartilhado
 pela etapa da jornada. Uma pendência que vira item de menu deixa de ser
 pendência e vira lugar.
 
-No celular, a barra inferior só é renderizada com **três ou mais** seções: com
-duas, ela custaria 56px permanentes para oferecer um link que a Home já dá, e o
-painel "Mais" não teria o que abrir. Abaixo do limiar, a linha de palavras do
-cabeçalho vale nos dois breakpoints.
+No celular, a barra inferior só é renderizada com **três ou mais** seções
+(`showsBottomNav()`): com duas, ela custaria 56px permanentes para oferecer um
+link que a Home já dá, e o painel "Mais" não teria o que abrir. Abaixo do
+limiar, a linha de palavras do cabeçalho vale nos dois breakpoints.
+
+## A casca do portal (FASE 8.5)
+
+Em **`lg` (1024px) e acima** o portal é um ambiente de duas colunas: uma sidebar
+persistente e um workspace. A sidebar carrega quatro zonas — marca, cliente com
+seletor de projeto, seções, e conta — e é por absorver as quatro que ela se paga
+com só duas seções. O cabeçalho de largura total e o rodapé de colofão morrem
+ali: duas molduras para a mesma informação é ruído.
+
+**Abaixo de `lg` nada mudou.** O celular renderiza a árvore da FASE 8 — cabeçalho
+sticky, linha de palavras, sem drawer e sem barra inferior. Não há adaptação
+mobile nova porque a FASE 9 muda esse modelo sozinha: ligar Estratégia leva as
+seções a três e acende a barra inferior que já existe.
+
+### A coluna de contexto
+
+Em **`xl` (1280px) e acima** entra uma terceira coluna, a **rail contextual**.
+Ela é composta pela PÁGINA, não pela casca, e some inteira quando não há
+conteúdo real — sem grid, sem `aside`, sem buraco. Abaixo de `xl` o mesmo
+conteúdo desce para o fim do fluxo; nunca é escondido.
+
+| Rota       | O que a rail carrega               | Origem                                      |
+| ---------- | ---------------------------------- | ------------------------------------------- |
+| Início     | No ar desde · Quem está no projeto | `projects.starts_on` · `client_memberships` |
+| `/projeto` | Quem está no projeto               | `client_memberships`                        |
+| as demais  | nada — a coluna não existe         | —                                           |
+
+**"Quem está no projeto" MIGROU** da coluna principal de `/projeto` para a rail.
+Migrou, não foi duplicado: equipe responde "com quem eu falo", e essa pergunta
+acompanha a página inteira em vez de interromper a jornada no meio.
+
+**Ciclo e etapa não estão na rail**, e é decisão: os dois já aparecem no bloco
+"Agora" das duas páginas. A rail carrega o que a coluna principal não diz.
+
+A rail não tem próxima entrega, próximo encontro, próximo marco, atividade
+recente nem "última atualização". Nenhum tem origem, e o activity log não
+alcança o cliente em forma nenhuma (D-30). Uma coluna nova é exatamente onde a
+ficção tenta voltar.
 
 `/portal` é a rota canônica. `/app` existe como redirect em `next.config.ts`.
 

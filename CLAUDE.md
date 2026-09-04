@@ -12,12 +12,12 @@ para ele.
 
 Percepção-alvo: _"Eu sei exatamente o que está acontecendo com minha marca."_
 
-**Status atual: FASE 8 concluída.**
+**Status atual: FASE 8.5 concluída.**
 22 migrations, 19 tabelas com RLS **e políticas**, 11 funções `app.*` de
-autorização, 11 fronteiras `security definer` em `public`, e **1174 testes**
-(466 contra Postgres real). Contagem sempre do Vitest, nunca de `grep`.
-Fingerprint local ↔ staging idêntico nas nove partes — a FASE 8 **não tocou o
-banco**.
+autorização, 11 fronteiras `security definer` em `public`, e **1259 testes** em
+67 arquivos (466 contra Postgres real). Contagem sempre do Vitest, nunca de
+`grep`. Fingerprint idêntico nas nove partes — nem a FASE 8 nem a 8.5 **tocaram
+o banco**.
 
 **A HOME é real, e nada nela é inventado.** Quatro blocos: abertura pessoal,
 estado de atenção, etapa corrente e jornada resumida. Os quatro blocos que
@@ -48,6 +48,29 @@ invalida a rota: todas respondem com estado honesto, porque deep link é o
 principal caminho de entrada.
 
 **O activity log não alcança o cliente** — nem por derivação (D-30).
+
+**A CASCA é um ambiente, e o celular continua sendo a FASE 8**
+([ADR-0027](docs/adr/0027-a-casca-do-portal-e-um-ambiente.md)). Em `lg` o portal
+é sidebar + workspace; em `xl` entra a rail contextual, composta pela PÁGINA e
+ausente quando não há conteúdo real. Abaixo de `lg` nada mudou — a resposta de
+atenção continua acima da dobra em 375 × 667 por construção. A casca não conhece
+ciclo, etapa nem equipe, e há varredura que cobra.
+
+**"Quem está no projeto" migrou** da coluna principal de `/projeto` para a rail.
+Migrou, não duplicou.
+
+**O QUADRO nasceu sem domínio**
+([ADR-0028](docs/adr/0028-kanban-e-drag-and-drop.md)). `BoardViewport`,
+`BoardColumn` e `BoardCard` são geometria: não conhecem status, canal, aprovação
+nem versão, não alcançam rota nenhuma, e são exercitados só por teste com
+fixture sintética. Drag-and-drop fica para a FASE 10, no admin, com `@dnd-kit`
+e por ADR — o quadro do cliente é somente-leitura, porque um arrasto não
+consegue expressar "pedir ajuste".
+
+**Motion é CSS, e só o workspace anima.** `--motion-page` (220ms) e um `key` por
+caminho; a casca é irmã do nó animado, não filha. `<ViewTransition>` do React
+funciona sem configuração no Next 16.3.4 e ficou de fora de propósito
+(docs/motion.md).
 
 A próxima fase é a 9 (estratégia).
 
@@ -102,6 +125,7 @@ compatibilidade verificada com `typescript-eslint` e `eslint-config-next`.
 | Estado ao fim da FASE 6                               | [`docs/FASE6ESTADO.md`](docs/FASE6ESTADO.md)           |
 | Estado ao fim da FASE 7                               | [`docs/FASE7ESTADO.md`](docs/FASE7ESTADO.md)           |
 | Estado ao fim da FASE 8                               | [`docs/FASE8ESTADO.md`](docs/FASE8ESTADO.md)           |
+| Estado ao fim da FASE 8.5                             | [`docs/FASE85ESTADO.md`](docs/FASE85ESTADO.md)         |
 | Inconsistências e decisões pendentes                  | [`docs/spec-review.md`](docs/spec-review.md)           |
 
 Regras imperativas, curtas, para consulta durante o trabalho:
@@ -188,8 +212,9 @@ login, e-mail, Storage nem PostgREST. Ver
 
 ```
 src/app/          (auth) login · bem-vindo   (portal) portal/[projectId]/…   (admin)
-src/components/   ui/ (primitivos) · layout/ (cascas) · brand/ (logo, olhos, nuvens)
-                  patterns/ (composições de produto)
+src/components/   ui/ (primitivos) · layout/ (cascas: shell, sidebar, switcher,
+                  workspace, rail) · brand/ (logo, olhos, nuvens)
+                  patterns/ (composições de produto; board = geometria sem domínio)
 src/config/       app.ts (produto) · enums.ts (taxonomias) · env.ts (environment)
                   journeys.ts (templates de jornada — ADR-0006)
 src/domains/      clients/ · people/ · projects/ · onboarding/ · attention/ (F8)
