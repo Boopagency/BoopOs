@@ -1,0 +1,392 @@
+From 67a56d087176e493851278ab969f7514ee7d972a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 4 Sep 2026 21:09:45 +0000
+Subject: [PATCH 7/8] fix: none of the product's transitions were actually
+ running
+
+Measuring the shell in a real browser turned up that a nav link's computed
+transitionDuration was 0s. It should have been 160ms.
+
+duration-[--motion-fast] was valid in Tailwind v3, which wrapped a bare
+custom property in var() for you. v4 does not. The compiled rule was
+transition-duration: --motion-fast -- an invalid value the browser drops.
+Eighteen usages across twelve files, dating to phase 1.5: every hover,
+focus and colour transition in the portal, the admin and the forms, plus
+the active-item rule in the nav. The interface never looked broken, only
+dry, which is why it survived three phases of review.
+
+rounded-[--radius] was worse: it pointed at a token that does not exist,
+since the tokens are --radius-sm/md/lg.
+
+All of it moves to v4's parenthesis form. Chromium confirms the fix:
+0s becomes 0.16s, and reduced motion still wins at 1e-05s.
+
+Two rules kept surviving a clean rebuild, which nearly hid the whole thing
+from the audit -- Tailwind v4 scans the entire project, and patches/*.patch
+carries the diff of every phase, so classes fixed in code came back through
+their own history as dead CSS. @source not excludes them.
+
+A source guard now fails on -[--token] anywhere in src, with a companion
+case asserting the correct form is in use so the guard cannot pass by
+matching nothing.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018UKPpUS3fkG6nVBWrmzHnT
+---
+ CLAUDE.md                                     |  2 +-
+ docs/FASE85ESTADO.md                          | 23 +++++++++--
+ docs/motion.md                                | 10 +++++
+ src/app/(admin)/admin/clientes/page.tsx       |  2 +-
+ src/app/(auth)/bem-vindo/page.tsx             |  2 +-
+ src/app/globals.css                           | 10 +++++
+ src/components/layout/admin-nav.tsx           |  2 +-
+ src/components/layout/context-rail.tsx        |  2 +-
+ src/components/layout/portal-nav.tsx          |  4 +-
+ src/components/layout/project-switcher.tsx    |  4 +-
+ src/components/layout/skip-link.tsx           |  2 +-
+ src/components/patterns/attention-block.tsx   |  2 +-
+ src/components/patterns/board.tsx             |  2 +-
+ src/components/ui/button.tsx                  |  2 +-
+ src/components/ui/field.tsx                   |  2 +-
+ .../onboarding/components/onboarding-form.tsx |  4 +-
+ tests/unit/phase85-boundaries.test.ts         | 40 +++++++++++++++++++
+ 17 files changed, 95 insertions(+), 20 deletions(-)
+
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 1da9873..ff6e063 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -14,7 +14,7 @@ Percepção-alvo: _"Eu sei exatamente o que está acontecendo com minha marca."_
+ 
+ **Status atual: FASE 8.5 concluída.**
+ 22 migrations, 19 tabelas com RLS **e políticas**, 11 funções `app.*` de
+-autorização, 11 fronteiras `security definer` em `public`, e **1259 testes** em
++autorização, 11 fronteiras `security definer` em `public`, e **1262 testes** em
+ 67 arquivos (466 contra Postgres real). Contagem sempre do Vitest, nunca de
+ `grep`. Fingerprint idêntico nas nove partes — nem a FASE 8 nem a 8.5 **tocaram
+ o banco**.
+diff --git a/docs/FASE85ESTADO.md b/docs/FASE85ESTADO.md
+index 641c79d..a5c372e 100644
+--- a/docs/FASE85ESTADO.md
++++ b/docs/FASE85ESTADO.md
+@@ -1,7 +1,7 @@
+ # Estado ao fim da FASE 8.5
+ 
+-**Base:** `0685cba` (fim da FASE 8) · **Banco:** intocado · **Testes:** 1259 em
+-67 arquivos (793 unit/component + 466 RLS) · **Build:** 24 rotas.
++**Base:** `0685cba` (fim da FASE 8) · **Banco:** intocado · **Testes:** 1262 em
++67 arquivos (796 unit/component + 466 RLS) · **Build:** 24 rotas.
+ 
+ A FASE 8 resolveu funcionalidade e segurança. Esta fase resolveu **sensação de
+ produto**, sem tocar domínio, workflow, policy, migration ou dependência.
+@@ -90,6 +90,20 @@ medir em Chromium achou três coisas:
+ 3. **Sidebar sem rolagem própria** — uma coluna mais alta que a viewport
+    cortaria a conta no rodapé sem caminho até ela.
+ 
++4. **Nenhuma transição do produto estava rodando** — o achado mais caro da
++   fase, e anterior a ela. `duration-[--motion-fast]` era válido no Tailwind
++   v3, que embrulhava a variável nua em `var()`; o v4 não embrulha, e o CSS
++   saía `transition-duration: --motion-fast` — valor inválido, descartado pelo
++   navegador. Dezoito usos em doze arquivos, desde a FASE 1.5. A interface não
++   parecia quebrada, só "seca". Corrigido para a forma de parênteses do v4
++   (`duration-(--motion-fast)`), medido em Chromium: `0s → 0.16s`, e o reduced
++   motion continua vencendo. `rounded-[--radius]` era pior — apontava para um
++   token que não existe.
++5. **CSS morto vindo dos patches** — o Tailwind v4 varre o projeto inteiro, e
++   `patches/*.patch` contém o diff de todas as fases. As classes já corrigidas
++   voltavam ao CSS de produção como regras mortas, e foi isso que quase
++   escondeu o defeito acima da auditoria. Resolvido com `@source not`.
++
+ E um falso positivo que quase virou bug report: **o Chromium headless força
+ largura mínima de 500px**, então um screenshot pedido em 375 renderiza em 500 e
+ recorta. O "overflow" era a medição, não a página. Medido por iframe,
+@@ -110,8 +124,9 @@ que força a rail a ser um slot opaco: uma casca que recebesse `cycle` por prop
+ voltaria a falhar ali.
+ 
+ Três arquivos novos: a casca (22 casos), o quadro (15) e as fronteiras de
+-código-fonte (47) — incluindo um que falha se `motion`, `framer-motion` ou
+-`@dnd-kit/core` aparecerem em `package.json`.
++código-fonte (50) — incluindo um que falha se `motion`, `framer-motion` ou
++`@dnd-kit/core` aparecerem em `package.json`, e outro que falha se qualquer
++utilitário voltar a escrever `-[--token]` no lugar de `-(--token)`.
+ 
+ ---
+ 
+diff --git a/docs/motion.md b/docs/motion.md
+index 1b289d3..0cf3956 100644
+--- a/docs/motion.md
++++ b/docs/motion.md
+@@ -105,6 +105,16 @@ proporções reais, então a troca de esqueleto para conteúdo não mexe na rég
+ Não existe atraso artificial em lugar nenhum: o esqueleto aparece enquanto o
+ dado realmente não chegou.
+ 
++## Variável de tema em utilitário
++
++**Sempre `duration-(--motion-fast)`, nunca `duration-[--motion-fast]`.**
++
++A forma de colchetes era válida no Tailwind v3, que embrulhava a variável nua em
++`var()`. O v4 não embrulha: o CSS sai `transition-duration: --motion-fast`, que
++é inválido e o navegador descarta. A FASE 8.5 encontrou dezoito usos assim, em
++doze arquivos, desde a FASE 1.5 — nenhuma transição do produto rodava. Há teste
++de código-fonte que falha se a forma antiga voltar.
++
+ ## Reduced motion
+ 
+ `prefers-reduced-motion: reduce` zera duração de animação e transição e desliga
+diff --git a/src/app/(admin)/admin/clientes/page.tsx b/src/app/(admin)/admin/clientes/page.tsx
+index e3c9c47..143b874 100644
+--- a/src/app/(admin)/admin/clientes/page.tsx
++++ b/src/app/(admin)/admin/clientes/page.tsx
+@@ -79,7 +79,7 @@ export default async function ClientListPage() {
+               <li key={client.id}>
+                 <Link
+                   href={`/admin/clientes/${client.id}`}
+-                  className="hover:bg-surface-soft/50 -mx-3 flex flex-wrap items-center justify-between gap-x-8 gap-y-2 px-3 py-5 transition-colors duration-[--motion-fast]"
++                  className="hover:bg-surface-soft/50 -mx-3 flex flex-wrap items-center justify-between gap-x-8 gap-y-2 px-3 py-5 transition-colors duration-(--motion-fast)"
+                 >
+                   <div className="min-w-0">
+                     <p className="t-lead text-foreground">{client.name}</p>
+diff --git a/src/app/(auth)/bem-vindo/page.tsx b/src/app/(auth)/bem-vindo/page.tsx
+index 8d4dded..582c25d 100644
+--- a/src/app/(auth)/bem-vindo/page.tsx
++++ b/src/app/(auth)/bem-vindo/page.tsx
+@@ -64,7 +64,7 @@ export default async function WelcomePage() {
+           <div className="rise rise-5 mt-12 flex flex-wrap items-center gap-x-8 gap-y-4">
+             <Link
+               href={project ? portalHref(project.id, 'onboarding') : '/portal'}
+-              className="t-meta bg-navy text-on-inverse hover:bg-navy/90 inline-flex h-14 items-center rounded-sm px-8 transition-colors duration-[--motion-fast] max-sm:w-full max-sm:justify-center"
++              className="t-meta bg-navy text-on-inverse hover:bg-navy/90 inline-flex h-14 items-center rounded-sm px-8 transition-colors duration-(--motion-fast) max-sm:w-full max-sm:justify-center"
+             >
+               Começar
+             </Link>
+diff --git a/src/app/globals.css b/src/app/globals.css
+index 7902004..88c1752 100644
+--- a/src/app/globals.css
++++ b/src/app/globals.css
+@@ -1,5 +1,15 @@
+ @import 'tailwindcss';
+ 
++/*
++ * Os patches de fase sao TEXTO, nao codigo-fonte.
++ *
++ * O Tailwind v4 varre o projeto inteiro, e `patches/*.patch` contem o diff de
++ * todas as fases — inclusive classes que ja foram corrigidas. Sem esta linha o
++ * CSS de producao carrega regras mortas de versoes antigas dos componentes, e
++ * uma auditoria do CSS compilado passa a mentir sobre o que a aplicacao usa.
++ */
++@source not '../../patches';
++
+ /*
+  * ═══════════════════════════════════════════════════════════════════════════
+  * BOOP OS — DESIGN TOKENS
+diff --git a/src/components/layout/admin-nav.tsx b/src/components/layout/admin-nav.tsx
+index dd1094f..8332bb4 100644
+--- a/src/components/layout/admin-nav.tsx
++++ b/src/components/layout/admin-nav.tsx
+@@ -40,7 +40,7 @@ export function AdminNav() {
+                   className={cn(
+                     /* 44px de alvo de toque, mesmo no admin. */
+                     't-meta flex h-11 items-center px-3 transition-colors',
+-                    'duration-[--motion-fast] ease-[--ease-standard]',
++                    'duration-(--motion-fast) ease-(--ease-standard)',
+                     /*
+                      * A barra inferior e o portador do estado, e o peso do
+                      * texto acompanha: cor sozinha nao pode carregar
+diff --git a/src/components/layout/context-rail.tsx b/src/components/layout/context-rail.tsx
+index f496a5c..1c06b9d 100644
+--- a/src/components/layout/context-rail.tsx
++++ b/src/components/layout/context-rail.tsx
+@@ -57,7 +57,7 @@ export function WorkspaceColumns({ rail, children }: { rail?: ReactNode; childre
+       */}
+       <aside
+         aria-label="Contexto do projeto"
+-        className="border-rule px-[--gutter] py-10 max-xl:border-t xl:sticky xl:top-0 xl:max-h-dvh xl:self-start xl:overflow-y-auto xl:border-l xl:px-7 xl:py-12"
++        className="border-rule px-(--gutter) py-10 max-xl:border-t xl:sticky xl:top-0 xl:max-h-dvh xl:self-start xl:overflow-y-auto xl:border-l xl:px-7 xl:py-12"
+       >
+         {rail}
+       </aside>
+diff --git a/src/components/layout/portal-nav.tsx b/src/components/layout/portal-nav.tsx
+index de3dcef..5ce52d7 100644
+--- a/src/components/layout/portal-nav.tsx
++++ b/src/components/layout/portal-nav.tsx
+@@ -60,7 +60,7 @@ export function PortalNav({
+                 href={href}
+                 aria-current={active ? 'page' : undefined}
+                 className={cn(
+-                  't-meta relative flex min-h-11 items-center transition-colors duration-[--motion-fast]',
++                  't-meta relative flex min-h-11 items-center transition-colors duration-(--motion-fast)',
+                   vertical && 'pl-4',
+                   active ? 'text-foreground' : 'text-muted hover:text-foreground',
+                 )}
+@@ -69,7 +69,7 @@ export function PortalNav({
+                 <span
+                   aria-hidden="true"
+                   className={cn(
+-                    'bg-accent absolute transition-transform duration-[--motion-default] ease-[--ease-out]',
++                    'bg-accent absolute transition-transform duration-(--motion-default) ease-(--ease-out)',
+                     vertical
+                       ? 'inset-y-1.5 left-0 w-0.5 origin-top'
+                       : 'inset-x-0 -bottom-px h-0.5 origin-left',
+diff --git a/src/components/layout/project-switcher.tsx b/src/components/layout/project-switcher.tsx
+index f3e183c..b6d2772 100644
+--- a/src/components/layout/project-switcher.tsx
++++ b/src/components/layout/project-switcher.tsx
+@@ -47,7 +47,7 @@ export function ProjectSwitcher({
+ 
+   return (
+     <details className={cn('relative min-w-0', className)}>
+-      <summary className="t-meta text-muted hover:text-foreground flex min-h-11 cursor-pointer list-none items-center gap-1.5 transition-colors duration-[--motion-fast] marker:content-none">
++      <summary className="t-meta text-muted hover:text-foreground flex min-h-11 cursor-pointer list-none items-center gap-1.5 transition-colors duration-(--motion-fast) marker:content-none">
+         {/*
+           `truncate` sem teto em `ch`: o cap de 14ch cortava "Social Media" na
+           sidebar, onde sobram 224px — porque `t-meta` é caixa alta com 0.16em
+@@ -73,7 +73,7 @@ export function ProjectSwitcher({
+             <li key={project.id}>
+               <Link
+                 href={portalHref(project.id, '')}
+-                className="t-meta text-muted hover:bg-surface-soft hover:text-foreground flex min-h-11 items-center px-4 transition-colors duration-[--motion-fast]"
++                className="t-meta text-muted hover:bg-surface-soft hover:text-foreground flex min-h-11 items-center px-4 transition-colors duration-(--motion-fast)"
+               >
+                 {project.name}
+               </Link>
+diff --git a/src/components/layout/skip-link.tsx b/src/components/layout/skip-link.tsx
+index 4c7d682..ef371ab 100644
+--- a/src/components/layout/skip-link.tsx
++++ b/src/components/layout/skip-link.tsx
+@@ -3,7 +3,7 @@ export function SkipLink() {
+   return (
+     <a
+       href="#main"
+-      className="bg-accent text-accent-foreground sr-only rounded-[--radius] px-4 py-2 text-sm focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50"
++      className="bg-accent text-accent-foreground sr-only rounded-sm px-4 py-2 text-sm focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50"
+     >
+       Pular para o conteudo
+     </a>
+diff --git a/src/components/patterns/attention-block.tsx b/src/components/patterns/attention-block.tsx
+index 6eae2e8..5ddaa59 100644
+--- a/src/components/patterns/attention-block.tsx
++++ b/src/components/patterns/attention-block.tsx
+@@ -83,7 +83,7 @@ export function AttentionBlock({
+ 
+           <Link
+             href={primeiro!.cta.href}
+-            className="t-meta bg-accent text-accent-foreground hover:bg-accent-hover mt-8 inline-flex h-14 items-center justify-center rounded-sm px-8 transition-colors duration-[--motion-fast] max-md:w-full md:mt-0"
++            className="t-meta bg-accent text-accent-foreground hover:bg-accent-hover mt-8 inline-flex h-14 items-center justify-center rounded-sm px-8 transition-colors duration-(--motion-fast) max-md:w-full md:mt-0"
+           >
+             {primeiro!.cta.label}
+           </Link>
+diff --git a/src/components/patterns/board.tsx b/src/components/patterns/board.tsx
+index 8e076c5..3cdb386 100644
+--- a/src/components/patterns/board.tsx
++++ b/src/components/patterns/board.tsx
+@@ -152,7 +152,7 @@ export function BoardCard({
+           href={href}
+           className={cn(
+             base,
+-            'hover:border-rule-strong transition-colors duration-[--motion-fast]',
++            'hover:border-rule-strong transition-colors duration-(--motion-fast)',
+           )}
+         >
+           {children}
+diff --git a/src/components/ui/button.tsx b/src/components/ui/button.tsx
+index 6339b02..17d5284 100644
+--- a/src/components/ui/button.tsx
++++ b/src/components/ui/button.tsx
+@@ -27,7 +27,7 @@ const SIZE: Record<Size, string> = {
+ 
+ const BASE =
+   'inline-flex items-center justify-center gap-2.5 rounded-sm t-meta transition-colors ' +
+-  'duration-[--motion-fast] ease-[--ease-standard] disabled:pointer-events-none disabled:opacity-40'
++  'duration-(--motion-fast) ease-(--ease-standard) disabled:pointer-events-none disabled:opacity-40'
+ 
+ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+   variant?: Variant
+diff --git a/src/components/ui/field.tsx b/src/components/ui/field.tsx
+index ad547a5..6bd174e 100644
+--- a/src/components/ui/field.tsx
++++ b/src/components/ui/field.tsx
+@@ -94,7 +94,7 @@ export function Field({ label, help, error, required, group, children }: FieldPr
+ 
+ const CONTROL =
+   'w-full rounded-sm border border-rule-strong bg-surface px-4 text-foreground ' +
+-  'transition-colors duration-[--motion-fast] placeholder:text-muted/60 ' +
++  'transition-colors duration-(--motion-fast) placeholder:text-muted/60 ' +
+   'hover:border-muted focus:border-accent-text ' +
+   'aria-[invalid=true]:border-danger disabled:cursor-not-allowed disabled:opacity-50'
+ 
+diff --git a/src/domains/onboarding/components/onboarding-form.tsx b/src/domains/onboarding/components/onboarding-form.tsx
+index b5f644d..490ac96 100644
+--- a/src/domains/onboarding/components/onboarding-form.tsx
++++ b/src/domains/onboarding/components/onboarding-form.tsx
+@@ -273,7 +273,7 @@ export function OnboardingForm({
+               key={entry.key}
+               aria-current={i === index ? 'step' : undefined}
+               className={cn(
+-                'h-1 w-7 rounded-sm transition-colors duration-[--motion-default]',
++                'h-1 w-7 rounded-sm transition-colors duration-(--motion-default)',
+                 i < index ? 'bg-navy' : i === index ? 'bg-accent' : 'bg-rule-strong/40',
+               )}
+             >
+@@ -552,7 +552,7 @@ function Choices<T extends string | boolean>({
+             aria-pressed={marcada}
+             onClick={() => onPick(option.value)}
+             className={cn(
+-              't-label h-12 rounded-sm border px-4 transition-colors duration-[--motion-fast]',
++              't-label h-12 rounded-sm border px-4 transition-colors duration-(--motion-fast)',
+               marcada
+                 ? 'border-navy bg-navy text-on-inverse'
+                 : 'border-rule-strong text-foreground hover:border-muted',
+diff --git a/tests/unit/phase85-boundaries.test.ts b/tests/unit/phase85-boundaries.test.ts
+index 3190c72..e5173c0 100644
+--- a/tests/unit/phase85-boundaries.test.ts
++++ b/tests/unit/phase85-boundaries.test.ts
+@@ -230,6 +230,46 @@ describe('motion: um token novo, e nenhuma biblioteca', () => {
+   })
+ })
+ 
++describe('⚠️ variável de tema nunca entra como valor nu', () => {
++  /*
++   * O bug que este caso existe para impedir já aconteceu, e passou despercebido
++   * desde a FASE 1.5.
++   *
++   * `duration-[--motion-fast]` era válido no Tailwind v3, que embrulhava a
++   * variável nua em `var()`. O v4 não embrulha: o CSS compilado saía
++   * `transition-duration: --motion-fast`, valor inválido que o navegador
++   * descarta. Resultado — NENHUMA transição do produto rodava, em dezoito
++   * lugares, e ninguém percebeu porque a interface só parecia "seca".
++   *
++   * `rounded-[--radius]` era pior: apontava para um token que nem existe (os
++   * tokens são `--radius-sm/md/lg`).
++   *
++   * A forma certa no v4 é a de parênteses: `duration-(--motion-fast)`.
++   */
++  const CULPADOS = TODOS.filter((c) => /-\[--[a-z][a-z-]*\]/.test(ler(c)))
++
++  it('nenhum utilitário usa `-[--token]` em vez de `-(--token)`', () => {
++    expect(CULPADOS.map(relativo)).toEqual([])
++  })
++
++  it('o guard não é tautologia: a forma CERTA está em uso', () => {
++    const certos = TODOS.filter((c) => /-\(--[a-z][a-z-]*\)/.test(ler(c)))
++
++    expect(certos.length).toBeGreaterThan(5)
++  })
++
++  it('os patches de fase ficam fora da varredura do Tailwind', () => {
++    /*
++     * `patches/*.patch` é texto, e contém o diff de todas as fases — inclusive
++     * classes já corrigidas. Sem a exclusão, o CSS de produção carrega regras
++     * mortas e uma auditoria do CSS compilado passa a mentir.
++     */
++    const css = readFileSync(resolve(process.cwd(), 'src/app/globals.css'), 'utf8')
++
++    expect(css).toMatch(/@source not '\.\.\/\.\.\/patches'/)
++  })
++})
++
+ describe('nenhum hexadecimal nos arquivos novos', () => {
+   it.each([
+     SHELL,
+-- 
+2.43.0
+

@@ -37,7 +37,16 @@ fase anterior**, que continham os da anterior, e assim por diante.
 | 6    | 22 MB   | —                               |
 | 7    | 29 MB   | 22 MB (76%)                     |
 | 8    | 7,8 MB  | **zero** — a exclusão funcionou |
-| 9    | ~8,5 MB | projetado, crescendo com código |
+| 8.5  | 7,5 MB  | **zero**                        |
+| 9    | ~8 MB   | projetado, crescendo com código |
+
+A FASE 8.5 quase perdeu isso: a regeneração foi feita **sem** o pathspec, e o
+patch voltou a 164 MB — grande o bastante para o GitHub recusar o push, o que
+foi como o erro apareceu. O comando correto está acima, e não é opcional:
+
+```bash
+git format-patch --root HEAD --stdout -- . ':(exclude)patches'
+```
 
 Excluindo a pasta, o histórico real do código-fonte era **7,1 MB** ao fim da
 FASE 7 e são **7,8 MB** ao fim da FASE 8 — o crescimento voltou a ser o do
@@ -49,7 +58,8 @@ contra `git ls-tree` — e pode regerar os patches com um `git format-patch`.
 
 Duas consequências que quem restaura precisa saber:
 
-- **47 commits.** Os commits que tocaram _exclusivamente_ `patches/` viram patch
-  vazio e são omitidos. Eles não continham código.
+- **53 commits** ao fim da FASE 8.5 (eram 47 na FASE 8). Os commits que tocaram
+  _exclusivamente_ `patches/` viram patch vazio e são omitidos. Eles não
+  continham código. As 332 fontes rastreadas estão todas lá.
 - **A pasta `patches/` não existe** no repositório restaurado, até a próxima
   fase gerá-la de novo.

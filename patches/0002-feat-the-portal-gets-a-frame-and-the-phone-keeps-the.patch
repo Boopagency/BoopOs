@@ -1,0 +1,1026 @@
+From faea419f9f4388673dd1612cb1864640e5017df3 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 4 Sep 2026 20:36:49 +0000
+Subject: [PATCH 2/8] feat: the portal gets a frame, and the phone keeps the
+ one it had
+
+The shell becomes a two-column grid at lg and above: a sticky sidebar
+carrying the mark, the client, the project switcher, the sections and the
+account, next to a workspace that holds the page. The full-width header
+and the document footer stop having a job and go away -- on desktop. Below
+lg the tree is the phase 8 tree, class for class, so the guarantee that
+cost the most last phase (the attention answer above the fold at 375x667)
+holds by construction rather than by measurement.
+
+Three things moved rather than changed. The bottom-nav threshold is now
+showsBottomNav() in config, beside the constant that defines it, so phase
+9 lights the bar by adding a section and touching no layout. The project
+switcher is its own component, usable from the sidebar and the phone
+header. The nav learned a vertical orientation instead of growing a second
+component that would drift from the first -- the active-item rule is
+subtle and now still lives in one place.
+
+Two source-reading assertions in phase8-nav-availability moved with the
+rule and are documented in the test. The third, the one that forbids the
+word "cycle" in the shell, is untouched and is what keeps the coming
+contextual rail an opaque slot.
+
+Nothing here knows about cycle, stage, team, attention or journey.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018UKPpUS3fkG6nVBWrmzHnT
+---
+ .../0027-a-casca-do-portal-e-um-ambiente.md   |  42 ++--
+ docs/adr/0028-kanban-e-drag-and-drop.md       |  28 +--
+ .../(portal)/portal/[projectId]/layout.tsx    |  11 +-
+ src/app/globals.css                           |  60 ++++++
+ src/components/layout/context-rail.tsx        |  66 ++++++
+ src/components/layout/portal-nav.tsx          |  39 ++--
+ src/components/layout/portal-shell.tsx        | 202 +++++++++---------
+ src/components/layout/portal-sidebar.tsx      |  94 ++++++++
+ src/components/layout/project-switcher.tsx    |  79 +++++++
+ src/components/layout/workspace.tsx           |  39 ++++
+ src/config/app.ts                             |  15 ++
+ tests/unit/phase8-nav-availability.test.ts    |  45 +++-
+ 12 files changed, 565 insertions(+), 155 deletions(-)
+ create mode 100644 src/components/layout/context-rail.tsx
+ create mode 100644 src/components/layout/portal-sidebar.tsx
+ create mode 100644 src/components/layout/project-switcher.tsx
+ create mode 100644 src/components/layout/workspace.tsx
+
+diff --git a/docs/adr/0027-a-casca-do-portal-e-um-ambiente.md b/docs/adr/0027-a-casca-do-portal-e-um-ambiente.md
+index 50792a3..337e8c4 100644
+--- a/docs/adr/0027-a-casca-do-portal-e-um-ambiente.md
++++ b/docs/adr/0027-a-casca-do-portal-e-um-ambiente.md
+@@ -41,10 +41,10 @@ dela.**
+ continua exatamente a FASE 8 abaixo disso.**
+ 
+ ```
+-DESKTOP ≥ 1024px                          MOBILE / TABLET < 1024px
++DESKTOP ≥ 1024px (rail só em ≥ 1280px)    MOBILE / TABLET < 1024px
+ ┌──────────┬──────────────┬──────────┐    ┌────────────────────────┐
+ │ SIDEBAR  │  WORKSPACE   │   RAIL   │    │ HEADER sticky (F8)     │
+-│ 17rem    │  1fr         │  18rem   │    ├────────────────────────┤
++│ 17rem    │  1fr         │  19rem   │    ├────────────────────────┤
+ │          │              │          │    │ Início   Projeto  (F8) │
+ │ marca    │  conteúdo    │ contexto │    ├────────────────────────┤
+ │ cliente  │  da seção    │ real     │    │                        │
+@@ -118,11 +118,11 @@ de roteamento e testável em jsdom.
+ **Não** três containers com `overflow`. O documento continua sendo o eixo de
+ scroll, e sidebar e rail são `sticky`.
+ 
+-| Região | Desktop (`lg`+) | Mobile |
+-| --- | --- | --- |
+-| Sidebar | `sticky top-0 h-dvh overflow-y-auto` — só rola se exceder | não renderiza |
+-| Workspace | fluxo normal, scroll do documento | idem |
+-| Rail | `sticky top-N max-h-[calc(100dvh-N)] overflow-y-auto` — só rola se exceder | vira bloco no fim do fluxo |
++| Região    | Desktop                                                                         | Mobile                     |
++| --------- | ------------------------------------------------------------------------------- | -------------------------- |
++| Sidebar   | `sticky top-0 h-dvh overflow-y-auto` — só rola se exceder                       | não renderiza              |
++| Workspace | fluxo normal, scroll do documento                                               | idem                       |
++| Rail      | em `xl` (1280px): `sticky top-0 max-h-dvh overflow-y-auto` — só rola se exceder | vira bloco no fim do fluxo |
+ 
+ A documentação do Next explica por que esta forma é a robusta:
+ 
+@@ -176,11 +176,11 @@ nenhum. O feedback de navegação vem do marcador de item ativo e do `loading.ts
+ Três asserções em `tests/unit/phase8-nav-availability.test.ts` leem o texto de
+ `portal-shell.tsx` e travam a implementação, não o comportamento:
+ 
+-| Asserção | O que acontece | Como fica |
+-| --- | --- | --- |
+-| contém `sections.length >= BOTTOM_NAV_THRESHOLD` | a decisão migra para `src/config/app.ts` (`showsBottomNav`) | passa a ler a função pura, que é onde a regra deve morar |
+-| contém `comBarra ? 'flex-1 pb-24 md:pb-0' : 'flex-1'` | a reserva de altura muda de forma com o grid | asserção sobre a regra: sem barra, sem reserva |
+-| não contém `cycle` / `Ciclo {` | **mantida sem mudança** | é ela que força a rail opaca |
++| Asserção                                              | O que acontece                                              | Como fica                                                |
++| ----------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------- |
++| contém `sections.length >= BOTTOM_NAV_THRESHOLD`      | a decisão migra para `src/config/app.ts` (`showsBottomNav`) | passa a ler a função pura, que é onde a regra deve morar |
++| contém `comBarra ? 'flex-1 pb-24 md:pb-0' : 'flex-1'` | a reserva de altura muda de forma com o grid                | asserção sobre a regra: sem barra, sem reserva           |
++| não contém `cycle` / `Ciclo {`                        | **mantida sem mudança**                                     | é ela que força a rail opaca                             |
+ 
+ A regra que os três guardam continua valendo palavra por palavra: _a navegação
+ segue a feature; a barra inferior só existe com o que oferecer; o cabeçalho é
+@@ -203,15 +203,15 @@ afrouxado, e a terceira — a mais importante — fica exatamente como estava.
+ 
+ ## Alternativas descartadas
+ 
+-| Alternativa | Por que não |
+-| --- | --- |
+-| Manter o cabeçalho e só alargar o container | Não resolve nenhuma das sete causas. O portal continua sem nada persistente |
+-| Sidebar a partir de `md` (768px) | 768 − 216 − gutters deixaria ~470px de workspace. Inaceitável |
+-| Rail por parallel route `@rail` | Rail obsoleta persiste em soft navigation; `default.js` obrigatório; oito páginas `null` que a próxima rota esquece |
+-| Três containers com `overflow` | Compra rolagem independente que a fase não precisa, ao custo de restauração de scroll, âncora e barra de URL do celular |
+-| `ViewTransition` do React agora | Anima a casca inteira por padrão; overlay captura ponteiro; reduced motion não alcança; invisível em jsdom |
+-| Biblioteca de motion (Motion for React) | Nenhum dos três gatilhos da ADR-0018 disparou nesta fase |
+-| Drawer mobile agora | A FASE 9 liga a barra inferior sozinha ao cruzar o limiar de três seções |
++| Alternativa                                 | Por que não                                                                                                             |
++| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
++| Manter o cabeçalho e só alargar o container | Não resolve nenhuma das sete causas. O portal continua sem nada persistente                                             |
++| Sidebar a partir de `md` (768px)            | 768 − 216 − gutters deixaria ~470px de workspace. Inaceitável                                                           |
++| Rail por parallel route `@rail`             | Rail obsoleta persiste em soft navigation; `default.js` obrigatório; oito páginas `null` que a próxima rota esquece     |
++| Três containers com `overflow`              | Compra rolagem independente que a fase não precisa, ao custo de restauração de scroll, âncora e barra de URL do celular |
++| `ViewTransition` do React agora             | Anima a casca inteira por padrão; overlay captura ponteiro; reduced motion não alcança; invisível em jsdom              |
++| Biblioteca de motion (Motion for React)     | Nenhum dos três gatilhos da ADR-0018 disparou nesta fase                                                                |
++| Drawer mobile agora                         | A FASE 9 liga a barra inferior sozinha ao cruzar o limiar de três seções                                                |
+ 
+ ## Relacionadas
+ 
+diff --git a/docs/adr/0028-kanban-e-drag-and-drop.md b/docs/adr/0028-kanban-e-drag-and-drop.md
+index 3d10149..8794048 100644
+--- a/docs/adr/0028-kanban-e-drag-and-drop.md
++++ b/docs/adr/0028-kanban-e-drag-and-drop.md
+@@ -70,13 +70,13 @@ não do portal, que é mobile-first e client-facing.
+ 
+ Nenhuma dependência é adicionada nesta fase.
+ 
+-| Opção | Mouse | Touch | Teclado | ARIA | Veredito |
+-| --- | --- | --- | --- | --- | --- |
+-| HTML5 nativo | ✅ | ❌ | ❌ | ❌ | sem touch e sem teclado |
+-| **`@dnd-kit`** | ✅ | ✅ | ✅ sensor próprio | ✅ live region | **preferida** |
+-| Pragmatic DnD | ✅ | ⚠️ apoia-se na DnD nativa | parcial | manual | o touch é justamente o problema |
+-| `react-aria` DnD | ✅ | ✅ | ✅ | ✅ | melhor a11y do lote, ecossistema grande demais para um caso |
+-| Pointer Events à mão | ✅ | ✅ | ✍️ nosso | ✍️ nosso | anúncio de arrasto para leitor de tela é caro de acertar |
++| Opção                | Mouse | Touch                     | Teclado           | ARIA           | Veredito                                                    |
++| -------------------- | ----- | ------------------------- | ----------------- | -------------- | ----------------------------------------------------------- |
++| HTML5 nativo         | ✅    | ❌                        | ❌                | ❌             | sem touch e sem teclado                                     |
++| **`@dnd-kit`**       | ✅    | ✅                        | ✅ sensor próprio | ✅ live region | **preferida**                                               |
++| Pragmatic DnD        | ✅    | ⚠️ apoia-se na DnD nativa | parcial           | manual         | o touch é justamente o problema                             |
++| `react-aria` DnD     | ✅    | ✅                        | ✅                | ✅             | melhor a11y do lote, ecossistema grande demais para um caso |
++| Pointer Events à mão | ✅    | ✅                        | ✍️ nosso          | ✍️ nosso       | anúncio de arrasto para leitor de tela é caro de acertar    |
+ 
+ A escolha por biblioteca em vez de código próprio segue o critério que a
+ [ADR-0018](0018-sem-biblioteca-de-ui-e-de-motion.md) já tinha escrito: biblioteca
+@@ -109,13 +109,13 @@ Quando a FASE 10 ligar o arrasto no admin, três condições valem:
+ 
+ ## Alternativas descartadas
+ 
+-| Alternativa | Por que não |
+-| --- | --- |
+-| Construir `KanbanBoard` já sabendo status e card | Congela na geometria o domínio que a FASE 10 precisa decidir. Seria reescrito |
+-| Não construir nada agora | A geometria horizontal, o snap e o teclado não dependem do domínio, e são o que custa acertar |
+-| Adicionar `@dnd-kit` já, sem usar | Dependência sem consumidor, e o gatilho da ADR-0018 ainda não disparou |
+-| Kanban editável no portal | Contradiz o modelo de aprovação: arrasto não expressa "pedir ajuste", e aprovação é RPC validado |
+-| Rota interna de demonstração | Dado falso alcançável por usuário é exatamente o que a FASE 8 apagou |
++| Alternativa                                      | Por que não                                                                                      |
++| ------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
++| Construir `KanbanBoard` já sabendo status e card | Congela na geometria o domínio que a FASE 10 precisa decidir. Seria reescrito                    |
++| Não construir nada agora                         | A geometria horizontal, o snap e o teclado não dependem do domínio, e são o que custa acertar    |
++| Adicionar `@dnd-kit` já, sem usar                | Dependência sem consumidor, e o gatilho da ADR-0018 ainda não disparou                           |
++| Kanban editável no portal                        | Contradiz o modelo de aprovação: arrasto não expressa "pedir ajuste", e aprovação é RPC validado |
++| Rota interna de demonstração                     | Dado falso alcançável por usuário é exatamente o que a FASE 8 apagou                             |
+ 
+ ## Relacionadas
+ 
+diff --git a/src/app/(portal)/portal/[projectId]/layout.tsx b/src/app/(portal)/portal/[projectId]/layout.tsx
+index 281bbce..ef12aeb 100644
+--- a/src/app/(portal)/portal/[projectId]/layout.tsx
++++ b/src/app/(portal)/portal/[projectId]/layout.tsx
+@@ -1,6 +1,7 @@
+ import type { ReactNode } from 'react'
+ import { PortalShell } from '@/components/layout/portal-shell'
+ import { visibleSections } from '@/config/app'
++import { requireActor } from '@/lib/auth/actor'
+ import { getClientPublic } from '@/domains/clients/queries'
+ import { listPortalProjects, requireVisiblePortalProject } from '@/domains/projects/queries'
+ 
+@@ -44,9 +45,16 @@ export default async function ProjectLayout({
+    * guard: o guard responde uma pergunta de segurança, e misturar leitura de
+    * domínio nele faria a próxima pessoa "aproveitá-lo" para buscar dado.
+    */
+-  const [client, projects] = await Promise.all([
++  const [client, projects, actor] = await Promise.all([
+     getClientPublic(project.clientId),
+     listPortalProjects(),
++    /*
++     * O nome de quem está logado, para a base da sidebar. `requireActor()` já
++     * rodou no layout do grupo e o resultado vem do cache de request do React:
++     * o custo é zero, e a alternativa — descer o ator por prop desde lá —
++     * acoplaria dois layouts que hoje respondem perguntas diferentes.
++     */
++    requireActor(),
+   ])
+ 
+   return (
+@@ -54,6 +62,7 @@ export default async function ProjectLayout({
+       projectId={project.id}
+       clientName={client.name}
+       projectName={project.name}
++      fullName={actor.fullName}
+       /*
+        * A navegacao segue o PRODUTO: uma secao aparece quando a funcionalidade
+        * existe, e nunca porque uma tabela ganhou a primeira linha. Um menu que
+diff --git a/src/app/globals.css b/src/app/globals.css
+index a171df5..7902004 100644
+--- a/src/app/globals.css
++++ b/src/app/globals.css
+@@ -82,6 +82,9 @@
+   --motion-instant: 90ms;
+   --motion-fast: 160ms;
+   --motion-default: 240ms;
++  /* Entrada do conteudo de rota. No PISO da faixa util: 320ms numa troca de
++     secao que o usuario ja pediu e atraso percebido, nao refinamento. */
++  --motion-page: 220ms;
+   --motion-emphasized: 560ms;
+ 
+   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+@@ -220,6 +223,26 @@
+ @layer base {
+   html {
+     -webkit-text-size-adjust: 100%;
++    /*
++     * O cabecalho sticky do celular cobriria o alvo de uma ancora `#id` e o
++     * topo da pagina depois da navegacao: o Next PULA elementos sticky ao
++     * procurar o alvo de scroll, entao a compensacao e nossa. E a receita da
++     * documentacao do proprio Next (`link.md#scroll-offset-with-sticky-headers`).
++     * Em `lg` o cabecalho nao existe, e a compensacao zera.
++     */
++    scroll-padding-top: 3.5rem;
++  }
++
++  @media (min-width: 48rem) {
++    html {
++      scroll-padding-top: 4rem;
++    }
++  }
++
++  @media (min-width: 64rem) {
++    html {
++      scroll-padding-top: 0;
++    }
+   }
+ 
+   body {
+@@ -331,6 +354,43 @@
+     animation-delay: 480ms;
+   }
+ 
++  /*
++   * Entrada do workspace na troca de rota.
++   *
++   * 8px, e nao os 14px do `boop-rise`: numa troca de secao, 14px leem como
++   * conteudo caindo; 8px leem como foco assentando. So o workspace entra — a
++   * casca nao esta nesta subarvore (ADR-0027).
++   */
++  @keyframes boop-workspace {
++    from {
++      opacity: 0;
++      transform: translate3d(0, 8px, 0);
++    }
++    to {
++      opacity: 1;
++      transform: translate3d(0, 0, 0);
++    }
++  }
++
++  .workspace-enter {
++    animation: boop-workspace var(--motion-page) var(--ease-out) both;
++  }
++
++  /* Pulso da espera: skeleton, nunca conteudo. */
++  @keyframes boop-pulse {
++    0%,
++    100% {
++      opacity: 1;
++    }
++    50% {
++      opacity: 0.45;
++    }
++  }
++
++  .skeleton-pulse {
++    animation: boop-pulse 1.6s var(--ease-standard) infinite;
++  }
++
+   .drift {
+     animation: boop-drift 34s ease-in-out infinite;
+   }
+diff --git a/src/components/layout/context-rail.tsx b/src/components/layout/context-rail.tsx
+new file mode 100644
+index 0000000..f496a5c
+--- /dev/null
++++ b/src/components/layout/context-rail.tsx
+@@ -0,0 +1,66 @@
++import type { ReactNode } from 'react'
++
++/**
++ * A coluna de contexto — e a regra de que ela desaparece.
++ *
++ * ## Ela é composta pela PÁGINA, e não pela casca
++ *
++ * O pré-voo desta fase propôs um slot `@rail` (parallel route). A documentação
++ * local do Next 16.3.4 desfez a proposta: em navegação client-side o Next
++ * **mantém a subpágina ativa de um slot mesmo quando a rota nova não a
++ * corresponde** (`parallel-routes.md`). Ir da Home para `/arquivos` levaria a
++ * rail da Home junto, com a equipe do projeto ao lado de um estado vazio.
++ *
++ * Evitar isso exigiria uma página `null` para cada rota sem rail — arquivos que
++ * existem só para desligar algo, e que a próxima rota esquece de criar. É a
++ * forma exata do antipadrão que este repositório recusa em autorização, movida
++ * para layout. A rail é CONTEXTUAL: ela deve trocar com a rota, não persistir.
++ *
++ * ## Ela é opaca ao domínio
++ *
++ * Recebe `ReactNode`. Não recebe ciclo, etapa, equipe, projeto nem cliente —
++ * quem compõe é a página, que já tem o dado e já passou pelo guard. A casca
++ * posiciona e não sabe o que tem dentro (ADR-0027).
++ *
++ * ## Bloco sem origem não aparece
++ *
++ * `rail` nulo devolve os filhos direto: **sem grid, sem `<aside>`, sem buraco**.
++ * Quem decide se há conteúdo real é a página — `team.length > 0 ? <...> : null`
++ * —, porque só ela sabe o que leu. Um componente que sempre renderiza e às
++ * vezes devolve `null` por dentro deixaria a coluna vazia na tela.
++ *
++ * ## Geometria
++ *
++ * A rail entra em `xl` (1280px), e não em `lg`: em 1024px a sidebar já consome
++ * 17rem, e uma terceira coluna deixaria o workspace com menos de 500px. Abaixo
++ * de `xl` o mesmo conteúdo desce para o fim do fluxo, com régua acima — mesmo
++ * DOM, ordem de leitura preservada, sem `hidden`.
++ *
++ * Esta é também a fundação geométrica do detalhe de conteúdo da FASE 10:
++ * conteúdo à esquerda, linha do tempo à direita é esta primitiva com outro
++ * filho (ADR-0028).
++ */
++export function WorkspaceColumns({ rail, children }: { rail?: ReactNode; children: ReactNode }) {
++  if (!rail) return <>{children}</>
++
++  return (
++    <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_19rem] xl:items-start">
++      <div className="min-w-0">{children}</div>
++
++      {/*
++        `sticky` + `self-start`, e não um container com `overflow` permanente: o
++        Next ignora elementos sticky e fixed ao procurar o alvo de scroll da
++        navegação (`link.md`), então o DOCUMENTO continua sendo o eixo — e com
++        ele a restauração de scroll do navegador, a âncora `#id` e o colapso da
++        barra de URL no celular. `overflow-y-auto` só entra em cena quando o
++        conteúdo excede a altura da viewport (ADR-0027).
++      */}
++      <aside
++        aria-label="Contexto do projeto"
++        className="border-rule px-[--gutter] py-10 max-xl:border-t xl:sticky xl:top-0 xl:max-h-dvh xl:self-start xl:overflow-y-auto xl:border-l xl:px-7 xl:py-12"
++      >
++        {rail}
++      </aside>
++    </div>
++  )
++}
+diff --git a/src/components/layout/portal-nav.tsx b/src/components/layout/portal-nav.tsx
+index 59c6cba..de3dcef 100644
+--- a/src/components/layout/portal-nav.tsx
++++ b/src/components/layout/portal-nav.tsx
+@@ -6,18 +6,20 @@ import { portalHref, type PortalSection } from '@/config/app'
+ import { cn } from '@/lib/cn'
+ 
+ /*
+- * Navegação do portal: uma linha de palavras, como o sumário de uma revista.
++ * Navegação do portal, nas duas orientações que a casca usa.
+  *
+- * Não é sidebar — ocuparia 240px permanentes para links que cabem numa linha —
+- * e não é pill: a direção proíbe. O item ativo é marcado por um filete azul
+- * embaixo, o mesmo gesto de uma régua editorial.
++ * ## Uma lógica de item ativo, dois desenhos
+  *
+- * ## Por que ela agora aparece no celular também
++ * A regra que decide o item corrente é sutil — a Home casa por igualdade, as
++ * outras por prefixo — e é a mesma no celular e no desktop. Ela mora aqui uma
++ * vez só: duplicá-la em um `SidebarNav` separado seria criar o lugar onde as
++ * duas versões divergem (ADR-0027).
+  *
+- * Enquanto houver menos de três seções, a barra inferior não é renderizada
+- * (`BOTTOM_NAV_THRESHOLD`): ela custaria a metade inferior da tela para
+- * oferecer um link que a Home já dá. Duas palavras cabem folgado em 375px, e o
+- * cabeçalho já é sticky — a navegação continua sempre alcançável.
++ *   horizontal   linha de palavras no cabeçalho do celular, filete embaixo
++ *   vertical     lista na sidebar do desktop, filete à esquerda
++ *
++ * Não é pill em nenhuma das duas: a direção proíbe. O filete azul é o mesmo
++ * gesto de uma régua editorial, girado.
+  *
+  * `use client` só por causa do `usePathname`: é a única parte da casca que
+  * precisa saber onde o usuário está.
+@@ -25,10 +27,12 @@ import { cn } from '@/lib/cn'
+ export function PortalNav({
+   projectId,
+   sections,
++  orientation = 'horizontal',
+   className,
+ }: {
+   projectId: string
+   sections: readonly PortalSection[]
++  orientation?: 'horizontal' | 'vertical'
+   className?: string
+ }) {
+   const pathname = usePathname()
+@@ -37,9 +41,15 @@ export function PortalNav({
+   /* Uma seção só é o próprio lugar onde a pessoa está: não é navegação. */
+   if (sections.length < 2) return null
+ 
++  const vertical = orientation === 'vertical'
++
+   return (
+     <nav aria-label="Seções do projeto" className={className}>
+-      <ul className="flex flex-wrap items-center gap-x-7 gap-y-2 lg:gap-x-9">
++      <ul
++        className={cn(
++          vertical ? 'flex flex-col' : 'flex flex-wrap items-center gap-x-7 gap-y-2 lg:gap-x-9',
++        )}
++      >
+         {sections.map((item) => {
+           const href = portalHref(projectId, item.slug)
+           const active = item.slug === '' ? pathname === root : pathname.startsWith(href)
+@@ -51,6 +61,7 @@ export function PortalNav({
+                 aria-current={active ? 'page' : undefined}
+                 className={cn(
+                   't-meta relative flex min-h-11 items-center transition-colors duration-[--motion-fast]',
++                  vertical && 'pl-4',
+                   active ? 'text-foreground' : 'text-muted hover:text-foreground',
+                 )}
+               >
+@@ -58,9 +69,11 @@ export function PortalNav({
+                 <span
+                   aria-hidden="true"
+                   className={cn(
+-                    'absolute inset-x-0 -bottom-px h-0.5 origin-left transition-transform',
+-                    'duration-[--motion-default] ease-[--ease-out]',
+-                    active ? 'bg-accent scale-x-100' : 'bg-accent scale-x-0',
++                    'bg-accent absolute transition-transform duration-[--motion-default] ease-[--ease-out]',
++                    vertical
++                      ? 'inset-y-1.5 left-0 w-0.5 origin-top'
++                      : 'inset-x-0 -bottom-px h-0.5 origin-left',
++                    active ? (vertical ? 'scale-y-100' : 'scale-x-100') : 'scale-0',
+                   )}
+                 />
+               </Link>
+diff --git a/src/components/layout/portal-shell.tsx b/src/components/layout/portal-shell.tsx
+index 03fc3ee..dda891e 100644
+--- a/src/components/layout/portal-shell.tsx
++++ b/src/components/layout/portal-shell.tsx
+@@ -3,8 +3,11 @@ import Link from 'next/link'
+ import { BoopMark } from '@/components/brand/boop-mark'
+ import { PortalBottomNav } from '@/components/layout/portal-bottom-nav'
+ import { PortalNav } from '@/components/layout/portal-nav'
++import { PortalSidebar } from '@/components/layout/portal-sidebar'
++import { ProjectSwitcher } from '@/components/layout/project-switcher'
++import { Workspace } from '@/components/layout/workspace'
+ import { SignOutButton } from '@/components/patterns/sign-out-button'
+-import { BOTTOM_NAV_THRESHOLD, portalHref, type PortalSection } from '@/config/app'
++import { portalHref, showsBottomNav, type PortalSection } from '@/config/app'
+ 
+ export interface PortalShellProps {
+   projectId: string
+@@ -18,20 +21,52 @@ export interface PortalShellProps {
+   /**
+    * Todos os projetos que esta pessoa alcanca. Com um so, nada muda na tela.
+    *
+-   * So `id` e `name` — o cabecalho nao precisa de mais nada, e o que nao e
++   * So `id` e `name` — a casca nao precisa de mais nada, e o que nao e
+    * necessario nao atravessa a fronteira do RSC.
+    */
+   projects?: readonly { id: string; name: string }[]
++  /** Nome de quem esta logado, para a base da sidebar. Pode ser nulo. */
++  fullName?: string | null
+   children: ReactNode
+ }
+ 
+ /**
+- * Casca do portal do cliente.
++ * Casca do portal do cliente — um AMBIENTE no desktop, a FASE 8 no celular.
+  *
+- * A referência é o cabeçalho de uma revista, não o de um SaaS: identificação
+- * discreta em cima, sumário em linha embaixo, e uma régua separando. Nenhuma
+- * caixa, nenhuma sombra, nenhum ícone — a hierarquia vem do tamanho e do
+- * espaço (docs/design-direction.md).
++ * ```
++ * >= lg (1024px)                        < lg
++ * ┌──────────┬─────────────────────┐    ┌────────────────────┐
++ * │ SIDEBAR  │  WORKSPACE          │    │ CABEÇALHO sticky   │
++ * │ 17rem    │  (+ rail em xl,     │    │ marca · projeto ▾  │
++ * │ sticky   │     composta pela   │    │ Início   Projeto   │
++ * │ h-dvh    │     página)         │    ├────────────────────┤
++ * │          │                     │    │  documento rola    │
++ * └──────────┴─────────────────────┘    └────────────────────┘
++ * ```
++ *
++ * ## Duas árvores, um componente
++ *
++ * A sidebar é `hidden lg:block`; o cabeçalho é `lg:hidden`. O celular renderiza
++ * a MESMA árvore da FASE 8 — e a garantia mais cara daquela fase, a resposta de
++ * atenção acima da dobra em 375 × 667, é preservada por construção, não por
++ * medição. Nenhum chrome novo entra abaixo de `lg`.
++ *
++ * Não há drawer mobile de propósito: a FASE 9 liga Estratégia, `sections` chega
++ * a três, e `showsBottomNav()` acende a barra inferior que já existe e já é
++ * testada. Construir um drawer agora seria construir para descartar.
++ *
++ * ## O documento continua sendo o eixo de scroll
++ *
++ * Sidebar `sticky`, rail `sticky`, workspace no fluxo. Nenhum `overflow` fixo:
++ * o Next pula elementos sticky ao procurar o alvo de scroll da navegação, então
++ * restauração de scroll, âncora e barra de URL do celular seguem nativas
++ * (ADR-0027).
++ *
++ * ## O que ela não sabe
++ *
++ * Ciclo, etapa, equipe, atenção, jornada. A casca é MOLDURA (D-29): ela
++ * posiciona `children` e a rail que a página compôs, e não conhece nenhum dos
++ * dois por dentro.
+  */
+ export function PortalShell({
+   projectId,
+@@ -39,114 +74,77 @@ export function PortalShell({
+   projectName,
+   sections,
+   projects,
++  fullName = null,
+   children,
+ }: PortalShellProps) {
+-  const others = (projects ?? []).filter((project) => project.id !== projectId)
++  const todos = projects ?? []
+ 
+   /*
+-   * A barra inferior so se paga com tres destinos ou mais. Abaixo disso ela
+-   * custaria 56px permanentes mais a area de gestos para oferecer um link que a
+-   * Home ja da, e o painel "Mais" nao teria o que abrir.
+-   *
+-   * Quando ela nao renderiza, a RESERVA de espaco no `main` some junto — senao
+-   * sobra um rodape fantasma de 96px no celular.
++   * A regra da barra inferior mora em `src/config/app.ts`, ao lado do limiar.
++   * Quando ela existe, o `main` reserva a altura; quando não existe, a reserva
++   * some junto — senão sobra um rodapé fantasma de 96px no celular.
+    */
+-  const comBarra = sections.length >= BOTTOM_NAV_THRESHOLD
++  const comBarra = showsBottomNav(sections)
+ 
+   return (
+-    <div className="bg-background flex min-h-dvh flex-col">
+-      <header className="border-rule bg-background/92 sticky top-0 z-30 border-b backdrop-blur-sm">
+-        <div className="content">
+-          <div className="flex h-14 items-center justify-between gap-4 md:h-16">
+-            <Link
+-              href={portalHref(projectId, '')}
+-              className="flex min-h-11 items-center gap-3"
+-              aria-label={`${clientName} — início do projeto`}
+-            >
+-              <BoopMark className="h-6 w-auto md:h-7" priority />
+-              <span aria-hidden="true" className="bg-rule-strong hidden h-5 w-px sm:block" />
+-              <span className="t-meta text-muted hidden sm:block">
+-                {clientName} · {projectName}
+-              </span>
+-            </Link>
+-
+-            <div className="flex items-center gap-4">
+-              {/*
+-                Seletor de projeto — so com mais de um (docs/product.md).
+-
+-                `details`/`summary` e nao um menu com estado: nao precisa de
+-                `'use client'`, funciona sem JavaScript, abre e fecha pelo
+-                teclado e ja e anunciado como expansivel pelo leitor de tela.
+-                Uma biblioteca de dropdown resolveria o mesmo com um bundle a
+-                mais (ADR-0018).
+-              */}
+-              {others.length > 0 && (
+-                <details className="relative">
+-                  <summary className="t-meta text-muted hover:text-foreground flex min-h-11 cursor-pointer list-none items-center gap-1.5 transition-colors marker:content-none">
+-                    <span className="max-w-[14ch] truncate">{projectName}</span>
+-                    <span aria-hidden="true" className="text-rule-strong">
+-                      ▾
+-                    </span>
+-                    <span className="sr-only">Trocar de projeto</span>
+-                  </summary>
++    <div className="bg-background lg:grid lg:grid-cols-[17rem_minmax(0,1fr)] lg:items-start">
++      <aside className="border-rule hidden lg:sticky lg:top-0 lg:block lg:h-dvh lg:border-r">
++        <PortalSidebar
++          projectId={projectId}
++          clientName={clientName}
++          projectName={projectName}
++          sections={sections}
++          projects={todos}
++          fullName={fullName}
++        />
++      </aside>
+ 
+-                  <div className="border-rule bg-background absolute top-full right-0 z-40 mt-2 min-w-56 border py-2 shadow-sm">
+-                    <ul>
+-                      {others.map((project) => (
+-                        <li key={project.id}>
+-                          <Link
+-                            href={portalHref(project.id, '')}
+-                            className="t-meta text-muted hover:bg-surface-soft hover:text-foreground flex min-h-11 items-center px-4 transition-colors"
+-                          >
+-                            {project.name}
+-                          </Link>
+-                        </li>
+-                      ))}
+-                    </ul>
+-                  </div>
+-                </details>
+-              )}
++      <div className="flex min-h-dvh flex-col">
++        {/*
++          O cabeçalho da FASE 8, intacto, e agora só no celular e no tablet: em
++          `lg` a sidebar já carrega marca, cliente, projeto, seções e conta, e
++          duas molduras para a mesma informação é ruído.
++        */}
++        <header className="border-rule bg-background/92 sticky top-0 z-30 border-b backdrop-blur-sm lg:hidden">
++          <div className="content">
++            <div className="flex h-14 items-center justify-between gap-4 md:h-16">
++              <Link
++                href={portalHref(projectId, '')}
++                className="flex min-h-11 items-center gap-3"
++                aria-label={`${clientName} — início do projeto`}
++              >
++                <BoopMark className="h-6 w-auto md:h-7" priority />
++                <span aria-hidden="true" className="bg-rule-strong hidden h-5 w-px sm:block" />
++                <span className="t-meta text-muted hidden sm:block">
++                  {clientName} · {projectName}
++                </span>
++              </Link>
+ 
+-              {/*
+-                "Ciclo N" saiu daqui na FASE 8. Ciclo e vocabulario de operacao:
+-                ele significa alguma coisa DENTRO da jornada, e nada dentro de
+-                uma barra de aplicacao. Desceu para o bloco "Agora", onde tem
+-                contexto (D-29, docs/product.md).
+-              */}
+-              <SignOutButton />
++              <div className="flex items-center gap-4">
++                <ProjectSwitcher
++                  projectId={projectId}
++                  projectName={projectName}
++                  projects={todos}
++                  align="end"
++                />
++                <SignOutButton />
++              </div>
+             </div>
+-          </div>
+-
+-          {/*
+-            A linha de palavras vale nos DOIS breakpoints enquanto a barra
+-            inferior nao existir. Duas palavras cabem folgado em 375px.
+-          */}
+-          <PortalNav
+-            projectId={projectId}
+-            sections={sections}
+-            className={comBarra ? 'hidden md:block' : ''}
+-          />
+-        </div>
+-      </header>
+ 
+-      {/* A reserva de altura existe SO quando a barra inferior existe. */}
+-      <main id="main" className={comBarra ? 'flex-1 pb-24 md:pb-0' : 'flex-1'}>
+-        {children}
+-      </main>
++            <PortalNav
++              projectId={projectId}
++              sections={sections}
++              className={comBarra ? 'hidden md:block' : ''}
++            />
++          </div>
++        </header>
+ 
+-      <footer className="border-rule mt-16 border-t py-8 max-md:hidden">
+-        <div className="content flex items-center justify-between gap-4">
+-          {/*
+-            O rodape dizia "Dados ficticios", e desde a FASE 6 isso deixou de
+-            ser verdade: projeto e jornada vem do banco. Continuar afirmando
+-            seria o produto mentindo para o cliente sobre o que ele esta vendo.
+-          */}
+-          <p className="t-meta text-muted">Boop OS</p>
+-          <p className="t-meta text-muted">{clientName}</p>
+-        </div>
+-      </footer>
++        <main id="main" className={comBarra ? 'flex-1 pb-24 md:pb-0 lg:pb-0' : 'flex-1'}>
++          <Workspace>{children}</Workspace>
++        </main>
+ 
+-      {comBarra && <PortalBottomNav projectId={projectId} sections={sections} />}
++        {comBarra && <PortalBottomNav projectId={projectId} sections={sections} />}
++      </div>
+     </div>
+   )
+ }
+diff --git a/src/components/layout/portal-sidebar.tsx b/src/components/layout/portal-sidebar.tsx
+new file mode 100644
+index 0000000..577b94c
+--- /dev/null
++++ b/src/components/layout/portal-sidebar.tsx
+@@ -0,0 +1,94 @@
++import Link from 'next/link'
++import { BoopMark } from '@/components/brand/boop-mark'
++import { PortalNav } from '@/components/layout/portal-nav'
++import { ProjectSwitcher } from '@/components/layout/project-switcher'
++import { SignOutButton } from '@/components/patterns/sign-out-button'
++import { portalHref, type PortalSection } from '@/config/app'
++import { firstName } from '@/lib/format'
++
++export interface PortalSidebarProps {
++  projectId: string
++  clientName: string
++  projectName: string
++  sections: readonly PortalSection[]
++  projects: readonly { id: string; name: string }[]
++  /** Nome de quem está logado. `null` quando o cadastro nunca foi preenchido. */
++  fullName: string | null
++}
++
++/**
++ * A moldura permanente do portal, no desktop.
++ *
++ * ## Por que ela se paga com duas seções
++ *
++ * Uma sidebar que oferecesse só "Início / Projeto" pareceria um menu quebrado —
++ * e a FASE 1.5 estava certa em recusá-la naquele momento. O que mudou não foi a
++ * contagem de links: foi ela absorver **quatro zonas** — marca, cliente com
++ * seletor de projeto, seções, e conta. Ao absorvê-las, o cabeçalho de largura
++ * total e o rodapé de colofão deixam de ter função e morrem, e é essa troca que
++ * transforma "site com coluna à esquerda" em aplicação (ADR-0027).
++ *
++ * ## O que ela continua não fazendo
++ *
++ * Não inventa item. A navegação segue a FEATURE (D-25): duas seções hoje, e uma
++ * linha em `src/config/app.ts` por fase. Nada de item cinza, riscado ou com
++ * cadeado para preencher a coluna — um menu que anuncia sala vazia é pior que
++ * um menu curto.
++ *
++ * Não conhece ciclo, etapa nem equipe. Isso é conteúdo, e conteúdo é da rail e
++ * do workspace.
++ */
++export function PortalSidebar({
++  projectId,
++  clientName,
++  projectName,
++  sections,
++  projects,
++  fullName,
++}: PortalSidebarProps) {
++  const nome = firstName(fullName)
++
++  return (
++    <div className="flex h-full flex-col gap-10 px-6 py-6">
++      <Link
++        href={portalHref(projectId, '')}
++        className="flex min-h-11 items-center"
++        aria-label={`${clientName} — início do projeto`}
++      >
++        <BoopMark className="h-7 w-auto" priority />
++      </Link>
++
++      {/*
++        Cliente e projeto: a moldura de contexto. O nome do cliente é texto, e
++        não link — ele não leva a lugar nenhum, porque o cliente É o portal.
++      */}
++      <div>
++        <p className="t-meta text-foreground max-w-[16ch] leading-relaxed">{clientName}</p>
++        {/*
++          Com um projeto só, o seletor não renderiza e sobra o nome em texto.
++          Com vários, o nome vira o próprio gatilho — nunca os dois ao mesmo
++          tempo, que imprimiria o mesmo nome duas vezes na mesma coluna.
++        */}
++        {projects.length > 1 ? (
++          <ProjectSwitcher
++            projectId={projectId}
++            projectName={projectName}
++            projects={projects}
++            align="start"
++            className="-mt-1"
++          />
++        ) : (
++          <p className="t-meta text-muted mt-1.5 max-w-[16ch] leading-relaxed">{projectName}</p>
++        )}
++      </div>
++
++      <PortalNav projectId={projectId} sections={sections} orientation="vertical" />
++
++      {/* A conta desce para a base: é onde toda aplicação a procura. */}
++      <div className="border-rule mt-auto border-t pt-5">
++        {nome && <p className="t-meta text-muted mb-1">{nome}</p>}
++        <SignOutButton />
++      </div>
++    </div>
++  )
++}
+diff --git a/src/components/layout/project-switcher.tsx b/src/components/layout/project-switcher.tsx
+new file mode 100644
+index 0000000..e327321
+--- /dev/null
++++ b/src/components/layout/project-switcher.tsx
+@@ -0,0 +1,79 @@
++import Link from 'next/link'
++import { portalHref } from '@/config/app'
++import { cn } from '@/lib/cn'
++
++export interface ProjectSwitcherProps {
++  projectId: string
++  projectName: string
++  /**
++   * Todos os projetos que esta pessoa alcanca. So `id` e `name` — a troca de
++   * contexto nao precisa de mais nada, e o que nao e necessario nao atravessa a
++   * fronteira do RSC.
++   */
++  projects: readonly { id: string; name: string }[]
++  /** De que lado o painel abre. `start` na sidebar, `end` no cabecalho. */
++  align?: 'start' | 'end'
++  className?: string
++}
++
++/**
++ * Troca de contexto entre projetos.
++ *
++ * `details`/`summary` e nao um menu com estado: nao precisa de `'use client'`,
++ * funciona sem JavaScript, abre e fecha pelo teclado e ja e anunciado como
++ * expansivel pelo leitor de tela. Uma biblioteca de dropdown resolveria o mesmo
++ * com um bundle a mais (ADR-0018).
++ *
++ * O seletor **so aparece com mais de um projeto** — com um so, a complexidade
++ * fica invisivel (docs/product.md). Nao e um oitavo item de navegacao: e
++ * contexto, e por isso mora ao lado do nome do cliente, nunca na lista de
++ * secoes.
++ *
++ * A autorizacao nao passa por aqui. `listPortalProjects()` ja devolveu, sob
++ * RLS, so o que esta pessoa alcanca; trocar de projeto e seguir um link, e o
++ * layout do destino chama `requireVisiblePortalProject()` de novo. Um id vindo
++ * do navegador nunca teve autoridade sobre nada.
++ */
++export function ProjectSwitcher({
++  projectId,
++  projectName,
++  projects,
++  align = 'end',
++  className,
++}: ProjectSwitcherProps) {
++  const others = projects.filter((project) => project.id !== projectId)
++
++  if (others.length === 0) return null
++
++  return (
++    <details className={cn('relative', className)}>
++      <summary className="t-meta text-muted hover:text-foreground flex min-h-11 cursor-pointer list-none items-center gap-1.5 transition-colors duration-[--motion-fast] marker:content-none">
++        <span className="max-w-[14ch] truncate">{projectName}</span>
++        <span aria-hidden="true" className="text-rule-strong">
++          ▾
++        </span>
++        <span className="sr-only">Trocar de projeto</span>
++      </summary>
++
++      <div
++        className={cn(
++          'border-rule bg-background absolute top-full z-40 mt-2 min-w-56 border py-2 shadow-sm',
++          align === 'end' ? 'right-0' : 'left-0',
++        )}
++      >
++        <ul>
++          {others.map((project) => (
++            <li key={project.id}>
++              <Link
++                href={portalHref(project.id, '')}
++                className="t-meta text-muted hover:bg-surface-soft hover:text-foreground flex min-h-11 items-center px-4 transition-colors duration-[--motion-fast]"
++              >
++                {project.name}
++              </Link>
++            </li>
++          ))}
++        </ul>
++      </div>
++    </details>
++  )
++}
+diff --git a/src/components/layout/workspace.tsx b/src/components/layout/workspace.tsx
+new file mode 100644
+index 0000000..da05270
+--- /dev/null
++++ b/src/components/layout/workspace.tsx
+@@ -0,0 +1,39 @@
++'use client'
++
++import type { ReactNode } from 'react'
++import { usePathname } from 'next/navigation'
++
++/**
++ * O eixo que troca, dentro da casca que não troca.
++ *
++ * ## Por que existe um `key`
++ *
++ * Sem ele o React reconcilia a mesma `div` entre duas rotas e a animação de
++ * entrada nunca reinicia: o conteúdo seria substituído em corte seco, que é
++ * exatamente a sensação que a FASE 8.5 existe para tirar. O `key` derivado do
++ * caminho força a remontagem do invólucro — e só dele.
++ *
++ * ## Por que a casca não anima
++ *
++ * Ela não está aqui dentro. Sidebar, cabeçalho e rodapé são irmãos deste nó,
++ * não filhos: não há configuração dizendo "não anime a sidebar", há uma árvore
++ * em que a sidebar não participa. É a diferença entre uma regra que alguém
++ * pode esquecer e uma que não pode ser violada sem mover código.
++ *
++ * `usePathname` — e não `useSelectedLayoutSegment` — porque o caminho também
++ * muda ao TROCAR DE PROJETO, e trocar de projeto deve reanimar o workspace: é a
++ * mudança de contexto mais forte que o portal tem.
++ *
++ * `children` continua sendo Server Component: ele atravessa como prop
++ * serializada pelo RSC e não entra no bundle do cliente. Este arquivo é a única
++ * folha cliente que a casca ganhou.
++ */
++export function Workspace({ children }: { children: ReactNode }) {
++  const pathname = usePathname()
++
++  return (
++    <div key={pathname} className="workspace-enter">
++      {children}
++    </div>
++  )
++}
+diff --git a/src/config/app.ts b/src/config/app.ts
+index d4d66e9..ccd7ea7 100644
+--- a/src/config/app.ts
++++ b/src/config/app.ts
+@@ -85,6 +85,21 @@ export function visibleSections(type: ProjectType): readonly PortalSection[] {
+  */
+ export const BOTTOM_NAV_THRESHOLD = 3
+ 
++/**
++ * A barra inferior existe para este conjunto de seções?
++ *
++ * A pergunta é de PRODUTO, então a resposta mora aqui, ao lado do limiar que a
++ * define — e não dentro da casca, que só desenha. Até a FASE 8.5 a comparação
++ * estava escrita no `portal-shell.tsx`, e um teste lia o código-fonte da casca
++ * para conferi-la: a regra certa no arquivo errado (ADR-0027).
++ *
++ * A FASE 9 liga Estratégia, `sections` chega a três, e a barra acende sozinha —
++ * sem ninguém tocar em layout.
++ */
++export function showsBottomNav(sections: readonly PortalSection[]): boolean {
++  return sections.length >= BOTTOM_NAV_THRESHOLD
++}
++
+ export function portalHref(projectId: string, slug: string): string {
+   return slug ? `/portal/${projectId}/${slug}` : `/portal/${projectId}`
+ }
+diff --git a/tests/unit/phase8-nav-availability.test.ts b/tests/unit/phase8-nav-availability.test.ts
+index 209d2ea..3a2265c 100644
+--- a/tests/unit/phase8-nav-availability.test.ts
++++ b/tests/unit/phase8-nav-availability.test.ts
+@@ -1,5 +1,11 @@
+ import { describe, expect, it } from 'vitest'
+-import { BOTTOM_NAV_THRESHOLD, PORTAL_SECTIONS, portalHref, visibleSections } from '@/config/app'
++import {
++  BOTTOM_NAV_THRESHOLD,
++  PORTAL_SECTIONS,
++  portalHref,
++  showsBottomNav,
++  visibleSections,
++} from '@/config/app'
+ import { PROJECT_TYPES, type ProjectType } from '@/config/enums'
+ 
+ /**
+@@ -100,12 +106,43 @@ describe('a barra inferior espera ter o que oferecer', () => {
+     expect(visibleSections('social').length).toBeLessThan(BOTTOM_NAV_THRESHOLD)
+   })
+ 
+-  it('o shell decide pela contagem, e some com a reserva junto', async () => {
++  /*
++   * A FASE 8.5 mudou o ENDEREÇO desta regra, não a regra.
++   *
++   * Até aqui os dois casos abaixo liam o código-fonte de `portal-shell.tsx`
++   * atrás de duas strings literais — uma comparação e uma expressão de classe.
++   * Isso travava a implementação da casca, não o comportamento do produto: a
++   * reescrita da casca em ADR-0027 os quebraria mesmo mantendo a regra intacta,
++   * que é o sinal de que a asserção estava no lugar errado.
++   *
++   * A decisão virou `showsBottomNav()`, em `src/config/app.ts`, ao lado do
++   * limiar que a define — e agora é testável como função pura, sem ler arquivo.
++   * A reserva de altura continua conferida, e continua conferida onde ela de
++   * fato existe.
++   *
++   * O terceiro caso da FASE 8 — "Ciclo N" saiu do shell — NÃO mudou, e é ele
++   * que força a rail contextual a ser um slot opaco: uma casca que recebesse
++   * `cycle` por prop voltaria a falhar aqui.
++   */
++  it('a decisão é da CONFIG, e é pura', () => {
++    const duas = visibleSections('social')
++    expect(duas.length).toBe(2)
++    expect(showsBottomNav(duas)).toBe(false)
++
++    /* Uma terceira seção — a FASE 9 — acende a barra sem tocar em layout. */
++    expect(showsBottomNav([...duas, PORTAL_SECTIONS[2]!])).toBe(true)
++  })
++
++  it('sem barra, sem reserva de altura no `main`', async () => {
+     const { readFileSync } = await import('node:fs')
+     const fonte = readFileSync('src/components/layout/portal-shell.tsx', 'utf8')
+ 
+-    expect(fonte).toContain('sections.length >= BOTTOM_NAV_THRESHOLD')
+-    expect(fonte).toContain("comBarra ? 'flex-1 pb-24 md:pb-0' : 'flex-1'")
++    /* A casca consome a decisão; não a reimplementa. */
++    expect(fonte).toContain('showsBottomNav(sections)')
++    expect(fonte).not.toContain('sections.length >=')
++
++    /* A reserva é condicionada — senão sobra rodapé fantasma no celular. */
++    expect(fonte).toMatch(/comBarra \? '[^']*pb-24[^']*' : 'flex-1'/)
+   })
+ })
+ 
+-- 
+2.43.0
+
