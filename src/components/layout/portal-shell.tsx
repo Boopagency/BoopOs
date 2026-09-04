@@ -88,7 +88,17 @@ export function PortalShell({
 
   return (
     <div className="bg-background lg:grid lg:grid-cols-[17rem_minmax(0,1fr)] lg:items-start">
-      <aside className="border-rule hidden lg:sticky lg:top-0 lg:block lg:h-dvh lg:border-r">
+      {/*
+        `div`, e não `aside`: o landmark desta coluna é a `<nav>` que ela
+        contém. Um `aside` acrescentaria um segundo "complementar" sem nome ao
+        lado do da rail, e dois landmarks para uma coluna só é ruído no leitor
+        de tela.
+
+        `overflow-y-auto` rola SÓ se a coluna exceder a viewport — hoje não
+        excede, e na fase que acrescentar seções ela rola sozinha em vez de
+        cortar a conta no rodapé (ADR-0027).
+      */}
+      <div className="border-rule hidden lg:sticky lg:top-0 lg:block lg:h-dvh lg:overflow-y-auto lg:border-r">
         <PortalSidebar
           projectId={projectId}
           clientName={clientName}
@@ -97,7 +107,7 @@ export function PortalShell({
           projects={todos}
           fullName={fullName}
         />
-      </aside>
+      </div>
 
       <div className="flex min-h-dvh flex-col">
         {/*

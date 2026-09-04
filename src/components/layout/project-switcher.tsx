@@ -46,9 +46,16 @@ export function ProjectSwitcher({
   if (others.length === 0) return null
 
   return (
-    <details className={cn('relative', className)}>
+    <details className={cn('relative min-w-0', className)}>
       <summary className="t-meta text-muted hover:text-foreground flex min-h-11 cursor-pointer list-none items-center gap-1.5 transition-colors duration-[--motion-fast] marker:content-none">
-        <span className="max-w-[14ch] truncate">{projectName}</span>
+        {/*
+          `truncate` sem teto em `ch`: o cap de 14ch cortava "Social Media" na
+          sidebar, onde sobram 224px — porque `t-meta` é caixa alta com 0.16em
+          de tracking, e 14ch nesse tamanho não chega perto de 12 letras. Quem
+          limita passa a ser o CONTÊINER: no cabeçalho o flex aperta (daí o
+          `min-w-0`), na sidebar a coluna dá a largura toda.
+        */}
+        <span className="truncate">{projectName}</span>
         <span aria-hidden="true" className="text-rule-strong">
           ▾
         </span>

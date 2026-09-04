@@ -58,11 +58,23 @@ describe('a casca monta as duas molduras', () => {
   })
 
   it('a sidebar só aparece em `lg` — o celular não ganha chrome novo', () => {
-    const { container } = montar()
-    const sidebar = container.querySelector('aside')
+    montar()
 
-    expect(sidebar?.className).toContain('hidden')
-    expect(sidebar?.className).toContain('lg:block')
+    /* A sidebar vem primeiro no DOM; a coluna é o ancestral que a esconde. */
+    const [daSidebar] = screen.getAllByRole('navigation', { name: 'Seções do projeto' })
+    const coluna = daSidebar!.closest('div.hidden')
+
+    expect(coluna?.className).toContain('lg:block')
+    expect(coluna?.className).toContain('lg:sticky')
+    /* Rola só se exceder — nunca corta a conta no rodapé da coluna. */
+    expect(coluna?.className).toContain('lg:overflow-y-auto')
+  })
+
+  it('⚠️ a sidebar não vira um segundo landmark sem nome', () => {
+    montar()
+
+    /* Sem rail nesta montagem: nenhum `complementary` deve existir. */
+    expect(screen.queryAllByRole('complementary')).toHaveLength(0)
   })
 
   it('o cabeçalho da FASE 8 some em `lg`, e não antes', () => {
