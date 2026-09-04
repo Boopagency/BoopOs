@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { PortalShell } from '@/components/layout/portal-shell'
+import { visibleSections } from '@/config/app'
 import { getClientPublic } from '@/domains/clients/queries'
 import { listPortalProjects, requireVisiblePortalProject } from '@/domains/projects/queries'
 
@@ -53,7 +54,13 @@ export default async function ProjectLayout({
       projectId={project.id}
       clientName={client.name}
       projectName={project.name}
-      cycle={project.cycle}
+      /*
+       * A navegacao segue o PRODUTO: uma secao aparece quando a funcionalidade
+       * existe, e nunca porque uma tabela ganhou a primeira linha. Um menu que
+       * pisca conforme os dados faz a arquitetura do sistema aparecer para quem
+       * so queria acompanhar o proprio projeto (D-25).
+       */
+      sections={visibleSections(project.type)}
       /*
        * O seletor só aparece com mais de um projeto — com um só, a complexidade
        * fica invisível (docs/product.md). Não é um oitavo item de navegação: é

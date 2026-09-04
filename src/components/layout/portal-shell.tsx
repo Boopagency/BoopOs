@@ -4,13 +4,17 @@ import { BoopMark } from '@/components/brand/boop-mark'
 import { PortalBottomNav } from '@/components/layout/portal-bottom-nav'
 import { PortalNav } from '@/components/layout/portal-nav'
 import { SignOutButton } from '@/components/patterns/sign-out-button'
-import { portalHref } from '@/config/app'
+import { BOTTOM_NAV_THRESHOLD, portalHref, type PortalSection } from '@/config/app'
 
 export interface PortalShellProps {
   projectId: string
   clientName: string
   projectName: string
-  cycle: number
+  /**
+   * As secoes DISPONIVEIS para este projeto — decididas pelo produto, nunca
+   * por contagem de linhas (`visibleSections`).
+   */
+  sections: readonly PortalSection[]
   /**
    * Todos os projetos que esta pessoa alcanca. Com um so, nada muda na tela.
    *
@@ -33,17 +37,27 @@ export function PortalShell({
   projectId,
   clientName,
   projectName,
-  cycle,
+  sections,
   projects,
   children,
 }: PortalShellProps) {
   const others = (projects ?? []).filter((project) => project.id !== projectId)
 
+  /*
+   * A barra inferior so se paga com tres destinos ou mais. Abaixo disso ela
+   * custaria 56px permanentes mais a area de gestos para oferecer um link que a
+   * Home ja da, e o painel "Mais" nao teria o que abrir.
+   *
+   * Quando ela nao renderiza, a RESERVA de espaco no `main` some junto — senao
+   * sobra um rodape fantasma de 96px no celular.
+   */
+  const comBarra = sections.length >= BOTTOM_NAV_THRESHOLD
+
   return (
     <div className="bg-background flex min-h-dvh flex-col">
       <header className="border-rule bg-background/92 sticky top-0 z-30 border-b backdrop-blur-sm">
         <div className="content">
-          <div className="flex h-16 items-center justify-between gap-4 md:h-20">
+          <div className="flex h-14 items-center justify-between gap-4 md:h-16">
             <Link
               href={portalHref(projectId, '')}
               className="flex items-center gap-3"
@@ -93,22 +107,30 @@ export function PortalShell({
                 </details>
               )}
 
-              <p className="t-meta text-muted text-right">
-                <span className="text-foreground">Ciclo {cycle}</span>
-              </p>
-
-              <span aria-hidden="true" className="bg-rule-strong h-5 w-px" />
-
+              {/*
+                "Ciclo N" saiu daqui na FASE 8. Ciclo e vocabulario de operacao:
+                ele significa alguma coisa DENTRO da jornada, e nada dentro de
+                uma barra de aplicacao. Desceu para o bloco "Agora", onde tem
+                contexto (D-29, docs/product.md).
+              */}
               <SignOutButton />
             </div>
           </div>
 
-          <PortalNav projectId={projectId} />
+          {/*
+            A linha de palavras vale nos DOIS breakpoints enquanto a barra
+            inferior nao existir. Duas palavras cabem folgado em 375px.
+          */}
+          <PortalNav
+            projectId={projectId}
+            sections={sections}
+            className={comBarra ? 'hidden md:block' : ''}
+          />
         </div>
       </header>
 
-      {/* pb-20 no celular reserva a altura da barra inferior fixa */}
-      <main id="main" className="flex-1 pb-24 md:pb-0">
+      {/* A reserva de altura existe SO quando a barra inferior existe. */}
+      <main id="main" className={comBarra ? 'flex-1 pb-24 md:pb-0' : 'flex-1'}>
         {children}
       </main>
 
@@ -124,7 +146,7 @@ export function PortalShell({
         </div>
       </footer>
 
-      <PortalBottomNav projectId={projectId} />
+      {comBarra && <PortalBottomNav projectId={projectId} sections={sections} />}
     </div>
   )
 }
