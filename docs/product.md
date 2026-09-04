@@ -86,18 +86,43 @@ vínculo explícito no cliente, só o nome, sem cargo.
 
 ## Navegação do portal
 
-Sete itens. Nada além disso sem justificativa escrita.
+**A navegação segue o PRODUTO, nunca a contagem de linhas** (D-25). Uma seção
+aparece quando a funcionalidade existe — `available` é constante em código,
+alterada por commit de fase.
 
-```
-Início · Projeto · Conteúdo · Estratégia · Arquivos · Resultados · Encontros
-```
+A diferença é o cliente: um menu que aparece quando a primeira linha é criada e
+some quando a última é apagada faz a arquitetura do sistema piscar na cara de
+quem só queria acompanhar o próprio projeto. Quando a FASE 10 ligar Conteúdo,
+ele aparece para todo mundo — inclusive para quem tem zero peças, que vê um
+estado vazio honesto e continua sabendo onde a seção fica.
 
-Rotas: `/portal/[projectId]`, `/portal/[projectId]/projeto`, `/conteudo`,
-`/estrategia`, `/arquivos`, `/resultados`, `/encontros`.
+| Seção      | Slug         | Disponível desde |
+| ---------- | ------------ | ---------------- |
+| Início     | —            | FASE 8           |
+| Projeto    | `projeto`    | FASE 8           |
+| Estratégia | `estrategia` | FASE 9           |
+| Conteúdo   | `conteudo`   | FASE 10          |
+| Arquivos   | `arquivos`   | FASE 12          |
+| Encontros  | `encontros`  | FASE 13          |
+| Resultados | `resultados` | FASE 14          |
 
-`/portal` é a rota canônica. `/app` existe como redirect em `next.config.ts`,
-porque é o nome usado no briefing da FASE 1 — um alias, nunca uma segunda
-página.
+Sete chaves, e uma oitava exige justificativa escrita. O teto continua valendo;
+o que mudou é que ele deixou de ser piso.
+
+**Ocultar da navegação não invalida a rota.** Todas as URLs existem e respondem
+com um estado honesto — deep link é o principal caminho de entrada do produto, e
+uma URL que já existiu e passa a dar 404 quebra qualquer link já compartilhado.
+
+**Onboarding não é uma seção**: é uma tarefa, alcançada pelo bloco de atenção e
+pela etapa da jornada. Uma pendência que vira item de menu deixa de ser
+pendência e vira lugar.
+
+No celular, a barra inferior só é renderizada com **três ou mais** seções: com
+duas, ela custaria 56px permanentes para oferecer um link que a Home já dá, e o
+painel "Mais" não teria o que abrir. Abaixo do limiar, a linha de palavras do
+cabeçalho vale nos dois breakpoints.
+
+`/portal` é a rota canônica. `/app` existe como redirect em `next.config.ts`.
 
 `/portal` é um **resolvedor**, não uma tela. Ele consulta os projetos que a
 pessoa alcança (RLS) e quais devem aparecer para ela (D-18), e decide:
@@ -109,22 +134,66 @@ pessoa alcança (RLS) e quais devem aparecer para ela (D-18), e decide:
 | dois ou mais      | tela de escolha + seletor discreto no cabeçalho     |
 
 O seletor **não é um oitavo item de navegação**: é troca de contexto no
-cabeçalho, ao lado do nome do cliente e do projeto, que já estavam lá.
+cabeçalho. O cabeçalho é moldura — "Ciclo N" saiu dele na FASE 8 e desceu para o
+bloco "Agora", onde ciclo significa alguma coisa.
 
 ## Dashboard (Início)
 
-Ordem fixa, de cima para baixo. Blocos vazios **desaparecem** — não viram card
-com "nenhum item".
+A Home é a interface principal do produto. Ela responde UMA frase, nesta ordem:
 
-1. **Precisa da sua atenção** — derivado por query, não por tabela.
-   _"3 conteúdos esperando sua aprovação."_
-2. **Etapa atual** — _"Pesquisa estratégica em andamento."_
-3. **Próxima entrega** — _"Direção Editorial · 04 de setembro."_
-4. **Jornada** — linha de etapas: `✓ Imersão · ● Pesquisa · ○ Estratégia · ○ Produção`
-5. **Próximo encontro** — _"Brand Immersion · 03 de setembro · 14:00."_
-6. **Resultados** — só aparece quando já existir métrica registrada.
+> quem é você aqui → algo depende de você? → onde estamos → qual é a jornada
 
-Não há gráficos no dashboard. Não há cards decorativos.
+Quatro blocos, todos com origem no banco. Bloco sem origem **desaparece** — não
+vira card com "nenhum item".
+
+1. **Abertura pessoal** — "Boa tarde, Ana." a partir de `profiles.full_name`.
+   Sem nome preenchido, cumprimenta sem nome; **nunca** a razão social no lugar
+   de um nome próprio (D-28). Cliente e projeto vêm separados, como metadado.
+2. **Estado de atenção** — o eixo da tela, em uma de três formas (abaixo).
+3. **Agora** — ciclo, rótulo da etapa corrente e o `summary` oficial do template.
+4. **A jornada** — três etapas: anterior · atual · próxima (D-29), com um
+   ponteiro para a jornada completa em `/projeto`.
+
+Não há gráficos. Não há cards decorativos. Não há próxima entrega, próximo
+encontro, aprendizado nem atividade recente: **nenhum deles tem origem hoje** —
+três nem tabela têm — e o activity log nunca alcança o cliente (D-30).
+
+### Os três estados da atenção
+
+A pergunta "preciso fazer alguma coisa?" **sempre** tem resposta na tela.
+
+| Estado      | Quando                                          | O que o cliente vê                                                               |
+| ----------- | ----------------------------------------------- | -------------------------------------------------------------------------------- |
+| `attention` | há item                                         | Laje navy, olhos, numeral, CTA. O primeiro item domina; os demais viram lista    |
+| `calm`      | **todas** as sources responderam, e não há item | "Tudo certo por aqui." · "Você não precisa fazer nada agora." · a frase da etapa |
+| `degraded`  | alguma source falhou                            | "Não conseguimos verificar todas as suas pendências agora." Neutro, sem CTA      |
+
+**Calma não é estado vazio** (D-26): é a resposta à pergunta nº 3 das dez, e por
+isso não desaparece. É, com folga, o bloco mais visto do produto.
+
+**Degradado não é calma.** Zero itens porque a leitura falhou não é zero
+pendências — dizer "tudo certo" ali seria mentir para o cliente
+([ADR-0026](adr/0026-calma-exige-verificacao-completa.md)).
+
+### Atenção é derivada
+
+Não existe tabela de pendências. `getClientAttention()` compõe a resposta a cada
+request, a partir dos domínios que já autorizam a si mesmos
+([ADR-0025](adr/0025-atencao-derivada-nunca-armazenada.md)).
+
+Um tipo de atenção só nasce quando existem, ao mesmo tempo: estado
+client-facing real, ação real, e ação que **o cliente** pode executar. Sem
+acionabilidade, sem atenção — uma reunião marcada não vira pendência só por
+existir.
+
+Na V0, a única source é o **onboarding em `draft`**. `not_started` não gera
+atenção porque só a Boop abre a submissão.
+
+### Atenção por status de projeto
+
+Só projeto `active` cobra ação de alguém (D-27). Pausado, concluído e arquivado
+falam do próprio status, sem CTA — cobrar ação em projeto parado é o produto
+contradizendo a operação.
 
 ## Superfícies principais
 

@@ -136,6 +136,38 @@ e isso existe porque o olhar **significa** alguma coisa no produto.
 qualquer lugar em que viraria enfeite. Se o mascote aparece em toda tela, ele
 para de significar.
 
+## Os três pesos da Home
+
+O problema da Home antiga não era nenhum bloco: era o RITMO. Cinco lajes de
+largura total com o mesmo `py` empilhadas viram um template com encaixes, e
+lidas de cima a baixo produzem exatamente a sensação de dashboard que a direção
+recusa. A correção é hierarquia entre blocos, e ela tem três degraus.
+
+**Peso 1 — a atenção.** Único bloco com laje de cor cheia, único com numeral,
+único com ação primária. Tudo em volta fica quieto para que ela não tenha
+concorrência. É onde a marca e a função se encontram: o símbolo da Boop é um par
+de olhos, e este é o único lugar em que eles olham para o cliente.
+
+**Peso 2 — a situação.** Abertura e etapa corrente: tipografia em escala de
+leitura, fundo do documento, sem moldura.
+
+**Peso 3 — a trilha.** Jornada resumida e ponteiros: `t-meta`, filete, seta
+tipográfica.
+
+### O estado de calma é peça de produto
+
+"Tudo certo por aqui" é o que a maioria dos clientes vê na maioria das visitas —
+é o bloco mais visto do portal. Se parecer placeholder, o produto parece vazio;
+se parecer resposta, o produto parece atento. Ele recebe o mesmo cuidado da laje
+de atenção, em registro invertido: fundo claro, olhos piscando devagar,
+tipografia em escala de leitura, e nenhum CTA.
+
+O estado de degradação — "não conseguimos verificar" — fica um degrau ABAIXO na
+escala tipográfica. Ele reporta uma leitura que falhou, o que é menos importante
+que uma pendência de verdade; gritar mais alto que ela seria alarme, e alarme é
+justamente o tom que ele não pode ter. Sem cor de perigo, sem ícone de erro, sem
+botão de "tentar de novo" para uma falha que o cliente não causou.
+
 ## Microcopy
 
 Curta, humana, direta, segura. A voz da apresentação: frases afirmativas,

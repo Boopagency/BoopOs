@@ -248,6 +248,13 @@ quem atende a conta — sem id, sem e-mail, sem papel, sem metadata de vínculo
 | `activity_log` | R | R (`visibility='internal'` do seu escopo) | — |
 | `notifications` | R | — | — |
 
+**Nem por derivação.** O activity log não produz superfície client-facing —
+nem direto, nem agregado, nem "traduzido" para linguagem de cliente (D-30). Se
+um dia quisermos uma linha do tempo para o cliente, ela será superfície própria,
+com contrato client-facing explícito e origem própria. Há guard de código-fonte:
+nada sob `app/(portal)`, `components/` ou `domains/attention` menciona
+`activity_log`, `lib/activity` ou `listRecentActivity`.
+
 Aprovações não têm policy de INSERT para ninguém: são gravadas por funções
 `security definer` que validam a transição de estado. Isso torna impossível
 aprovar direto pela API, pulando a máquina de estados.

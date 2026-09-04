@@ -12,75 +12,44 @@ para ele.
 
 Percepção-alvo: _"Eu sei exatamente o que está acontecendo com minha marca."_
 
-**Status atual: FASE 7 concluída.**
+**Status atual: FASE 8 concluída.**
 22 migrations, 19 tabelas com RLS **e políticas**, 11 funções `app.*` de
-autorização, 11 fronteiras `security definer` em `public`, e 934 testes (446
-contra Postgres real).
-Fingerprint local ↔ staging idêntico nas nove partes.
+autorização, 11 fronteiras `security definer` em `public`, e **1128 testes**
+(462 contra Postgres real). Contagem sempre do Vitest, nunca de `grep`.
+Fingerprint local ↔ staging idêntico nas nove partes — a FASE 8 **não tocou o
+banco**.
 
-**A superfície administrativa lê e escreve Supabase de verdade.** `/admin`
-(clientes, pessoas, projetos, jornada, atividade) não tem mock, e doze workflows
-escrevem pelo JWT do ator.
+**A HOME é real, e nada nela é inventado.** Quatro blocos: abertura pessoal,
+estado de atenção, etapa corrente e jornada resumida. Os quatro blocos que
+vinham de mock — atenção, próxima entrega, próximo encontro e aprendizado —
+morreram, e com eles o CTA que apontava para um projeto inexistente e respondia 404. `src/mocks/` e `src/lib/data/portal.ts` não existem mais.
 
-**O ONBOARDING é real, e o cliente não perde resposta.** O formulário vem do
-banco (template → seções → perguntas), o autosave é `upsert` por pergunta —
-debounce, blur e flush antes de trocar de seção ou enviar —, e sair e voltar não
-perde nada. `submitOnboarding` é a nona função SQL: status, avanço de etapa e
-activity log na mesma transação, com `for update` para que dois cliques não
-pulem uma etapa.
+**A ATENÇÃO é derivada, nunca armazenada**
+([ADR-0025](docs/adr/0025-atencao-derivada-nunca-armazenada.md)). Não há tabela,
+fila, dismiss nem centro de notificações: `getClientAttention()` compõe a
+resposta a cada request chamando os domínios que já autorizam a si mesmos. O
+motor não consulta tabela — há guard de código-fonte.
 
-**O ciclo de vida da submissão tem uma porta só.** `onboarding_submissions`
-perdeu os GRANTs de INSERT e UPDATE
-([ADR-0024](docs/adr/0024-ciclo-de-vida-por-rpc-e-fim-da-escrita-direta-na-submissao.md)):
-com eles, um `client_user` movia `draft → submitted` pelo PostgREST — sem
-jornada e sem log, e o sistema não teria como saber. Abrir, enviar e reabrir são
-`start_onboarding()`, `submit_onboarding()` e `reopen_onboarding()`, e nada
-mais — nem para a Boop.
+**Calma exige verificação completa**
+([ADR-0026](docs/adr/0026-calma-exige-verificacao-completa.md)). Zero itens
+porque a leitura falhou **não é** zero pendências: a falha produz um estado
+degradado, honesto e neutro. `items.length === 0 ? calm : attention` é a linha
+que a fase existe para impedir, e há teste que quebra se alguém a escrever.
 
-**A resposta não pode citar a pergunta de outro formulário.** Um trigger compara
-o template da submissão com o da pergunta, e valida a FORMA do valor contra o
-tipo — `single_select` fora das alternativas é recusado. É trigger e não policy
-porque é invariante de dado: vale inclusive para `service_role`.
+**Um `AttentionKind` só nasce com ação real do cliente.** Na V0 existe um:
+`onboarding.continue`. `not_started` não gera atenção porque só a Boop abre a
+submissão — sem acionabilidade, sem atenção. Nada é antecipado por estar no
+roadmap.
 
-**O PORTAL deixou de ter identidade falsa.** `DEMO_PROJECT_ID` não existe mais:
-`/portal` resolve os projetos reais do ator, `/portal/[projectId]` tem guard no
-LAYOUT do grupo, e projeto e jornada vêm do banco. Os outros mocks do portal
-continuam — conteúdo, estratégia, arquivos, reuniões e resultados são das
-FASES 9+, e todos passam pelo mesmo guard.
+**A NAVEGAÇÃO segue a feature, nunca a contagem de linhas** (D-25). Início e
+Projeto na FASE 8; as outras cinco entram na fase que as torna reais, e
+aparecem mesmo para um cliente com zero dados. Ocultar da navegação **não**
+invalida a rota: todas respondem com estado honesto, porque deep link é o
+principal caminho de entrada.
 
-**Projeto e jornada nascem juntos ou não nascem.** `createProject`,
-`advanceStage` e `setStageState` são funções SQL transacionais
-([ADR-0023](docs/adr/0023-fronteiras-transacionais-de-projeto-e-jornada.md)) —
-não existe projeto sem jornada nem projeto sem etapa corrente por falha
-intermediária. O template vive em código (`src/config/journeys.ts`, ADR-0006) e
-`journey_key`/`type` são imutáveis no banco.
+**O activity log não alcança o cliente** — nem por derivação (D-30).
 
-**RLS responde tenant; a projeção responde visibilidade.** Um projeto `draft`
-pertence ao cliente e a policy concede a linha — mas ele nunca alcança um
-`client_user`, nem por URL direta (D-18). A regra é de produto e mora no
-servidor, como a de `clients.notes`.
-
-**As duas camadas de autorização valem agora.** `getActor()` lê `profiles` pelo
-JWT; as escritas que precisam de privilégio são fronteiras nomeadas, nenhuma
-aceitando a identidade de QUEM CHAMA por parâmetro
-([ADR-0022](docs/adr/0022-autorizacao-no-banco-e-fim-da-service-role-de-identidade.md)).
-
-**`service_role` tem exatamente um chamador**, e é o que a ADR-0022 previu:
-`inviteAuthUser()` criando a conta em `auth.users`. Nenhuma consulta de domínio
-passa por ela, e o cliente admin não é exportado — só operações nomeadas.
-
-**O Actor carrega identidade, não escopo.** `clientIds` não entrou e não vai
-entrar: escopo é estado do banco no instante do request. Quem responde escopo é
-`requireClientAccess()`/`requireProjectAccess()`, perguntando ao banco.
-
-**A dívida column-level foi paga.** RLS continua row-level — `clients.notes`
-ainda viaja na linha que a policy concede —, mas agora existem três camadas
-entre ela e o cliente: a projeção não pede a coluna, o tipo não a carrega
-(`AssertClientFacing` quebra o `typecheck`), e a capacidade é conferida
-([`docs/security.md`](docs/security.md)). A convenção já cobre
-`content_versions.internal_notes`, que chega na FASE 10.
-
-A próxima fase é a 8 (dashboard).
+A próxima fase é a 9 (estratégia).
 
 ## Vocabulário
 
@@ -132,6 +101,7 @@ compatibilidade verificada com `typescript-eslint` e `eslint-config-next`.
 | Estado ao fim da FASE 5                               | [`docs/FASE5ESTADO.md`](docs/FASE5ESTADO.md)           |
 | Estado ao fim da FASE 6                               | [`docs/FASE6ESTADO.md`](docs/FASE6ESTADO.md)           |
 | Estado ao fim da FASE 7                               | [`docs/FASE7ESTADO.md`](docs/FASE7ESTADO.md)           |
+| Estado ao fim da FASE 8                               | [`docs/FASE8ESTADO.md`](docs/FASE8ESTADO.md)           |
 | Inconsistências e decisões pendentes                  | [`docs/spec-review.md`](docs/spec-review.md)           |
 
 Regras imperativas, curtas, para consulta durante o trabalho:
@@ -173,7 +143,10 @@ vive em `.claude/rules/`. Ao mudar uma decisão, atualize os dois no mesmo PR.
 
 **Produto**
 
-- Sete itens de navegação no portal. Um oitavo exige justificativa escrita.
+- No máximo sete itens de navegação no portal; um oitavo exige justificativa
+  escrita. A navegação segue a **feature**, nunca a contagem de linhas (D-25).
+- **Bloco sem origem não aparece**, e **calma nunca é dita sem verificação
+  completa**.
 - Sem biblioteca de UI, de ícones ou de motion ([ADR-0018](docs/adr/0018-sem-biblioteca-de-ui-e-de-motion.md)).
 - Aprovar e pedir ajuste têm a mesma prominência visual. Sempre.
 - Bloco vazio desaparece; não vira card de "nenhum item".
@@ -219,11 +192,11 @@ src/components/   ui/ (primitivos) · layout/ (cascas) · brand/ (logo, olhos, n
                   patterns/ (composições de produto)
 src/config/       app.ts (produto) · enums.ts (taxonomias) · env.ts (environment)
                   journeys.ts (templates de jornada — ADR-0006)
+src/domains/      clients/ · people/ · projects/ · onboarding/ · attention/ (F8)
 src/lib/          auth/ (actor, actions, first-login, errors, routes, policy, authorization)
-                  data/ (acesso)
+                  data/ (types + projection — a camada de mock morreu na F8)
                   activity/ · logging/ · supabase/ (fronteira) · cn.ts · format.ts
 src/proxy.ts      renova a sessão. NÃO autoriza (ADR-0020)
-src/mocks/        dados fictícios — a ÚNICA fonte, e nenhum componente a importa
 supabase/         migrations/ (forward-only, a fonte do schema) · seed.sql · config.toml
 scripts/db/       dev-db.sh (escolhe o motor) · local-postgres.sh + auth-shim.sql
                   (plano B sem Docker) · fingerprint.sql (comparar dois bancos)
@@ -239,11 +212,15 @@ Regras de crescimento:
   é RESOLVEDOR: zero projetos → estado vazio, um → redirect, vários → escolha.
 - **Autorização de rota do portal vive no LAYOUT do grupo**, nunca página a
   página. Um guard por página é um guard que a próxima página esquece.
-- **Tela nunca importa `src/mocks`.** O admin fala com `src/domains/*/queries`,
-  que lê do Supabase; o portal fala com `src/lib/data/portal.ts`, que desde a
-  FASE 6 lê projeto e jornada do banco e o resto dos mocks — sempre atrás do
-  mesmo guard. O onboarding saiu dessa camada na FASE 7: dado real tem domínio
-  próprio (`src/domains/onboarding`).
+- **Não existe mock.** `src/mocks/` e `src/lib/data/portal.ts` foram deletados na
+  FASE 8, e há guard de código-fonte que quebra se voltarem. Toda tela — admin e
+  portal — fala com o domínio dono do dado, que carrega o próprio guard. A
+  camada de dados existia para isolar ficção; mantê-la depois que a ficção morre
+  é deixar a próxima com um lugar pronto para nascer.
+- **O motor de atenção compõe domínios, não consulta tabelas.**
+  `src/domains/attention` é o único domínio que coordena outros, e a exceção é
+  declarada: ele existe para ser o coordenador. Nada ali importa
+  `createSupabaseServerClient` nem `supabase/admin` — há guard.
 - **Projeção client-facing nunca carrega campo interno.** O tipo passa por
   `AssertClientFacing` (`src/lib/data/projection.ts`) e o build quebra se
   carregar. Campo interno novo entra em `INTERNAL_FIELDS`, e a partir daí toda

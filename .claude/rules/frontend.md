@@ -37,7 +37,18 @@ glassmorphism, menu grande, ícone decorativo, gamificação.
   Motion ([ADR-0018](../../docs/adr/0018-sem-biblioteca-de-ui-e-de-motion.md)).
 - `max-w-[Nch]` vai no elemento que tem o font-size, nunca no wrapper.
 - Bloco vazio **desaparece**. Não vira card com "nenhum item".
-- O portal tem sete itens de navegação. Acrescentar um exige justificativa escrita.
+- **Bloco sem ORIGEM não aparece.** Se o dado não tem tabela, coluna ou template
+  que o afirme, o bloco não existe — não vira placeholder, exemplo nem estado
+  vazio bonito. Precedentes: `project.scope` (D-16) e os quatro blocos mockados
+  da Home (FASE 8).
+- **Calma nunca é dita sem verificação completa.** Um bloco só pode afirmar que
+  não há nada pendente quando TUDO que responderia foi consultado com sucesso.
+  Leitura que falhou produz estado próprio, neutro e honesto — nunca "tudo
+  certo" ([ADR-0026](../../docs/adr/0026-calma-exige-verificacao-completa.md)).
+- O portal tem no máximo sete itens de navegação, e acrescentar um oitavo exige
+  justificativa escrita. **A navegação segue a FEATURE, nunca a contagem de
+  linhas** (D-25): a seção aparece quando a funcionalidade existe, e continua
+  aparecendo para um cliente com zero dados.
 
 ## Mobile first
 
