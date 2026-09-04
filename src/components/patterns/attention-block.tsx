@@ -83,7 +83,7 @@ export function AttentionBlock({
 
           <Link
             href={primeiro!.cta.href}
-            className="t-meta bg-accent text-accent-foreground hover:bg-accent-hover mt-8 inline-flex h-14 items-center justify-center rounded-sm px-8 transition-colors duration-[--motion-fast] max-md:w-full md:mt-0"
+            className="t-meta bg-accent text-accent-foreground hover:bg-accent-hover mt-8 inline-flex h-14 items-center justify-center rounded-sm px-8 transition-colors duration-(--motion-fast) max-md:w-full md:mt-0"
           >
             {primeiro!.cta.label}
           </Link>

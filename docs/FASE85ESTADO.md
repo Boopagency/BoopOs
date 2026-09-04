@@ -1,7 +1,7 @@
 # Estado ao fim da FASE 8.5
 
-**Base:** `0685cba` (fim da FASE 8) · **Banco:** intocado · **Testes:** 1259 em
-67 arquivos (793 unit/component + 466 RLS) · **Build:** 24 rotas.
+**Base:** `0685cba` (fim da FASE 8) · **Banco:** intocado · **Testes:** 1262 em
+67 arquivos (796 unit/component + 466 RLS) · **Build:** 24 rotas.
 
 A FASE 8 resolveu funcionalidade e segurança. Esta fase resolveu **sensação de
 produto**, sem tocar domínio, workflow, policy, migration ou dependência.
@@ -90,6 +90,20 @@ medir em Chromium achou três coisas:
 3. **Sidebar sem rolagem própria** — uma coluna mais alta que a viewport
    cortaria a conta no rodapé sem caminho até ela.
 
+4. **Nenhuma transição do produto estava rodando** — o achado mais caro da
+   fase, e anterior a ela. `duration-[--motion-fast]` era válido no Tailwind
+   v3, que embrulhava a variável nua em `var()`; o v4 não embrulha, e o CSS
+   saía `transition-duration: --motion-fast` — valor inválido, descartado pelo
+   navegador. Dezoito usos em doze arquivos, desde a FASE 1.5. A interface não
+   parecia quebrada, só "seca". Corrigido para a forma de parênteses do v4
+   (`duration-(--motion-fast)`), medido em Chromium: `0s → 0.16s`, e o reduced
+   motion continua vencendo. `rounded-[--radius]` era pior — apontava para um
+   token que não existe.
+5. **CSS morto vindo dos patches** — o Tailwind v4 varre o projeto inteiro, e
+   `patches/*.patch` contém o diff de todas as fases. As classes já corrigidas
+   voltavam ao CSS de produção como regras mortas, e foi isso que quase
+   escondeu o defeito acima da auditoria. Resolvido com `@source not`.
+
 E um falso positivo que quase virou bug report: **o Chromium headless força
 largura mínima de 500px**, então um screenshot pedido em 375 renderiza em 500 e
 recorta. O "overflow" era a medição, não a página. Medido por iframe,
@@ -110,8 +124,9 @@ que força a rail a ser um slot opaco: uma casca que recebesse `cycle` por prop
 voltaria a falhar ali.
 
 Três arquivos novos: a casca (22 casos), o quadro (15) e as fronteiras de
-código-fonte (47) — incluindo um que falha se `motion`, `framer-motion` ou
-`@dnd-kit/core` aparecerem em `package.json`.
+código-fonte (50) — incluindo um que falha se `motion`, `framer-motion` ou
+`@dnd-kit/core` aparecerem em `package.json`, e outro que falha se qualquer
+utilitário voltar a escrever `-[--token]` no lugar de `-(--token)`.
 
 ---
 

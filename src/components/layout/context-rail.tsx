@@ -57,7 +57,7 @@ export function WorkspaceColumns({ rail, children }: { rail?: ReactNode; childre
       */}
       <aside
         aria-label="Contexto do projeto"
-        className="border-rule px-[--gutter] py-10 max-xl:border-t xl:sticky xl:top-0 xl:max-h-dvh xl:self-start xl:overflow-y-auto xl:border-l xl:px-7 xl:py-12"
+        className="border-rule px-(--gutter) py-10 max-xl:border-t xl:sticky xl:top-0 xl:max-h-dvh xl:self-start xl:overflow-y-auto xl:border-l xl:px-7 xl:py-12"
       >
         {rail}
       </aside>

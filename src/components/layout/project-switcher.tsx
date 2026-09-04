@@ -47,7 +47,7 @@ export function ProjectSwitcher({
 
   return (
     <details className={cn('relative min-w-0', className)}>
-      <summary className="t-meta text-muted hover:text-foreground flex min-h-11 cursor-pointer list-none items-center gap-1.5 transition-colors duration-[--motion-fast] marker:content-none">
+      <summary className="t-meta text-muted hover:text-foreground flex min-h-11 cursor-pointer list-none items-center gap-1.5 transition-colors duration-(--motion-fast) marker:content-none">
         {/*
           `truncate` sem teto em `ch`: o cap de 14ch cortava "Social Media" na
           sidebar, onde sobram 224px — porque `t-meta` é caixa alta com 0.16em
@@ -73,7 +73,7 @@ export function ProjectSwitcher({
             <li key={project.id}>
               <Link
                 href={portalHref(project.id, '')}
-                className="t-meta text-muted hover:bg-surface-soft hover:text-foreground flex min-h-11 items-center px-4 transition-colors duration-[--motion-fast]"
+                className="t-meta text-muted hover:bg-surface-soft hover:text-foreground flex min-h-11 items-center px-4 transition-colors duration-(--motion-fast)"
               >
                 {project.name}
               </Link>

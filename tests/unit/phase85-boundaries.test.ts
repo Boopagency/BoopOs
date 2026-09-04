@@ -230,6 +230,46 @@ describe('motion: um token novo, e nenhuma biblioteca', () => {
   })
 })
 
+describe('⚠️ variável de tema nunca entra como valor nu', () => {
+  /*
+   * O bug que este caso existe para impedir já aconteceu, e passou despercebido
+   * desde a FASE 1.5.
+   *
+   * `duration-[--motion-fast]` era válido no Tailwind v3, que embrulhava a
+   * variável nua em `var()`. O v4 não embrulha: o CSS compilado saía
+   * `transition-duration: --motion-fast`, valor inválido que o navegador
+   * descarta. Resultado — NENHUMA transição do produto rodava, em dezoito
+   * lugares, e ninguém percebeu porque a interface só parecia "seca".
+   *
+   * `rounded-[--radius]` era pior: apontava para um token que nem existe (os
+   * tokens são `--radius-sm/md/lg`).
+   *
+   * A forma certa no v4 é a de parênteses: `duration-(--motion-fast)`.
+   */
+  const CULPADOS = TODOS.filter((c) => /-\[--[a-z][a-z-]*\]/.test(ler(c)))
+
+  it('nenhum utilitário usa `-[--token]` em vez de `-(--token)`', () => {
+    expect(CULPADOS.map(relativo)).toEqual([])
+  })
+
+  it('o guard não é tautologia: a forma CERTA está em uso', () => {
+    const certos = TODOS.filter((c) => /-\(--[a-z][a-z-]*\)/.test(ler(c)))
+
+    expect(certos.length).toBeGreaterThan(5)
+  })
+
+  it('os patches de fase ficam fora da varredura do Tailwind', () => {
+    /*
+     * `patches/*.patch` é texto, e contém o diff de todas as fases — inclusive
+     * classes já corrigidas. Sem a exclusão, o CSS de produção carrega regras
+     * mortas e uma auditoria do CSS compilado passa a mentir.
+     */
+    const css = readFileSync(resolve(process.cwd(), 'src/app/globals.css'), 'utf8')
+
+    expect(css).toMatch(/@source not '\.\.\/\.\.\/patches'/)
+  })
+})
+
 describe('nenhum hexadecimal nos arquivos novos', () => {
   it.each([
     SHELL,

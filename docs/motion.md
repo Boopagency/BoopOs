@@ -105,6 +105,16 @@ proporções reais, então a troca de esqueleto para conteúdo não mexe na rég
 Não existe atraso artificial em lugar nenhum: o esqueleto aparece enquanto o
 dado realmente não chegou.
 
+## Variável de tema em utilitário
+
+**Sempre `duration-(--motion-fast)`, nunca `duration-[--motion-fast]`.**
+
+A forma de colchetes era válida no Tailwind v3, que embrulhava a variável nua em
+`var()`. O v4 não embrulha: o CSS sai `transition-duration: --motion-fast`, que
+é inválido e o navegador descarta. A FASE 8.5 encontrou dezoito usos assim, em
+doze arquivos, desde a FASE 1.5 — nenhuma transição do produto rodava. Há teste
+de código-fonte que falha se a forma antiga voltar.
+
 ## Reduced motion
 
 `prefers-reduced-motion: reduce` zera duração de animação e transição e desliga

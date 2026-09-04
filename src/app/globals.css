@@ -1,6 +1,16 @@
 @import 'tailwindcss';
 
 /*
+ * Os patches de fase sao TEXTO, nao codigo-fonte.
+ *
+ * O Tailwind v4 varre o projeto inteiro, e `patches/*.patch` contem o diff de
+ * todas as fases — inclusive classes que ja foram corrigidas. Sem esta linha o
+ * CSS de producao carrega regras mortas de versoes antigas dos componentes, e
+ * uma auditoria do CSS compilado passa a mentir sobre o que a aplicacao usa.
+ */
+@source not '../../patches';
+
+/*
  * ═══════════════════════════════════════════════════════════════════════════
  * BOOP OS — DESIGN TOKENS
  * ═══════════════════════════════════════════════════════════════════════════

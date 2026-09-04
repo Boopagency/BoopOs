@@ -273,7 +273,7 @@ export function OnboardingForm({
               key={entry.key}
               aria-current={i === index ? 'step' : undefined}
               className={cn(
-                'h-1 w-7 rounded-sm transition-colors duration-[--motion-default]',
+                'h-1 w-7 rounded-sm transition-colors duration-(--motion-default)',
                 i < index ? 'bg-navy' : i === index ? 'bg-accent' : 'bg-rule-strong/40',
               )}
             >
@@ -552,7 +552,7 @@ function Choices<T extends string | boolean>({
             aria-pressed={marcada}
             onClick={() => onPick(option.value)}
             className={cn(
-              't-label h-12 rounded-sm border px-4 transition-colors duration-[--motion-fast]',
+              't-label h-12 rounded-sm border px-4 transition-colors duration-(--motion-fast)',
               marcada
                 ? 'border-navy bg-navy text-on-inverse'
                 : 'border-rule-strong text-foreground hover:border-muted',

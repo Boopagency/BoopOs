@@ -60,7 +60,7 @@ export function PortalNav({
                 href={href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  't-meta relative flex min-h-11 items-center transition-colors duration-[--motion-fast]',
+                  't-meta relative flex min-h-11 items-center transition-colors duration-(--motion-fast)',
                   vertical && 'pl-4',
                   active ? 'text-foreground' : 'text-muted hover:text-foreground',
                 )}
@@ -69,7 +69,7 @@ export function PortalNav({
                 <span
                   aria-hidden="true"
                   className={cn(
-                    'bg-accent absolute transition-transform duration-[--motion-default] ease-[--ease-out]',
+                    'bg-accent absolute transition-transform duration-(--motion-default) ease-(--ease-out)',
                     vertical
                       ? 'inset-y-1.5 left-0 w-0.5 origin-top'
                       : 'inset-x-0 -bottom-px h-0.5 origin-left',

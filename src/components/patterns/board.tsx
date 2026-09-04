@@ -152,7 +152,7 @@ export function BoardCard({
           href={href}
           className={cn(
             base,
-            'hover:border-rule-strong transition-colors duration-[--motion-fast]',
+            'hover:border-rule-strong transition-colors duration-(--motion-fast)',
           )}
         >
           {children}
