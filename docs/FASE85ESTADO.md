@@ -104,6 +104,13 @@ medir em Chromium achou três coisas:
    voltavam ao CSS de produção como regras mortas, e foi isso que quase
    escondeu o defeito acima da auditoria. Resolvido com `@source not`.
 
+6. **O skip link parava por baixo da navegação** — `scroll-padding-top` foi
+   posto em 3.5rem, a altura da BARRA do cabeçalho. Medido em Chromium, o
+   cabeçalho sticky inteiro tem 101px até `md` e 109px acima, porque a linha de
+   seções vem junto. O alvo do "Pular para o conteúdo" parava 45px atrás da
+   navegação — para quem usa exatamente esse link. Corrigido para 6.5rem/7rem,
+   e zero em `lg`, onde o cabeçalho não existe.
+
 E um falso positivo que quase virou bug report: **o Chromium headless força
 largura mínima de 500px**, então um screenshot pedido em 375 renderiza em 500 e
 recorta. O "overflow" era a medição, não a página. Medido por iframe,
@@ -141,6 +148,9 @@ utilitário voltar a escrever `-[--token]` no lugar de `-(--token)`.
 - **`prefers-reduced-motion` verificado por CSS, não por navegador.** O bloco
   global cobre `boop-workspace` e `skeleton-pulse` por construção (`*` com
   `!important`), e há teste que lê o CSS; ninguém ligou a preferência no SO.
+- **`scroll-padding-top` é um número medido, não derivado.** Quando a FASE 9
+  ligar a barra inferior, a linha de seções some abaixo de `md` e o cabeçalho
+  volta a 56px: o valor precisa ser remedido junto. Está anotado no CSS.
 - **O esqueleto é genérico.** Uma rota com geometria muito diferente da Home
   ainda verá as três faixas padrão. Vale reavaliar quando Estratégia existir.
 

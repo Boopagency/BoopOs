@@ -238,14 +238,22 @@
      * topo da pagina depois da navegacao: o Next PULA elementos sticky ao
      * procurar o alvo de scroll, entao a compensacao e nossa. E a receita da
      * documentacao do proprio Next (`link.md#scroll-offset-with-sticky-headers`).
-     * Em `lg` o cabecalho nao existe, e a compensacao zera.
+     *
+     * O valor e o cabecalho INTEIRO — barra mais linha de secoes —, nao so a
+     * barra: medido em Chromium, 101px ate `md` e 109px acima. Um valor menor
+     * deixaria o alvo do "Pular para o conteudo" parando por baixo da
+     * navegacao, que e justamente quem usa o skip link.
+     *
+     * Em `lg` o cabecalho nao existe e a compensacao zera. Quando a FASE 9
+     * ligar a barra inferior, a linha de secoes some abaixo de `md` e o
+     * cabecalho volta a 56px: este valor precisa ser remedido junto.
      */
-    scroll-padding-top: 3.5rem;
+    scroll-padding-top: 6.5rem;
   }
 
   @media (min-width: 48rem) {
     html {
-      scroll-padding-top: 4rem;
+      scroll-padding-top: 7rem;
     }
   }
 
