@@ -160,14 +160,25 @@ O CI cresce junto com o projeto. Falha em qualquer passo bloqueia o merge.
 **Hoje** (`.github/workflows/ci.yml`):
 
 ```
-install --frozen-lockfile → typecheck → lint → format:check → test → build
+install --frozen-lockfile → typecheck → lint → format:check → test:unit
+  → db:start → db:reset → test:rls → build
 ```
 
-**A partir da FASE 4**, entram os passos de banco:
+Os passos de banco estavam previstos para a FASE 4 e entraram só na 8 — até lá
+o CI rodava `pnpm test`, que inclui a suíte `rls`, sem nunca subir Postgres. A
+suíte falha **fechada** quando não acha banco (`ECONNREFUSED 127.0.0.1:54322`),
+então o CI ficou vermelho dizendo a verdade: a cobertura de isolamento não
+estava sendo executada. O conserto foi provisionar o banco, nunca afrouxar o
+teste — sem `continue-on-error`, sem `|| true`, sem pular a suíte.
 
-```
-… → supabase start → db reset → test:rls → build
-```
+O runner tem daemon de Docker, então `pnpm db:start` escolhe o caminho oficial
+(`supabase start`), e não o plano B sem Docker. `pnpm db:reset` em seguida apaga
+e reaplica as migrations do zero — que é a pergunta que a suíte `rls` existe
+para responder — e roda o seed com os dois tenants sem os quais a suíte de
+isolamento não teria o que comparar.
+
+`test:unit` roda antes de subir contêiner de propósito: erro de lógica pura
+falha em segundos em vez de esperar o Postgres.
 
 `test:rls` é o que garante multi-tenancy de verdade: não é opcional e não vira
 execução noturna. `pnpm audit --audit-level=high` entra na FASE 19.
