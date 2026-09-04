@@ -27,7 +27,7 @@ const SIZE: Record<Size, string> = {
 
 const BASE =
   'inline-flex items-center justify-center gap-2.5 rounded-sm t-meta transition-colors ' +
-  'duration-[--motion-fast] ease-[--ease-standard] disabled:pointer-events-none disabled:opacity-40'
+  'duration-(--motion-fast) ease-(--ease-standard) disabled:pointer-events-none disabled:opacity-40'
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant

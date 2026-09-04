@@ -1,0 +1,132 @@
+From 77e37b36c7cf0d769d983a840ab675b2f172af0c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 4 Sep 2026 20:52:55 +0000
+Subject: [PATCH 5/8] fix: three defects a real browser found that jsdom could
+ not
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Rendering the actual components against the built CSS and measuring them
+in Chromium turned up three things the component tests were blind to.
+
+The project name truncated to "SOCIAL M…" in the sidebar, where 224px were
+free. The cap was max-w-[14ch] on the switcher summary, and t-meta is
+uppercase with 0.16em of tracking, so 14ch there is nowhere near twelve
+letters. The cap is gone; the container decides now -- the header flex
+squeezes it (hence min-w-0), the sidebar column gives it the full width.
+
+The sidebar column was an <aside>, which made it a second unnamed
+complementary landmark beside the rail's named one. It is a div now; the
+nav inside already carries the landmark.
+
+The sidebar had no overflow of its own, so a column taller than the
+viewport would have clipped the account block at the bottom with no way to
+reach it. It scrolls only when it exceeds, which is the phase's scroll
+model applied to the one place that had been left out.
+
+Also worth recording because it nearly became a false bug report:
+headless Chromium clamps the window to a 500px minimum, so a screenshot
+requested at 375 renders at 500 and crops. The apparent overflow was the
+measurement, not the page. Measured through an iframe instead,
+scrollWidth equals clientWidth at 320, 375, 768 and 1024, and the
+attention answer still fits above the fold at 375x667.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018UKPpUS3fkG6nVBWrmzHnT
+---
+ src/components/layout/portal-shell.tsx     | 14 ++++++++++++--
+ src/components/layout/project-switcher.tsx | 11 +++++++++--
+ tests/component/phase85-shell.test.tsx     | 20 ++++++++++++++++----
+ 3 files changed, 37 insertions(+), 8 deletions(-)
+
+diff --git a/src/components/layout/portal-shell.tsx b/src/components/layout/portal-shell.tsx
+index dda891e..39b5213 100644
+--- a/src/components/layout/portal-shell.tsx
++++ b/src/components/layout/portal-shell.tsx
+@@ -88,7 +88,17 @@ export function PortalShell({
+ 
+   return (
+     <div className="bg-background lg:grid lg:grid-cols-[17rem_minmax(0,1fr)] lg:items-start">
+-      <aside className="border-rule hidden lg:sticky lg:top-0 lg:block lg:h-dvh lg:border-r">
++      {/*
++        `div`, e não `aside`: o landmark desta coluna é a `<nav>` que ela
++        contém. Um `aside` acrescentaria um segundo "complementar" sem nome ao
++        lado do da rail, e dois landmarks para uma coluna só é ruído no leitor
++        de tela.
++
++        `overflow-y-auto` rola SÓ se a coluna exceder a viewport — hoje não
++        excede, e na fase que acrescentar seções ela rola sozinha em vez de
++        cortar a conta no rodapé (ADR-0027).
++      */}
++      <div className="border-rule hidden lg:sticky lg:top-0 lg:block lg:h-dvh lg:overflow-y-auto lg:border-r">
+         <PortalSidebar
+           projectId={projectId}
+           clientName={clientName}
+@@ -97,7 +107,7 @@ export function PortalShell({
+           projects={todos}
+           fullName={fullName}
+         />
+-      </aside>
++      </div>
+ 
+       <div className="flex min-h-dvh flex-col">
+         {/*
+diff --git a/src/components/layout/project-switcher.tsx b/src/components/layout/project-switcher.tsx
+index e327321..f3e183c 100644
+--- a/src/components/layout/project-switcher.tsx
++++ b/src/components/layout/project-switcher.tsx
+@@ -46,9 +46,16 @@ export function ProjectSwitcher({
+   if (others.length === 0) return null
+ 
+   return (
+-    <details className={cn('relative', className)}>
++    <details className={cn('relative min-w-0', className)}>
+       <summary className="t-meta text-muted hover:text-foreground flex min-h-11 cursor-pointer list-none items-center gap-1.5 transition-colors duration-[--motion-fast] marker:content-none">
+-        <span className="max-w-[14ch] truncate">{projectName}</span>
++        {/*
++          `truncate` sem teto em `ch`: o cap de 14ch cortava "Social Media" na
++          sidebar, onde sobram 224px — porque `t-meta` é caixa alta com 0.16em
++          de tracking, e 14ch nesse tamanho não chega perto de 12 letras. Quem
++          limita passa a ser o CONTÊINER: no cabeçalho o flex aperta (daí o
++          `min-w-0`), na sidebar a coluna dá a largura toda.
++        */}
++        <span className="truncate">{projectName}</span>
+         <span aria-hidden="true" className="text-rule-strong">
+           ▾
+         </span>
+diff --git a/tests/component/phase85-shell.test.tsx b/tests/component/phase85-shell.test.tsx
+index 83b8d00..865453f 100644
+--- a/tests/component/phase85-shell.test.tsx
++++ b/tests/component/phase85-shell.test.tsx
+@@ -58,11 +58,23 @@ describe('a casca monta as duas molduras', () => {
+   })
+ 
+   it('a sidebar só aparece em `lg` — o celular não ganha chrome novo', () => {
+-    const { container } = montar()
+-    const sidebar = container.querySelector('aside')
++    montar()
++
++    /* A sidebar vem primeiro no DOM; a coluna é o ancestral que a esconde. */
++    const [daSidebar] = screen.getAllByRole('navigation', { name: 'Seções do projeto' })
++    const coluna = daSidebar!.closest('div.hidden')
++
++    expect(coluna?.className).toContain('lg:block')
++    expect(coluna?.className).toContain('lg:sticky')
++    /* Rola só se exceder — nunca corta a conta no rodapé da coluna. */
++    expect(coluna?.className).toContain('lg:overflow-y-auto')
++  })
++
++  it('⚠️ a sidebar não vira um segundo landmark sem nome', () => {
++    montar()
+ 
+-    expect(sidebar?.className).toContain('hidden')
+-    expect(sidebar?.className).toContain('lg:block')
++    /* Sem rail nesta montagem: nenhum `complementary` deve existir. */
++    expect(screen.queryAllByRole('complementary')).toHaveLength(0)
+   })
+ 
+   it('o cabeçalho da FASE 8 some em `lg`, e não antes', () => {
+-- 
+2.43.0
+

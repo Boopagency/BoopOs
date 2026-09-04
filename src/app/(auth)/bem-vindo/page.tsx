@@ -64,7 +64,7 @@ export default async function WelcomePage() {
           <div className="rise rise-5 mt-12 flex flex-wrap items-center gap-x-8 gap-y-4">
             <Link
               href={project ? portalHref(project.id, 'onboarding') : '/portal'}
-              className="t-meta bg-navy text-on-inverse hover:bg-navy/90 inline-flex h-14 items-center rounded-sm px-8 transition-colors duration-[--motion-fast] max-sm:w-full max-sm:justify-center"
+              className="t-meta bg-navy text-on-inverse hover:bg-navy/90 inline-flex h-14 items-center rounded-sm px-8 transition-colors duration-(--motion-fast) max-sm:w-full max-sm:justify-center"
             >
               Começar
             </Link>

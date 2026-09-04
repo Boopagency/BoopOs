@@ -96,3 +96,51 @@ export function stageTally(stages: readonly ProjectStage[]): { settled: number; 
     total: stages.length,
   }
 }
+
+/**
+ * A jornada RESUMIDA: anterior · atual · próxima.
+ *
+ * A Home responde em segundos; oito blocos são um mapa, não uma resposta. A
+ * jornada inteira continua em `/projeto`, que é aprofundamento — e é isso que
+ * acaba com as duas Homes que o portal tinha (D-29).
+ *
+ * O corte é por POSIÇÃO, não por estado: uma etapa pulada entra no resumo com o
+ * rótulo dela. Esconder do cliente uma etapa que a Boop decidiu pular seria
+ * editar a história do projeto na tela dele.
+ *
+ * ## Onde a janela se apoia quando não há etapa corrente
+ *
+ *   jornada concluída        → nas três últimas
+ *   projeto ainda não começou → nas três primeiras
+ *   entre etapas (`stalled`) → na primeira que ainda falta, com a anterior
+ *
+ * Nenhum desses casos inventa estado: todos são deriváveis do que
+ * `project_stages` devolve.
+ */
+export function journeyGlance(stages: readonly ProjectStage[], tamanho = 3): ProjectStage[] {
+  const ordenadas = sortStages(stages)
+  if (ordenadas.length === 0) return []
+  if (ordenadas.length <= tamanho) return ordenadas
+
+  const foco = focusIndex(ordenadas)
+
+  /* Janela centrada no foco, encostada nas bordas quando não cabe. */
+  const inicio = Math.min(
+    Math.max(foco - Math.floor((tamanho - 1) / 2), 0),
+    ordenadas.length - tamanho,
+  )
+
+  return ordenadas.slice(inicio, inicio + tamanho)
+}
+
+function focusIndex(ordenadas: readonly ProjectStage[]): number {
+  const corrente = ordenadas.findIndex((stage) => stage.state === 'current')
+  if (corrente >= 0) return corrente
+
+  const primeiraQueFalta = ordenadas.findIndex(
+    (stage) => stage.state !== 'done' && stage.state !== 'skipped',
+  )
+
+  /* Tudo resolvido: a janela encosta no fim. */
+  return primeiraQueFalta >= 0 ? primeiraQueFalta : ordenadas.length - 1
+}

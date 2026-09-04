@@ -156,6 +156,32 @@ Regras:
   módulo nomeado em `lib/`.
 - **Sem `select *`** — projeção de colunas explícita em toda query.
 
+### O domínio `attention`
+
+`src/domains/attention` é o único domínio que **coordena outros domínios**, e a
+exceção é declarada: ele existe para ser o coordenador. A regra que o mantém
+pequeno é que ele **não consulta tabela** — cada source chama o loader do
+domínio dono do dado, que já carrega o próprio guard. Um guard de código-fonte
+proíbe `createSupabaseServerClient` e `@/lib/supabase/admin` ali dentro.
+
+```
+config/attention.ts          PRIORITY — a política de ordem, uma tabela
+domains/attention/
+  types.ts                   AttentionItem · AttentionResult · AttentionSource
+  resolve.ts                 a decisão (attention | calm | degraded), pura
+  safety.ts                  runSafely — isola a source, RELANÇA sinal do Next
+  sources/onboarding.ts      a única source da V0
+  sources/index.ts           o registro
+  queries.ts                 getClientAttention() — a única porta, server-only
+```
+
+`resolve.ts` e `safety.ts` moram fora de `queries.ts` de propósito: a regra que
+separa calma de degradação é a mais importante da fase e precisa ser testável
+sem banco, sem Next e sem dublê de infraestrutura.
+
+Ver [ADR-0025](adr/0025-atencao-derivada-nunca-armazenada.md) e
+[ADR-0026](adr/0026-calma-exige-verificacao-completa.md).
+
 ## Camada de dados do portal
 
 `src/lib/data/` é a única fronteira entre as telas e a origem dos dados.

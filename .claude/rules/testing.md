@@ -91,5 +91,11 @@ ver. Um teste que só verifica o caminho feliz não prova isolamento.
 
 ## CI
 
-`typecheck → lint → test:unit → supabase start → test:rls → build`.
-Tudo bloqueia merge. `test:rls` não é opcional e não vira execução noturna.
+`typecheck → lint → format:check → test:unit → db:start → db:reset → test:rls
+→ build`. Tudo bloqueia merge. `test:rls` não é opcional e não vira execução
+noturna.
+
+Banco ausente no CI **nunca** se resolve afrouxando a suíte: sem
+`continue-on-error`, sem `|| true`, sem `--project unit` no lugar de `test`.
+Provisiona-se o banco. Uma suíte de isolamento verde por não ter rodado é pior
+que vermelha, porque mente.

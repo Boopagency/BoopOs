@@ -1,0 +1,488 @@
+From a44af22f806950c0c0234bd22ce02a6f5b691437 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 4 Sep 2026 21:02:28 +0000
+Subject: [PATCH 6/8] docs: the shell, the rail and the board, written down
+ where they are looked up
+
+CLAUDE.md, product.md, design-system.md, motion.md and the frontend rules
+now describe the shell that exists rather than the one phase 8 left. The
+reasoning lives in docs/ and ADR-0027/0028; the obligations live in
+.claude/rules/frontend.md, which gained the short imperative form: the
+shell is a frame and knows no domain, the rail is composed by the page and
+never by a parallel route, an empty rail is an absent column, only the
+workspace animates, scroll belongs to the document, and below lg the
+portal is phase 8.
+
+FASE85ESTADO.md records what a phase document is for: what the local Next
+docs changed about the plan before any code was written, the three defects
+a real browser found that jsdom could not, the false overflow that headless
+Chromium's 500px window minimum nearly turned into a bug report, and the
+debt this phase is knowingly leaving -- chiefly that no one has yet read
+the portal logged in, because the no-Docker fallback serves migrations and
+RLS but not PostgREST or auth.
+
+Counts refreshed from Vitest, not from grep: 1259 tests in 67 files.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018UKPpUS3fkG6nVBWrmzHnT
+---
+ .claude/rules/frontend.md |  28 ++++++++
+ CLAUDE.md                 |  39 +++++++++--
+ docs/FASE85ESTADO.md      | 143 ++++++++++++++++++++++++++++++++++++++
+ docs/design-system.md     |  33 +++++++++
+ docs/motion.md            |  52 ++++++++++++--
+ docs/product.md           |  46 ++++++++++--
+ 6 files changed, 324 insertions(+), 17 deletions(-)
+ create mode 100644 docs/FASE85ESTADO.md
+
+diff --git a/.claude/rules/frontend.md b/.claude/rules/frontend.md
+index 8b908b8..8b2bafa 100644
+--- a/.claude/rules/frontend.md
++++ b/.claude/rules/frontend.md
+@@ -50,6 +50,34 @@ glassmorphism, menu grande, ícone decorativo, gamificação.
+   linhas** (D-25): a seção aparece quando a funcionalidade existe, e continua
+   aparecendo para um cliente com zero dados.
+ 
++## A casca (ADR-0027)
++
++- **A casca é MOLDURA.** `PortalShell` e `PortalSidebar` não recebem ciclo,
++  etapa, equipe, atenção nem jornada — há varredura de código-fonte que quebra.
++- **A rail contextual é composta pela PÁGINA**, nunca pela casca, e nunca por
++  parallel route: em soft navigation o Next mantém a subpágina ativa de um slot
++  que a rota nova não corresponde, e a rail de uma seção seguiria para a outra.
++- **Rail sem conteúdo real não renderiza.** Quem decide é a página
++  (`team.length > 0 ? <...> : null`); `WorkspaceColumns` devolve os filhos sem
++  grid e sem `aside`. Um componente que decide por dentro deixa a coluna vazia.
++- **A casca fica no servidor.** As únicas folhas cliente são `Workspace`,
++  `PortalNav` e `PortalBottomNav`, todas por hook de rota.
++- **Só o workspace anima entre rotas.** A casca não está na subárvore animada.
++- **Scroll é do documento.** Sidebar e rail são `sticky`; `overflow` só quando
++  excedem. Nada de `overflow: hidden` na casca.
++- **Abaixo de `lg` o portal é a FASE 8.** Nenhum chrome novo no celular, e
++  nenhum drawer: a FASE 9 acende a barra inferior ao cruzar três seções.
++
++## Quadro (ADR-0028)
++
++- As primitivas (`BoardViewport`, `BoardColumn`, `BoardCard`) **não conhecem
++  domínio**: sem status, canal, formato, aprovação, versão, item, projeto ou
++  tenant. Há varredura.
++- Elas **não alcançam rota nenhuma** até a FASE 10, e não têm fixture fora do
++  teste que as exercita.
++- **Coluna vazia fica**, com o zero. Coluna é eixo, não bloco.
++- **O quadro client-facing é somente-leitura.** Nada de drag-and-drop no portal.
++
+ ## Mobile first
+ 
+ Tudo que é client-facing é desenhado primeiro no celular: dashboard, onboarding,
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 72a44d5..1da9873 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -12,12 +12,12 @@ para ele.
+ 
+ Percepção-alvo: _"Eu sei exatamente o que está acontecendo com minha marca."_
+ 
+-**Status atual: FASE 8 concluída.**
++**Status atual: FASE 8.5 concluída.**
+ 22 migrations, 19 tabelas com RLS **e políticas**, 11 funções `app.*` de
+-autorização, 11 fronteiras `security definer` em `public`, e **1174 testes**
+-(466 contra Postgres real). Contagem sempre do Vitest, nunca de `grep`.
+-Fingerprint local ↔ staging idêntico nas nove partes — a FASE 8 **não tocou o
+-banco**.
++autorização, 11 fronteiras `security definer` em `public`, e **1259 testes** em
++67 arquivos (466 contra Postgres real). Contagem sempre do Vitest, nunca de
++`grep`. Fingerprint idêntico nas nove partes — nem a FASE 8 nem a 8.5 **tocaram
++o banco**.
+ 
+ **A HOME é real, e nada nela é inventado.** Quatro blocos: abertura pessoal,
+ estado de atenção, etapa corrente e jornada resumida. Os quatro blocos que
+@@ -49,6 +49,29 @@ principal caminho de entrada.
+ 
+ **O activity log não alcança o cliente** — nem por derivação (D-30).
+ 
++**A CASCA é um ambiente, e o celular continua sendo a FASE 8**
++([ADR-0027](docs/adr/0027-a-casca-do-portal-e-um-ambiente.md)). Em `lg` o portal
++é sidebar + workspace; em `xl` entra a rail contextual, composta pela PÁGINA e
++ausente quando não há conteúdo real. Abaixo de `lg` nada mudou — a resposta de
++atenção continua acima da dobra em 375 × 667 por construção. A casca não conhece
++ciclo, etapa nem equipe, e há varredura que cobra.
++
++**"Quem está no projeto" migrou** da coluna principal de `/projeto` para a rail.
++Migrou, não duplicou.
++
++**O QUADRO nasceu sem domínio**
++([ADR-0028](docs/adr/0028-kanban-e-drag-and-drop.md)). `BoardViewport`,
++`BoardColumn` e `BoardCard` são geometria: não conhecem status, canal, aprovação
++nem versão, não alcançam rota nenhuma, e são exercitados só por teste com
++fixture sintética. Drag-and-drop fica para a FASE 10, no admin, com `@dnd-kit`
++e por ADR — o quadro do cliente é somente-leitura, porque um arrasto não
++consegue expressar "pedir ajuste".
++
++**Motion é CSS, e só o workspace anima.** `--motion-page` (220ms) e um `key` por
++caminho; a casca é irmã do nó animado, não filha. `<ViewTransition>` do React
++funciona sem configuração no Next 16.3.4 e ficou de fora de propósito
++(docs/motion.md).
++
+ A próxima fase é a 9 (estratégia).
+ 
+ ## Vocabulário
+@@ -102,6 +125,7 @@ compatibilidade verificada com `typescript-eslint` e `eslint-config-next`.
+ | Estado ao fim da FASE 6                               | [`docs/FASE6ESTADO.md`](docs/FASE6ESTADO.md)           |
+ | Estado ao fim da FASE 7                               | [`docs/FASE7ESTADO.md`](docs/FASE7ESTADO.md)           |
+ | Estado ao fim da FASE 8                               | [`docs/FASE8ESTADO.md`](docs/FASE8ESTADO.md)           |
++| Estado ao fim da FASE 8.5                             | [`docs/FASE85ESTADO.md`](docs/FASE85ESTADO.md)         |
+ | Inconsistências e decisões pendentes                  | [`docs/spec-review.md`](docs/spec-review.md)           |
+ 
+ Regras imperativas, curtas, para consulta durante o trabalho:
+@@ -188,8 +212,9 @@ login, e-mail, Storage nem PostgREST. Ver
+ 
+ ```
+ src/app/          (auth) login · bem-vindo   (portal) portal/[projectId]/…   (admin)
+-src/components/   ui/ (primitivos) · layout/ (cascas) · brand/ (logo, olhos, nuvens)
+-                  patterns/ (composições de produto)
++src/components/   ui/ (primitivos) · layout/ (cascas: shell, sidebar, switcher,
++                  workspace, rail) · brand/ (logo, olhos, nuvens)
++                  patterns/ (composições de produto; board = geometria sem domínio)
+ src/config/       app.ts (produto) · enums.ts (taxonomias) · env.ts (environment)
+                   journeys.ts (templates de jornada — ADR-0006)
+ src/domains/      clients/ · people/ · projects/ · onboarding/ · attention/ (F8)
+diff --git a/docs/FASE85ESTADO.md b/docs/FASE85ESTADO.md
+new file mode 100644
+index 0000000..641c79d
+--- /dev/null
++++ b/docs/FASE85ESTADO.md
+@@ -0,0 +1,143 @@
++# Estado ao fim da FASE 8.5
++
++**Base:** `0685cba` (fim da FASE 8) · **Banco:** intocado · **Testes:** 1259 em
++67 arquivos (793 unit/component + 466 RLS) · **Build:** 24 rotas.
++
++A FASE 8 resolveu funcionalidade e segurança. Esta fase resolveu **sensação de
++produto**, sem tocar domínio, workflow, policy, migration ou dependência.
++
++---
++
++## O que mudou
++
++### A casca virou ambiente, em `lg` e acima
++
++Sidebar persistente (17rem, `sticky`, quatro zonas: marca, cliente com seletor,
++seções, conta) + workspace. O cabeçalho de largura total e o rodapé de colofão
++morrem ali — duas molduras para a mesma informação é ruído.
++
++**Abaixo de `lg` nada mudou.** `hidden lg:block` na sidebar, `lg:hidden` no
++cabeçalho: o celular renderiza a árvore da FASE 8. A garantia mais cara da fase
++anterior — a resposta de atenção acima da dobra em 375 × 667 — é preservada por
++construção, e foi confirmada em Chromium.
++
++Não há drawer mobile de propósito: a FASE 9 leva as seções a três, cruza o
++`BOTTOM_NAV_THRESHOLD` e acende sozinha a barra inferior que já existe e já é
++testada. Um drawer agora seria construído para descartar.
++
++### A rail contextual, em `xl` e acima
++
++Composta pela **página**, não pela casca. Some inteira quando não há conteúdo
++real: sem grid, sem `aside`, sem buraco. Abaixo de `xl` o mesmo conteúdo desce
++para o fim do fluxo — nunca é escondido.
++
++Conteúdo hoje: **no ar desde** (`projects.starts_on`) e **quem está no projeto**
++(`client_memberships` × `profiles`). Os dois reais. Ciclo e etapa ficaram de
++fora porque já estão na coluna principal das duas páginas.
++
++**"Quem está no projeto" migrou** de `/projeto`. Migrou, não duplicou.
++
++### Motion em CSS, e só o workspace
++
++`--motion-page` (220ms) e `boop-workspace` (opacidade + 8px) num wrapper com
++`key` derivado do caminho. A casca não anima **porque não está na subárvore
++animada** — é irmã do nó, não filha. Não é uma regra que alguém possa esquecer.
++
++### A espera ganhou a forma da página
++
++O `loading.tsx` era um spinner centralizado em `min-h-[50vh]`: o conteúdo sumia,
++a altura mudava, o scroll pulava. Agora desenha as três faixas que toda rota do
++portal tem, nas proporções reais. A casca fica de pé e interativa.
++
++### O quadro nasceu sem domínio
++
++`BoardViewport`, `BoardColumn`, `BoardCard`. Geometria: rolagem horizontal, snap
++no celular, faixa focável, coluna vazia preservada com o zero, laje em vez de
++card. Não conhecem status, canal, formato, aprovação, versão, item, projeto nem
++tenant — e há varredura de código-fonte que falha se conhecerem. **Não alcançam
++rota nenhuma** e não têm fixture fora do teste que as exercita.
++
++---
++
++## O que a verificação do Next mudou no plano
++
++O pré-voo tinha três hipóteses. Ler `node_modules/next/dist/docs/` derrubou duas
++e confirmou uma — e as três estão registradas na ADR-0027.
++
++| Hipótese do pré-voo                     | O que a documentação disse                                                                                                                                      | Decisão                                                                                                                                                            |
++| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
++| Rail como parallel route `@rail`        | Soft navigation **mantém a subpágina ativa de um slot** que a rota nova não corresponde; e o Next 16 tornou `default.js` obrigatório sob pena de build quebrado | **Derrubada.** A rail da Home seguiria o leitor para uma seção vazia. Composta pela página                                                                         |
++| Três containers com `overflow`          | O Next **pula elementos sticky e fixed** ao procurar o alvo de scroll                                                                                           | **Derrubada.** Documento como eixo, sidebar e rail `sticky`, `scroll-padding-top` no `html`                                                                        |
++| `ViewTransition` talvez precise de flag | Funciona **sem configuração nenhuma**                                                                                                                           | **Confirmada e recusada:** anima o documento inteiro por padrão, o overlay captura ponteiro, reduced motion não alcança os pseudo-elementos, e não existe em jsdom |
++
++`useLinkStatus` também existe, e também não foi usado: o pendente é pulado
++quando a rota foi prefetchada, e os links da sidebar ficam permanentemente em
++viewport. Um indicador que nunca acende é pior que nenhum.
++
++---
++
++## Defeitos que só um navegador achou
++
++O jsdom não mede layout. Renderizar os componentes reais contra o CSS do build e
++medir em Chromium achou três coisas:
++
++1. **"SOCIAL M…"** — `max-w-[14ch]` truncava o nome do projeto na sidebar, onde
++   sobravam 224px. `t-meta` é caixa alta com 0.16em de tracking, e 14ch ali não
++   chega perto de doze letras. O teto saiu; quem limita é o contêiner.
++2. **Dois landmarks para uma coluna** — a sidebar era `<aside>`, criando um
++   "complementar" sem nome ao lado do nomeado da rail. Virou `div`; a `<nav>` de
++   dentro já era o landmark.
++3. **Sidebar sem rolagem própria** — uma coluna mais alta que a viewport
++   cortaria a conta no rodapé sem caminho até ela.
++
++E um falso positivo que quase virou bug report: **o Chromium headless força
++largura mínima de 500px**, então um screenshot pedido em 375 renderiza em 500 e
++recorta. O "overflow" era a medição, não a página. Medido por iframe,
++`scrollWidth === clientWidth` em 320, 375, 768 e 1024.
++
++---
++
++## Testes
++
++`phase8-nav-availability` tinha dois casos lendo strings literais do
++`portal-shell.tsx`. Eles travavam a implementação, não o comportamento: a
++reescrita os quebraria mesmo com a regra intacta. A decisão virou
++`showsBottomNav()` em `src/config/app.ts`, testável como função pura, e os dois
++casos foram reescritos com a justificativa no arquivo.
++
++**O terceiro caso não mudou** — o que proíbe a palavra `cycle` no shell. É ele
++que força a rail a ser um slot opaco: uma casca que recebesse `cycle` por prop
++voltaria a falhar ali.
++
++Três arquivos novos: a casca (22 casos), o quadro (15) e as fronteiras de
++código-fonte (47) — incluindo um que falha se `motion`, `framer-motion` ou
++`@dnd-kit/core` aparecerem em `package.json`.
++
++---
++
++## Débito assumido
++
++- **QA visual hospedado.** O plano B sem Docker não sobe PostgREST nem auth,
++  então o portal não foi navegado logado neste ambiente. O que foi verificado
++  foram os componentes reais com o CSS real, em Chromium, nas larguras da lista.
++  Falta a leitura humana de uma sessão de verdade.
++- **A faixa 1024–1279 não tem rail.** O conteúdo dela desce para o fim do
++  workspace, que é honesto, mas é a largura menos exercitada da fase.
++- **`prefers-reduced-motion` verificado por CSS, não por navegador.** O bloco
++  global cobre `boop-workspace` e `skeleton-pulse` por construção (`*` com
++  `!important`), e há teste que lê o CSS; ninguém ligou a preferência no SO.
++- **O esqueleto é genérico.** Uma rota com geometria muito diferente da Home
++  ainda verá as três faixas padrão. Vale reavaliar quando Estratégia existir.
++
++## O que a FASE 9 recebe pronto
++
++- Ligar Estratégia é `available: false → true`. A sidebar ganha o item, e o
++  celular ganha a barra inferior, sem tocar em layout.
++- A rail existe: a página de Estratégia compõe a dela com status da versão, quem
++  escreveu e quando — e some se não houver nada.
++- A geometria de duas colunas é a mesma do detalhe de conteúdo da FASE 10:
++  conteúdo à esquerda, linha do tempo à direita é esta primitiva com outro filho.
++- O quadro está desenhado e sem domínio, esperando `content_items`.
++
++**Zero efeito no banco.** Fingerprint idêntico nas nove partes; `supabase/` sem
++uma linha de diferença.
+diff --git a/docs/design-system.md b/docs/design-system.md
+index 992e666..5e6cdae 100644
+--- a/docs/design-system.md
++++ b/docs/design-system.md
+@@ -114,6 +114,39 @@ Ritmo vertical: seção 64→96px, bloco 40→56px, entre elementos 12/20/32px.
+ **Breakpoints** (Tailwind): 640 `sm` · 768 `md` · 1024 `lg` · 1280 `xl`.
+ Revisados no QA: 375, 430, 768, 1024, 1440.
+ 
++## A casca do portal e o quadro
++
++| Medida            | Valor   | Onde                                       |
++| ----------------- | ------- | ------------------------------------------ |
++| Sidebar           | `17rem` | coluna esquerda, a partir de `lg` (1024px) |
++| Rail contextual   | `19rem` | coluna direita, a partir de `xl` (1280px)  |
++| Coluna do quadro  | `17rem` | `sm` e acima: `19rem`                      |
++| Gap entre colunas | `1rem`  | `md` e acima: `1.5rem`                     |
++
++A rail entra em `xl`, e não em `lg`, por aritmética: em 1024px a sidebar já
++consome 272px, e uma terceira coluna deixaria o workspace com menos de 500px.
++
++**Scroll:** o documento é o eixo. Sidebar e rail são `sticky` e só ganham
++rolagem própria quando excedem a viewport. O Next pula elementos `sticky` e
++`fixed` ao procurar o alvo de scroll da navegação, então restauração de scroll,
++âncora `#id` e o colapso da barra de URL do celular seguem nativos; o
++deslocamento sob o cabeçalho sticky do celular é compensado por
++`scroll-padding-top` no `html` (ADR-0027).
++
++### Quadro (fundação visual, FASE 8.5)
++
++Faixa horizontal com `scroll-snap` no celular e livre no desktop. A faixa é
++focável — uma região que rola só responde a seta e Page Up/Down quando pode
++receber foco.
++
++**A coluna vazia FICA**, com o zero. Isso não contradiz "bloco vazio
++desaparece": um bloco é conteúdo, uma coluna é EIXO, e escondê-la diria que a
++etapa não existe — que é outra afirmação. O quadro inteiro vazio ainda mostra as
++colunas.
++
++Card é **laje**: filete e cor, sem sombra, raio de 2px, `min-h-11` porque no
++celular é alvo de toque. As primitivas não conhecem domínio nenhum (ADR-0028).
++
+ ## Raio
+ 
+ | Token           | Valor | Onde                                         |
+diff --git a/docs/motion.md b/docs/motion.md
+index 58014cd..1b289d3 100644
+--- a/docs/motion.md
++++ b/docs/motion.md
+@@ -15,8 +15,14 @@ animação para ler a lista de conteúdo.
+ | `--motion-instant`    | 90ms  | Retorno de toque, hover de item denso |
+ | `--motion-fast`       | 160ms | Hover, foco, mudança de cor           |
+ | `--motion-default`    | 240ms | Abertura de painel, mudança de estado |
++| `--motion-page`       | 220ms | Entrada do workspace na troca de rota |
+ | `--motion-emphasized` | 560ms | Entrada editorial, olhar do mascote   |
+ 
++`--motion-page` fica no PISO da faixa útil de propósito. 320ms numa troca de
++seção que a pessoa já pediu é atraso percebido, não refinamento — a regra de que
++navegação cotidiana é instantânea continua valendo, e o que o token compra é
++apenas que o conteúdo não apareça em corte seco.
++
+ | Easing              | Curva                          | Caráter                   |
+ | ------------------- | ------------------------------ | ------------------------- |
+ | `--ease-standard`   | `cubic-bezier(.2, 0, 0, 1)`    | Neutra. O padrão          |
+@@ -75,17 +81,39 @@ aprovação. Nunca na jornada, onde ele é um marcador.
+ 
+ ## Navegação
+ 
+-Trocar de seção não anima. O filete azul do item ativo cresce em
+-`--motion-default` com `--ease-out`; o resto é imediato.
++A CASCA não anima. Sidebar, cabeçalho e rail ficam parados entre rotas — e não
++por configuração: elas não estão na subárvore animada. Só o `<Workspace>` entra,
++com `key` derivado do caminho, e a casca é irmã desse nó (ADR-0027).
++
++O gesto é `boop-workspace`: opacidade 0→1 com `translateY(8px→0)` em
++`--motion-page`. **8px, e não os 14px do `boop-rise`**: numa troca de seção,
++14px leem como conteúdo caindo; 8px leem como foco assentando.
++
++O filete azul do item ativo cresce em `--motion-default` com `--ease-out`; o
++resto é imediato.
+ 
+ O painel de "Mais" no celular entra com `boop-rise` em `--motion-default` —
+ rápido o bastante para não atrapalhar, presente o bastante para explicar de
+ onde ele veio.
+ 
++## Espera
++
++`skeleton-pulse` — opacidade 1→0.45→1 em 1.6s, contínuo — e **só em esqueleto**,
++nunca em conteúdo. O `loading.tsx` do portal desenha as faixas da página nas
++proporções reais, então a troca de esqueleto para conteúdo não mexe na régua.
++
++Não existe atraso artificial em lugar nenhum: o esqueleto aparece enquanto o
++dado realmente não chegou.
++
+ ## Reduced motion
+ 
+ `prefers-reduced-motion: reduce` zera duração de animação e transição e desliga
+-`scroll-behavior`.
++`scroll-behavior`. O bloco usa `*` com `!important`, então **toda animação CSS
++nova nasce coberta** — inclusive `boop-workspace` e `skeleton-pulse`.
++
++O que ele NÃO alcança, e por isso importa: animação em JavaScript (WAAPI,
++estilo inline) e os pseudo-elementos `::view-transition-*`. Nenhum dos dois
++existe hoje; se um entrar, entra com regra própria.
+ 
+ **Nenhuma informação depende de movimento.** Com as animações desligadas, todo
+ conteúdo continua visível, legível e na mesma posição final — o `fade-rise` usa
+@@ -93,9 +121,21 @@ conteúdo continua visível, legível e na mesma posição final — o `fade-ris
+ 
+ ## O que não existe
+ 
+-- **Nenhuma biblioteca de motion.** Framer Motion não entrou. Tudo é CSS:
+-  `@keyframes`, `transition` e `animation-delay`. Não houve um caso que
+-  justificasse o custo — se aparecer orquestração real, entra por ADR.
++- **Nenhuma biblioteca de motion.** Framer Motion não entrou, e Motion for React
++  também não entrou na FASE 8.5. Tudo é CSS: `@keyframes`, `transition` e
++  `animation-delay`. Se aparecer orquestração real, entra por ADR.
++- **Nenhuma View Transition.** O `<ViewTransition>` do React foi verificado e
++  funciona **sem configuração** no Next 16.3.4. Ficou de fora porque anima o
++  snapshot do documento INTEIRO por padrão — que é exatamente o que a casca não
++  pode fazer —, porque o overlay captura eventos de ponteiro, porque o bloco de
++  reduced motion não alcança os pseudo-elementos dele, e porque não existe em
++  jsdom. É o caminho natural quando a FASE 10 pedir transição de elemento
++  compartilhado (miniatura → detalhe).
++- **Nenhum `useLinkStatus`.** Ele existe desde o Next 15.3, e a própria
++  documentação diz que o estado pendente é pulado quando a rota foi
++  prefetchada. Os links da sidebar ficam permanentemente em viewport, logo
++  permanentemente prefetchados: o indicador nunca acenderia. O feedback de
++  navegação vem do item ativo e do esqueleto.
+ - **Sem scroll hijacking.** O scroll é do usuário, inclusive na estratégia.
+ - **Sem parallax.** A deriva das nuvens não reage ao scroll.
+ - **Sem loading artificial.** O `Spinner` só existe enquanto o dado realmente
+diff --git a/docs/product.md b/docs/product.md
+index a7b4714..8810152 100644
+--- a/docs/product.md
++++ b/docs/product.md
+@@ -117,10 +117,48 @@ uma URL que já existiu e passa a dar 404 quebra qualquer link já compartilhado
+ pela etapa da jornada. Uma pendência que vira item de menu deixa de ser
+ pendência e vira lugar.
+ 
+-No celular, a barra inferior só é renderizada com **três ou mais** seções: com
+-duas, ela custaria 56px permanentes para oferecer um link que a Home já dá, e o
+-painel "Mais" não teria o que abrir. Abaixo do limiar, a linha de palavras do
+-cabeçalho vale nos dois breakpoints.
++No celular, a barra inferior só é renderizada com **três ou mais** seções
++(`showsBottomNav()`): com duas, ela custaria 56px permanentes para oferecer um
++link que a Home já dá, e o painel "Mais" não teria o que abrir. Abaixo do
++limiar, a linha de palavras do cabeçalho vale nos dois breakpoints.
++
++## A casca do portal (FASE 8.5)
++
++Em **`lg` (1024px) e acima** o portal é um ambiente de duas colunas: uma sidebar
++persistente e um workspace. A sidebar carrega quatro zonas — marca, cliente com
++seletor de projeto, seções, e conta — e é por absorver as quatro que ela se paga
++com só duas seções. O cabeçalho de largura total e o rodapé de colofão morrem
++ali: duas molduras para a mesma informação é ruído.
++
++**Abaixo de `lg` nada mudou.** O celular renderiza a árvore da FASE 8 — cabeçalho
++sticky, linha de palavras, sem drawer e sem barra inferior. Não há adaptação
++mobile nova porque a FASE 9 muda esse modelo sozinha: ligar Estratégia leva as
++seções a três e acende a barra inferior que já existe.
++
++### A coluna de contexto
++
++Em **`xl` (1280px) e acima** entra uma terceira coluna, a **rail contextual**.
++Ela é composta pela PÁGINA, não pela casca, e some inteira quando não há
++conteúdo real — sem grid, sem `aside`, sem buraco. Abaixo de `xl` o mesmo
++conteúdo desce para o fim do fluxo; nunca é escondido.
++
++| Rota       | O que a rail carrega               | Origem                                      |
++| ---------- | ---------------------------------- | ------------------------------------------- |
++| Início     | No ar desde · Quem está no projeto | `projects.starts_on` · `client_memberships` |
++| `/projeto` | Quem está no projeto               | `client_memberships`                        |
++| as demais  | nada — a coluna não existe         | —                                           |
++
++**"Quem está no projeto" MIGROU** da coluna principal de `/projeto` para a rail.
++Migrou, não foi duplicado: equipe responde "com quem eu falo", e essa pergunta
++acompanha a página inteira em vez de interromper a jornada no meio.
++
++**Ciclo e etapa não estão na rail**, e é decisão: os dois já aparecem no bloco
++"Agora" das duas páginas. A rail carrega o que a coluna principal não diz.
++
++A rail não tem próxima entrega, próximo encontro, próximo marco, atividade
++recente nem "última atualização". Nenhum tem origem, e o activity log não
++alcança o cliente em forma nenhuma (D-30). Uma coluna nova é exatamente onde a
++ficção tenta voltar.
+ 
+ `/portal` é a rota canônica. `/app` existe como redirect em `next.config.ts`.
+ 
+-- 
+2.43.0
+

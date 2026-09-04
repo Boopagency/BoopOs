@@ -79,7 +79,7 @@ export default async function ClientListPage() {
               <li key={client.id}>
                 <Link
                   href={`/admin/clientes/${client.id}`}
-                  className="hover:bg-surface-soft/50 -mx-3 flex flex-wrap items-center justify-between gap-x-8 gap-y-2 px-3 py-5 transition-colors duration-[--motion-fast]"
+                  className="hover:bg-surface-soft/50 -mx-3 flex flex-wrap items-center justify-between gap-x-8 gap-y-2 px-3 py-5 transition-colors duration-(--motion-fast)"
                 >
                   <div className="min-w-0">
                     <p className="t-lead text-foreground">{client.name}</p>

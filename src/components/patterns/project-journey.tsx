@@ -51,15 +51,33 @@ function stageMeta(stage: JourneyStage): string {
   return stage.completedOn ? formatDayMonthShort(stage.completedOn) : STATE_LABEL[stage.state]
 }
 
+/*
+ * A linha de estado era `text-muted/75`, e medida no navegador ela dava 3.59:1
+ * sobre o fundo — reprovada em AA para texto de 14px. O 75% existia para
+ * afastar o estado do rótulo da etapa; quem faz esse afastamento agora é a
+ * escala (`t-label` contra `t-meta`), que não custa contraste. `text-muted`
+ * cheio dá 6.33:1 (docs/design-system.md, tests/unit/contrast.test.ts).
+ */
+
 export function ProjectJourney({
   stages,
   className,
   detailed = false,
+  variant = 'full',
 }: {
-  stages: JourneyStage[]
+  stages: readonly JourneyStage[]
   className?: string
   /** `true` mostra o resumo de cada etapa. Usado na página do projeto. */
   detailed?: boolean
+  /**
+   * `glance` é a jornada RESUMIDA da Home: três etapas, anterior · atual ·
+   * próxima. `full` é a de `/projeto`.
+   *
+   * A variante muda SÓ a grade do desktop. Rótulos, estados, os olhos sobre a
+   * etapa corrente e o `sr-only` com o estado por extenso são os mesmos — uma
+   * fonte de estilo, um teste de acessibilidade, dois usos.
+   */
+  variant?: 'full' | 'glance'
 }) {
   return (
     <div className={className}>
@@ -80,7 +98,7 @@ export function ProjectJourney({
                   </p>
                   {current && <BoopEyes gaze="down" className="w-9 shrink-0" />}
                 </div>
-                <p className={cn('t-label mt-1', current ? 'text-accent-text' : 'text-muted/75')}>
+                <p className={cn('t-label mt-1', current ? 'text-accent-text' : 'text-muted')}>
                   <span className="sr-only">{STATE_LABEL[stage.state]}. </span>
                   {stageMeta(stage)}
                 </p>
@@ -94,7 +112,12 @@ export function ProjectJourney({
       </ol>
 
       {/* ── Desktop: blocos em fileira ────────────────────────────────── */}
-      <ol className="hidden sm:grid sm:grid-cols-3 sm:gap-x-5 sm:gap-y-10 lg:grid-cols-6">
+      <ol
+        className={cn(
+          'hidden sm:grid sm:grid-cols-3 sm:gap-x-5 sm:gap-y-10',
+          variant === 'full' && 'lg:grid-cols-6',
+        )}
+      >
         {stages.map((stage) => {
           const current = stage.state === 'current'
           return (
@@ -113,7 +136,7 @@ export function ProjectJourney({
               <p className={cn('t-meta mt-4', current ? 'text-foreground' : 'text-muted')}>
                 {stage.label}
               </p>
-              <p className={cn('t-label mt-1', current ? 'text-accent-text' : 'text-muted/75')}>
+              <p className={cn('t-label mt-1', current ? 'text-accent-text' : 'text-muted')}>
                 <span className="sr-only">{STATE_LABEL[stage.state]}. </span>
                 {stageMeta(stage)}
               </p>

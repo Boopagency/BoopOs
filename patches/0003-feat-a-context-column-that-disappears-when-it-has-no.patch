@@ -1,0 +1,269 @@
+From cce2ab8ea398b13d64a2c2baf55783c7ba6d3a7c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 4 Sep 2026 20:39:28 +0000
+Subject: [PATCH 3/8] feat: a context column that disappears when it has
+ nothing to say
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The rail is composed by the page, not by a parallel route slot, and the
+local Next docs are why: a soft navigation keeps a slot's last active
+subpage when the new route has no match, so the home's rail would follow
+the reader into an empty section. The alternative -- a null page per
+rail-less route -- is the guard-per-page shape this repository refuses.
+WorkspaceColumns takes a ReactNode and returns its children untouched when
+that node is null, so an absent rail is an absent column rather than an
+empty one.
+
+It is sticky rather than an overflow container. Next skips sticky and
+fixed elements when it looks for the scroll target, so the document stays
+the scroll axis and browser restoration, hash anchors and the phone's URL
+bar keep working. It enters at xl, not lg: at 1024 the sidebar already
+takes 17rem and a third column would leave the workspace under 500px.
+
+"Quem está no projeto" moved out of the middle of /projeto and into the
+rail. Moved, not copied. Team answers "who do I talk to", which is a
+question that accompanies the whole page instead of interrupting the
+journey halfway down.
+
+Cycle and stage are deliberately not in the rail: both are already in the
+main column on both pages, and the same sentence twice on one screen is
+the noise phase 8 already refused. What the rail carries is what the main
+column does not say -- since when the project exists, and who is on it.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018UKPpUS3fkG6nVBWrmzHnT
+---
+ src/app/(portal)/portal/[projectId]/page.tsx  | 26 +++++--
+ .../portal/[projectId]/projeto/page.tsx       | 37 +++++-----
+ src/components/patterns/project-context.tsx   | 72 +++++++++++++++++++
+ 3 files changed, 111 insertions(+), 24 deletions(-)
+ create mode 100644 src/components/patterns/project-context.tsx
+
+diff --git a/src/app/(portal)/portal/[projectId]/page.tsx b/src/app/(portal)/portal/[projectId]/page.tsx
+index 8af3adc..60c4d8d 100644
+--- a/src/app/(portal)/portal/[projectId]/page.tsx
++++ b/src/app/(portal)/portal/[projectId]/page.tsx
+@@ -1,15 +1,21 @@
+ import type { Metadata } from 'next'
+ import Link from 'next/link'
++import { WorkspaceColumns } from '@/components/layout/context-rail'
+ import { AttentionState } from '@/components/patterns/attention-state'
+ import { CurrentStage } from '@/components/patterns/current-stage'
+ import { PortalGreeting } from '@/components/patterns/portal-greeting'
++import { ProjectContext } from '@/components/patterns/project-context'
+ import { ProjectJourney } from '@/components/patterns/project-journey'
+ import { portalHref } from '@/config/app'
+ import { requireActor } from '@/lib/auth/actor'
+ import { getClientAttention } from '@/domains/attention/queries'
+ import { getClientPublic } from '@/domains/clients/queries'
+ import { currentStage, journeyGlance, journeyState } from '@/domains/projects/journey'
+-import { getPortalJourney, requireVisiblePortalProject } from '@/domains/projects/queries'
++import {
++  getPortalJourney,
++  listClientTeam,
++  requireVisiblePortalProject,
++} from '@/domains/projects/queries'
+ 
+ export const metadata: Metadata = { title: 'Início' }
+ 
+@@ -59,15 +65,27 @@ export default async function DashboardPage({
+     getClientAttention(projectId),
+   ])
+ 
+-  const client = await getClientPublic(project.clientId)
++  const [client, team] = await Promise.all([
++    getClientPublic(project.clientId),
++    listClientTeam(project.clientId),
++  ])
+ 
+   const stage = currentStage(stages)
+   const state = journeyState(stages)
+   const glance = journeyGlance(stages)
+   const summary = stage?.summary ?? null
+ 
++  /*
++   * A rail só existe quando tem o que dizer, e quem decide é esta página —
++   * `WorkspaceColumns` recebe `null` e a coluna some do grid, sem buraco. Um
++   * componente que decidisse por dentro devolveria um `<aside>` vazio de 19rem.
++   */
++  const temContexto = team.length > 0 || project.startedOn !== null
++
+   return (
+-    <>
++    <WorkspaceColumns
++      rail={temContexto ? <ProjectContext startedOn={project.startedOn} team={team} /> : null}
++    >
+       <PortalGreeting
+         fullName={actor.fullName}
+         clientName={client.name}
+@@ -100,6 +118,6 @@ export default async function DashboardPage({
+           <ProjectJourney stages={glance} variant="glance" className="mt-10 md:mt-12" />
+         </section>
+       )}
+-    </>
++    </WorkspaceColumns>
+   )
+ }
+diff --git a/src/app/(portal)/portal/[projectId]/projeto/page.tsx b/src/app/(portal)/portal/[projectId]/projeto/page.tsx
+index c32d1a3..1d012e2 100644
+--- a/src/app/(portal)/portal/[projectId]/projeto/page.tsx
++++ b/src/app/(portal)/portal/[projectId]/projeto/page.tsx
+@@ -1,5 +1,7 @@
+ import type { Metadata } from 'next'
++import { WorkspaceColumns } from '@/components/layout/context-rail'
+ import { CurrentStage } from '@/components/patterns/current-stage'
++import { ProjectContext } from '@/components/patterns/project-context'
+ import { ProjectJourney } from '@/components/patterns/project-journey'
+ import { SectionHeading } from '@/components/patterns/section-heading'
+ import { getClientPublic } from '@/domains/clients/queries'
+@@ -38,12 +40,18 @@ export const metadata: Metadata = { title: 'Projeto' }
+  * do tempo para o cliente, ela será superfície própria, com contrato
+  * client-facing explícito e origem própria — nunca uma projeção do log (D-30).
+  *
+- * ## "Quem está no projeto" é real
++ * ## "Quem está no projeto" é real, e mudou de coluna na FASE 8.5
+  *
+  * Vem de `client_memberships` cruzado com `profiles`: as pessoas da Boop com
+  * vínculo EXPLÍCITO neste cliente. Sem cargo — a V0 não guarda cargo, e
+  * transformar `boop_member` em "Estrategista" seria escrever ficção na tela do
+  * cliente. Sem ninguém vinculado, o bloco some.
++ *
++ * O que mudou é o LUGAR: era uma seção no meio da leitura, e virou a rail de
++ * contexto. Equipe responde "com quem eu falo", e essa pergunta acompanha a
++ * página inteira em vez de interromper a jornada no meio. **Migrou, não foi
++ * duplicado** — a mesma lista em dois lugares seria a mesma informação
++ * competindo consigo mesma (ADR-0027).
+  */
+ export default async function ProjectPage({ params }: { params: Promise<{ projectId: string }> }) {
+   const { projectId } = await params
+@@ -58,8 +66,14 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
+ 
+   const stage = currentStage(stages)
+ 
++  /*
++   * "Quem está no projeto" MIGROU para a rail — não foi duplicado. Equipe é
++   * contexto, não conteúdo, e contexto é exatamente o que a coluna da direita
++   * existe para carregar. A data de início continua na linha de cabeçalho
++   * abaixo, então a rail não a repete.
++   */
+   return (
+-    <>
++    <WorkspaceColumns rail={team.length > 0 ? <ProjectContext team={team} /> : null}>
+       <section className="content py-12 md:py-16">
+         <p className="t-meta text-muted">
+           {client.name}
+@@ -78,23 +92,6 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
+         />
+       </div>
+ 
+-      {team.length > 0 && (
+-        <section aria-labelledby="equipe" className="border-rule bg-surface-soft/50 border-y">
+-          <div className="content py-12 md:py-16">
+-            <h2 id="equipe" className="t-meta text-muted">
+-              Quem está no projeto
+-            </h2>
+-            <ul className="divide-rule border-rule mt-6 divide-y border-y">
+-              {team.map((person) => (
+-                <li key={person.name} className="t-title text-foreground py-4">
+-                  {person.name}
+-                </li>
+-              ))}
+-            </ul>
+-          </div>
+-        </section>
+-      )}
+-
+       {stages.length > 0 && (
+         <section aria-labelledby="jornada-completa" className="content py-14 md:py-20">
+           <SectionHeading
+@@ -108,6 +105,6 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
+           <ProjectJourney stages={stages} detailed className="mt-12 md:mt-16" />
+         </section>
+       )}
+-    </>
++    </WorkspaceColumns>
+   )
+ }
+diff --git a/src/components/patterns/project-context.tsx b/src/components/patterns/project-context.tsx
+new file mode 100644
+index 0000000..d7cb92d
+--- /dev/null
++++ b/src/components/patterns/project-context.tsx
+@@ -0,0 +1,72 @@
++import { formatFullDate } from '@/lib/format'
++
++export interface ProjectContextProps {
++  /** `projects.starts_on`. Nulo quando não houve data combinada. */
++  startedOn?: string | null
++  /**
++   * As pessoas da Boop com vínculo EXPLÍCITO neste cliente
++   * (`client_memberships` × `profiles`). Só o nome.
++   */
++  team?: readonly { name: string }[]
++}
++
++/**
++ * O contexto do projeto, na coluna da direita.
++ *
++ * ## O que ele pode dizer
++ *
++ * Só o que o banco afirma. Não existe próxima entrega, próximo encontro,
++ * próximo marco, atividade recente nem "última atualização": três desses nem
++ * tabela têm, e o activity log não alcança o cliente em forma nenhuma — nem
++ * direto, nem agregado, nem traduzido (D-30). A rail é um lugar novo, e um
++ * lugar novo é exatamente onde a ficção tenta voltar.
++ *
++ * ## Por que ciclo e etapa NÃO estão aqui
++ *
++ * Porque já estão na coluna principal. A Home imprime "Ciclo N" e o rótulo da
++ * etapa no bloco "Agora", e `/projeto` faz o mesmo. Repeti-los ao lado seria a
++ * mesma informação duas vezes na mesma tela — o ruído que a FASE 8 já tinha
++ * recusado ao decidir quem carrega o `summary` da etapa.
++ *
++ * O que a rail carrega é o que a coluna principal NÃO diz: desde quando o
++ * projeto existe, e quem está nele.
++ *
++ * ## Sem cargo
++ *
++ * A V0 não guarda cargo. Transformar `boop_member` em "Estrategista" seria
++ * escrever ficção na tela do cliente.
++ *
++ * Quem decide se a rail existe é a PÁGINA: sem equipe e sem data, ela passa
++ * `null` e a coluna inteira desaparece do grid (`WorkspaceColumns`). Este
++ * componente não devolve `null` por dentro — isso deixaria um `<aside>` vazio
++ * ocupando 19rem.
++ */
++export function ProjectContext({ startedOn, team = [] }: ProjectContextProps) {
++  return (
++    <div className="flex flex-col gap-9">
++      {startedOn && (
++        <section aria-labelledby="contexto-inicio">
++          <h2 id="contexto-inicio" className="t-meta text-muted">
++            No ar desde
++          </h2>
++          <p className="t-label text-foreground mt-2">{formatFullDate(startedOn)}</p>
++        </section>
++      )}
++
++      {team.length > 0 && (
++        <section aria-labelledby="contexto-equipe">
++          <h2 id="contexto-equipe" className="t-meta text-muted">
++            Quem está no projeto
++          </h2>
++          <ul className="mt-3 flex flex-col gap-1.5">
++            {team.map((person) => (
++              <li key={person.name} className="t-label text-foreground">
++                {person.name}
++              </li>
++            ))}
++          </ul>
++        </section>
++      )}
++    </div>
++  )
++}
+-- 
+2.43.0
+

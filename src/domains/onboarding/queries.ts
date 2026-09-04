@@ -12,6 +12,7 @@ import {
   SECTION_COLUMNS,
   SUBMISSION_ADMIN_COLUMNS,
   SUBMISSION_PUBLIC_COLUMNS,
+  SUBMISSION_STATE_COLUMNS,
   type OnboardingAnswer,
   type OnboardingForBoop,
   type OnboardingForClient,
@@ -225,6 +226,43 @@ export const getOnboardingForClient = cache(
       sections,
       answers,
     }
+  },
+)
+
+/**
+ * O estado do onboarding, e nada mais.
+ *
+ * A leitura que o motor de atenção usa. `getOnboardingForClient()` acima faz
+ * QUATRO leituras — etapa, submissão, seções com perguntas, respostas — porque
+ * a tela precisa montar o formulário. A Home não precisa: ela pergunta apenas
+ * se é a vez do cliente, e carregar o catálogo inteiro em toda abertura seria
+ * pagar o preço do formulário para exibir um numeral.
+ *
+ * As regras são as mesmas: o mesmo guard, o mesmo `hasOnboardingStage()` e o
+ * mesmo `stateFor()` da FASE 7. O que muda é o tamanho da projeção — nenhuma
+ * coluna nova, nenhuma policy nova, nenhuma tabela nova.
+ */
+export const getOnboardingStateForClient = cache(
+  async (projectId: string): Promise<{ state: OnboardingState }> => {
+    await requireVisiblePortalProject(projectId)
+
+    const supabase = await createSupabaseServerClient()
+
+    const [hasStage, submissionResult] = await Promise.all([
+      hasOnboardingStage(supabase, projectId),
+      supabase
+        .from('onboarding_submissions')
+        .select(SUBMISSION_STATE_COLUMNS)
+        .eq('project_id', projectId)
+        .maybeSingle(),
+    ])
+
+    if (submissionResult.error) {
+      logger.error('onboarding.state_read_failed', { code: submissionResult.error.code })
+      throw new Error('onboarding.state_read_failed')
+    }
+
+    return { state: stateFor(hasStage, submissionResult.data?.status ?? null) }
   },
 )
 

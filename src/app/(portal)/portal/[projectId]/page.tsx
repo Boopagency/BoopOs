@@ -1,32 +1,49 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { AttentionBlock } from '@/components/patterns/attention-block'
-import { DashboardHero } from '@/components/patterns/dashboard-hero'
-import { InsightBlock } from '@/components/patterns/insight-block'
+import { WorkspaceColumns } from '@/components/layout/context-rail'
+import { AttentionState } from '@/components/patterns/attention-state'
+import { CurrentStage } from '@/components/patterns/current-stage'
+import { PortalGreeting } from '@/components/patterns/portal-greeting'
+import { ProjectContext } from '@/components/patterns/project-context'
 import { ProjectJourney } from '@/components/patterns/project-journey'
-import { SectionHeading } from '@/components/patterns/section-heading'
 import { portalHref } from '@/config/app'
+import { requireActor } from '@/lib/auth/actor'
+import { getClientAttention } from '@/domains/attention/queries'
+import { getClientPublic } from '@/domains/clients/queries'
+import { currentStage, journeyGlance, journeyState } from '@/domains/projects/journey'
 import {
-  getAttention,
-  getCurrentStage,
-  getDashboardInsight,
-  getJourney,
-  getNextDelivery,
-  getNextMeeting,
-  getProject,
-} from '@/lib/data/portal'
-import { formatDateTime, formatDayMonth, formatWeekdayCapitalized } from '@/lib/format'
+  getPortalJourney,
+  listClientTeam,
+  requireVisiblePortalProject,
+} from '@/domains/projects/queries'
 
 export const metadata: Metadata = { title: 'Início' }
 
 /*
- * Dashboard.
+ * A Home do cliente.
  *
- * A ordem dos blocos é a ordem das perguntas do cliente (docs/product.md):
- * o que está acontecendo → o que depende de mim → em que etapa estamos →
- * qual é a próxima entrega e o próximo encontro → o que aprendemos.
+ * Ela responde UMA frase, nesta ordem:
  *
- * Nenhum gráfico. Nenhum card decorativo. Bloco sem conteúdo desaparece.
+ *     quem é você aqui → algo depende de você? → onde estamos → qual é a jornada
+ *
+ * Quatro blocos, e todos com origem no banco. Nada de próxima entrega, próximo
+ * encontro, aprendizado, produção ou atividade: nenhum desses tem origem hoje —
+ * três deles nem tabela têm — e bloco sem origem não vira estado vazio bonito,
+ * desaparece. É a mesma decisão que a FASE 6 tomou com "o que combinamos" (D-16).
+ *
+ * ## A ordem não é estética
+ *
+ * O estado de atenção vem ANTES de tudo que não seja a saudação porque a
+ * pergunta "preciso fazer alguma coisa?" é a razão de o cliente ter aberto o
+ * portal. Em 375 × 667 ela precisa estar respondida sem rolagem — com o CTA
+ * inteiro, ou com a frase de calma, ou com a de degradação.
+ *
+ * ## Quem diz o `summary` da etapa
+ *
+ * No estado de calma, o bloco de atenção já carrega a frase oficial da etapa
+ * corrente — é o "o que a Boop está fazendo" logo na dobra. Nesse caso o bloco
+ * "Agora" não a repete: a mesma frase duas vezes na mesma tela é ruído. A
+ * decisão de composição mora aqui, e não dentro dos componentes.
  */
 export default async function DashboardPage({
   params,
@@ -35,96 +52,72 @@ export default async function DashboardPage({
 }) {
   const { projectId } = await params
 
-  const [project, journey, currentStage, attention, delivery, meeting, insight] = await Promise.all(
-    [
-      getProject(projectId),
-      getJourney(projectId),
-      getCurrentStage(projectId),
-      getAttention(projectId),
-      getNextDelivery(projectId),
-      getNextMeeting(projectId),
-      getDashboardInsight(projectId),
-    ],
-  )
+  /*
+   * `requireVisiblePortalProject` roda de novo aqui, e o layout já o chamou: as
+   * duas chamadas compartilham o mesmo resultado no request (`cache()` do
+   * React). O custo é zero e o ganho é que esta página continua segura se
+   * alguém a montar em outro lugar.
+   */
+  const [actor, project, stages, attention] = await Promise.all([
+    requireActor(),
+    requireVisiblePortalProject(projectId),
+    getPortalJourney(projectId),
+    getClientAttention(projectId),
+  ])
+
+  const [client, team] = await Promise.all([
+    getClientPublic(project.clientId),
+    listClientTeam(project.clientId),
+  ])
+
+  const stage = currentStage(stages)
+  const state = journeyState(stages)
+  const glance = journeyGlance(stages)
+  const summary = stage?.summary ?? null
+
+  /*
+   * A rail só existe quando tem o que dizer, e quem decide é esta página —
+   * `WorkspaceColumns` recebe `null` e a coluna some do grid, sem buraco. Um
+   * componente que decidisse por dentro devolveria um `<aside>` vazio de 19rem.
+   */
+  const temContexto = team.length > 0 || project.startedOn !== null
 
   return (
-    <>
-      <DashboardHero project={project} currentStage={currentStage} />
+    <WorkspaceColumns
+      rail={temContexto ? <ProjectContext startedOn={project.startedOn} team={team} /> : null}
+    >
+      <PortalGreeting
+        fullName={actor.fullName}
+        clientName={client.name}
+        projectName={project.name}
+      />
 
-      <AttentionBlock items={attention} />
+      <AttentionState result={attention} status={project.status} stageSummary={summary} />
 
-      <section aria-labelledby="jornada" className="content py-16 md:py-24">
-        <SectionHeading
-          eyebrow={`Ciclo ${project.cycle}`}
-          title="Onde estamos"
-          action={
+      <CurrentStage
+        cycle={project.cycle}
+        stage={stage}
+        state={state}
+        summary={attention.state === 'calm' ? null : summary}
+      />
+
+      {glance.length > 0 && (
+        <section aria-labelledby="jornada" className="content border-rule border-t py-12 md:py-16">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2">
+            <h2 id="jornada" className="t-meta text-muted">
+              A jornada
+            </h2>
             <Link
               href={portalHref(projectId, 'projeto')}
-              className="t-meta text-muted decoration-rule-strong hover:text-foreground hover:decoration-accent underline underline-offset-[6px]"
+              className="t-meta text-muted decoration-rule-strong hover:text-foreground hover:decoration-accent flex min-h-11 items-center underline underline-offset-[6px]"
             >
-              Ver o projeto
+              Ver a jornada completa →
             </Link>
-          }
-        />
-        <h2 id="jornada" className="sr-only">
-          Jornada do projeto
-        </h2>
-        <ProjectJourney stages={journey} className="mt-12 md:mt-16" />
-      </section>
-
-      {(delivery ?? meeting) && (
-        <section aria-labelledby="proximos" className="border-rule bg-surface-soft/50 border-y">
-          <h2 id="proximos" className="sr-only">
-            Próximos passos
-          </h2>
-          <div className="content grid gap-px py-14 md:grid-cols-2 md:py-20">
-            {delivery && (
-              <div className="md:pr-14">
-                <p className="t-meta text-muted">Próxima entrega</p>
-                <p className="t-section text-foreground mt-4 max-w-[16ch]">{delivery.title}</p>
-                <p className="t-body measure text-muted mt-4">{delivery.description}</p>
-                <p className="t-title text-accent-text mt-6" data-numeric>
-                  {formatDayMonth(delivery.dueOn)}
-                </p>
-              </div>
-            )}
-
-            {meeting && (
-              <div className="border-rule mt-12 border-t pt-12 md:mt-0 md:border-t-0 md:border-l md:pt-0 md:pl-14">
-                <p className="t-meta text-muted">Próximo encontro</p>
-                <p className="t-section text-foreground mt-4 max-w-[16ch]">{meeting.title}</p>
-                <p className="t-body text-muted mt-4">
-                  {formatWeekdayCapitalized(meeting.startAt)}
-                </p>
-                <p className="t-title text-foreground mt-1" data-numeric>
-                  {formatDateTime(meeting.startAt)}
-                </p>
-                <Link
-                  href={portalHref(projectId, 'encontros')}
-                  className="t-meta text-muted decoration-rule-strong hover:text-foreground hover:decoration-accent mt-6 inline-block underline underline-offset-[6px]"
-                >
-                  Todos os encontros
-                </Link>
-              </div>
-            )}
           </div>
-        </section>
-      )}
 
-      {insight && (
-        <section aria-labelledby="aprendizado" className="content py-16 md:py-24">
-          <p className="t-meta text-muted" id="aprendizado">
-            O que estamos aprendendo
-          </p>
-          <InsightBlock insight={insight} className="mt-8 md:mt-10" />
-          <Link
-            href={portalHref(projectId, 'resultados')}
-            className="t-meta text-muted decoration-rule-strong hover:text-foreground hover:decoration-accent mt-10 inline-block underline underline-offset-[6px]"
-          >
-            Ver os resultados
-          </Link>
+          <ProjectJourney stages={glance} variant="glance" className="mt-10 md:mt-12" />
         </section>
       )}
-    </>
+    </WorkspaceColumns>
   )
 }

@@ -94,7 +94,7 @@ export function Field({ label, help, error, required, group, children }: FieldPr
 
 const CONTROL =
   'w-full rounded-sm border border-rule-strong bg-surface px-4 text-foreground ' +
-  'transition-colors duration-[--motion-fast] placeholder:text-muted/60 ' +
+  'transition-colors duration-(--motion-fast) placeholder:text-muted/60 ' +
   'hover:border-muted focus:border-accent-text ' +
   'aria-[invalid=true]:border-danger disabled:cursor-not-allowed disabled:opacity-50'
 

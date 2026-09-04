@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 import { PortalShell } from '@/components/layout/portal-shell'
+import { visibleSections } from '@/config/app'
+import { requireActor } from '@/lib/auth/actor'
 import { getClientPublic } from '@/domains/clients/queries'
 import { listPortalProjects, requireVisiblePortalProject } from '@/domains/projects/queries'
 
@@ -22,10 +24,10 @@ import { listPortalProjects, requireVisiblePortalProject } from '@/domains/proje
  * idêntico. Quem troca uuid na barra de endereços não distingue nenhuma delas
  * (docs/security.md).
  *
- * Os loaders de `src/lib/data/portal.ts` repetem o guard, e a repetição é de
- * propósito: eles precisam ser seguros onde quer que sejam chamados, inclusive
- * de um lugar que ainda não existe. O custo é uma consulta em cache de request
- * (`cache()` do React); o custo de esquecer é um tenant.
+ * Os loaders de domínio repetem o guard, e a repetição é de propósito: eles
+ * precisam ser seguros onde quer que sejam chamados, inclusive de um lugar que
+ * ainda não existe. O custo é uma consulta em cache de request (`cache()` do
+ * React); o custo de esquecer é um tenant.
  */
 export default async function ProjectLayout({
   children,
@@ -43,9 +45,16 @@ export default async function ProjectLayout({
    * guard: o guard responde uma pergunta de segurança, e misturar leitura de
    * domínio nele faria a próxima pessoa "aproveitá-lo" para buscar dado.
    */
-  const [client, projects] = await Promise.all([
+  const [client, projects, actor] = await Promise.all([
     getClientPublic(project.clientId),
     listPortalProjects(),
+    /*
+     * O nome de quem está logado, para a base da sidebar. `requireActor()` já
+     * rodou no layout do grupo e o resultado vem do cache de request do React:
+     * o custo é zero, e a alternativa — descer o ator por prop desde lá —
+     * acoplaria dois layouts que hoje respondem perguntas diferentes.
+     */
+    requireActor(),
   ])
 
   return (
@@ -53,7 +62,14 @@ export default async function ProjectLayout({
       projectId={project.id}
       clientName={client.name}
       projectName={project.name}
-      cycle={project.cycle}
+      fullName={actor.fullName}
+      /*
+       * A navegacao segue o PRODUTO: uma secao aparece quando a funcionalidade
+       * existe, e nunca porque uma tabela ganhou a primeira linha. Um menu que
+       * pisca conforme os dados faz a arquitetura do sistema aparecer para quem
+       * so queria acompanhar o proprio projeto (D-25).
+       */
+      sections={visibleSections(project.type)}
       /*
        * O seletor só aparece com mais de um projeto — com um só, a complexidade
        * fica invisível (docs/product.md). Não é um oitavo item de navegação: é

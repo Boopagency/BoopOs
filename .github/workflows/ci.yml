@@ -36,11 +36,32 @@ jobs:
       - name: Format check
         run: pnpm format:check
 
-      - name: Test
-        run: pnpm test
+      # A suite `unit` nao precisa de infraestrutura, entao roda antes de
+      # gastar minutos subindo contêiner: um erro de logica pura falha em
+      # segundos em vez de esperar o Postgres.
+      - name: Test (unit)
+        run: pnpm test:unit
+
+      # O runner tem daemon de Docker, entao `pnpm db:start` escolhe o caminho
+      # oficial — `supabase start`, com Postgres, Auth e Storage — e nao o plano
+      # B sem Docker. O `db:reset` em seguida nao e redundancia: ele apaga e
+      # reaplica as migrations do zero, que e a propria pergunta que a suite
+      # `rls` existe para responder.
+      - name: Start Supabase
+        run: pnpm db:start
+
+      - name: Migrations and seed
+        run: pnpm db:reset
+
+      # `test:rls` fala com o Postgres direto, e falha FECHADA quando nao acha
+      # banco — nunca pula. Foi essa falha honesta que apareceu no CI enquanto
+      # os passos acima nao existiam (.claude/rules/testing.md).
+      - name: Test (rls)
+        run: pnpm test:rls
 
       - name: Build
         run: pnpm build
 
-# Os passos de banco (supabase start + test:rls) entram na FASE 4, quando
-# existirem migrations e politicas para testar. Ver docs/deployment.md.
+      - name: Stop Supabase
+        if: always()
+        run: pnpm db:stop

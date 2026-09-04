@@ -114,6 +114,39 @@ Ritmo vertical: seção 64→96px, bloco 40→56px, entre elementos 12/20/32px.
 **Breakpoints** (Tailwind): 640 `sm` · 768 `md` · 1024 `lg` · 1280 `xl`.
 Revisados no QA: 375, 430, 768, 1024, 1440.
 
+## A casca do portal e o quadro
+
+| Medida            | Valor   | Onde                                       |
+| ----------------- | ------- | ------------------------------------------ |
+| Sidebar           | `17rem` | coluna esquerda, a partir de `lg` (1024px) |
+| Rail contextual   | `19rem` | coluna direita, a partir de `xl` (1280px)  |
+| Coluna do quadro  | `17rem` | `sm` e acima: `19rem`                      |
+| Gap entre colunas | `1rem`  | `md` e acima: `1.5rem`                     |
+
+A rail entra em `xl`, e não em `lg`, por aritmética: em 1024px a sidebar já
+consome 272px, e uma terceira coluna deixaria o workspace com menos de 500px.
+
+**Scroll:** o documento é o eixo. Sidebar e rail são `sticky` e só ganham
+rolagem própria quando excedem a viewport. O Next pula elementos `sticky` e
+`fixed` ao procurar o alvo de scroll da navegação, então restauração de scroll,
+âncora `#id` e o colapso da barra de URL do celular seguem nativos; o
+deslocamento sob o cabeçalho sticky do celular é compensado por
+`scroll-padding-top` no `html` (ADR-0027).
+
+### Quadro (fundação visual, FASE 8.5)
+
+Faixa horizontal com `scroll-snap` no celular e livre no desktop. A faixa é
+focável — uma região que rola só responde a seta e Page Up/Down quando pode
+receber foco.
+
+**A coluna vazia FICA**, com o zero. Isso não contradiz "bloco vazio
+desaparece": um bloco é conteúdo, uma coluna é EIXO, e escondê-la diria que a
+etapa não existe — que é outra afirmação. O quadro inteiro vazio ainda mostra as
+colunas.
+
+Card é **laje**: filete e cor, sem sombra, raio de 2px, `min-h-11` porque no
+celular é alvo de toque. As primitivas não conhecem domínio nenhum (ADR-0028).
+
 ## Raio
 
 | Token           | Valor | Onde                                         |

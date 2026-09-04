@@ -37,7 +37,46 @@ glassmorphism, menu grande, ícone decorativo, gamificação.
   Motion ([ADR-0018](../../docs/adr/0018-sem-biblioteca-de-ui-e-de-motion.md)).
 - `max-w-[Nch]` vai no elemento que tem o font-size, nunca no wrapper.
 - Bloco vazio **desaparece**. Não vira card com "nenhum item".
-- O portal tem sete itens de navegação. Acrescentar um exige justificativa escrita.
+- **Bloco sem ORIGEM não aparece.** Se o dado não tem tabela, coluna ou template
+  que o afirme, o bloco não existe — não vira placeholder, exemplo nem estado
+  vazio bonito. Precedentes: `project.scope` (D-16) e os quatro blocos mockados
+  da Home (FASE 8).
+- **Calma nunca é dita sem verificação completa.** Um bloco só pode afirmar que
+  não há nada pendente quando TUDO que responderia foi consultado com sucesso.
+  Leitura que falhou produz estado próprio, neutro e honesto — nunca "tudo
+  certo" ([ADR-0026](../../docs/adr/0026-calma-exige-verificacao-completa.md)).
+- O portal tem no máximo sete itens de navegação, e acrescentar um oitavo exige
+  justificativa escrita. **A navegação segue a FEATURE, nunca a contagem de
+  linhas** (D-25): a seção aparece quando a funcionalidade existe, e continua
+  aparecendo para um cliente com zero dados.
+
+## A casca (ADR-0027)
+
+- **A casca é MOLDURA.** `PortalShell` e `PortalSidebar` não recebem ciclo,
+  etapa, equipe, atenção nem jornada — há varredura de código-fonte que quebra.
+- **A rail contextual é composta pela PÁGINA**, nunca pela casca, e nunca por
+  parallel route: em soft navigation o Next mantém a subpágina ativa de um slot
+  que a rota nova não corresponde, e a rail de uma seção seguiria para a outra.
+- **Rail sem conteúdo real não renderiza.** Quem decide é a página
+  (`team.length > 0 ? <...> : null`); `WorkspaceColumns` devolve os filhos sem
+  grid e sem `aside`. Um componente que decide por dentro deixa a coluna vazia.
+- **A casca fica no servidor.** As únicas folhas cliente são `Workspace`,
+  `PortalNav` e `PortalBottomNav`, todas por hook de rota.
+- **Só o workspace anima entre rotas.** A casca não está na subárvore animada.
+- **Scroll é do documento.** Sidebar e rail são `sticky`; `overflow` só quando
+  excedem. Nada de `overflow: hidden` na casca.
+- **Abaixo de `lg` o portal é a FASE 8.** Nenhum chrome novo no celular, e
+  nenhum drawer: a FASE 9 acende a barra inferior ao cruzar três seções.
+
+## Quadro (ADR-0028)
+
+- As primitivas (`BoardViewport`, `BoardColumn`, `BoardCard`) **não conhecem
+  domínio**: sem status, canal, formato, aprovação, versão, item, projeto ou
+  tenant. Há varredura.
+- Elas **não alcançam rota nenhuma** até a FASE 10, e não têm fixture fora do
+  teste que as exercita.
+- **Coluna vazia fica**, com o zero. Coluna é eixo, não bloco.
+- **O quadro client-facing é somente-leitura.** Nada de drag-and-drop no portal.
 
 ## Mobile first
 

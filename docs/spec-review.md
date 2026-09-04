@@ -600,6 +600,52 @@ como campo desabilitado: campo desabilitado parece quebrado.
 
 ---
 
+### D-25 — a navegação segue a feature, nunca a contagem de linhas
+
+**FASE 8.** Uma seção aparece na navegação quando a FUNCIONALIDADE existe
+(`available`, constante em código alterada por commit de fase), e não quando
+existem dados. Um menu que aparece com a primeira linha e some com a última faz
+a arquitetura do sistema piscar para quem só queria acompanhar o próprio
+projeto. A partir da FASE 10, Conteúdo aparece mesmo com zero peças, com estado
+vazio honesto. **Ocultar da navegação não invalida a rota.**
+
+### D-26 — o estado de calma é resposta, não estado vazio
+
+**FASE 8.** "Tudo certo por aqui" aparece justamente quando não há nada, e a
+regra da casa manda bloco vazio desaparecer. Esta é a exceção nomeada: ele não é
+uma lista sem itens, é a RESPOSTA à pergunta nº 3 das dez. Sem ele, o cliente
+precisa caçar pelo sistema para concluir que não há pendência — o comportamento
+que a fase existe para acabar. É o bloco mais visto do produto.
+
+### D-27 — atenção só é avaliada em projeto `active`
+
+**FASE 8.** Pausado, concluído e arquivado devolvem zero sources relevantes, o
+que é calma legítima (`evaluated: 0`), com copy própria de status e sem CTA.
+Cobrar ação em projeto parado é o produto contradizendo a operação. A regra mora
+em uma linha de `getClientAttention`, e não espalhada pelo `appliesTo` de cada
+source — senão a quinta source vai esquecer.
+
+### D-28 — a saudação usa o nome da pessoa
+
+**FASE 8.** `profiles.full_name` é nullable. Sem nome preenchido, a saudação
+fica sem nome ("Boa tarde."). **Nunca** cai para a razão social: cumprimentar
+uma empresa como se fosse gente é o gesto que faz um portal parecer um CRM.
+
+### D-29 — a Home mostra a jornada resumida
+
+**FASE 8.** Três etapas — anterior · atual · próxima —, com a jornada completa em
+`/projeto`. Oito blocos são um mapa, não uma resposta, e desenhar o mesmo mapa
+nas duas telas é o que fazia o portal ter duas Homes. O corte é por POSIÇÃO: uma
+etapa pulada entra no resumo com o rótulo dela, porque escondê-la seria editar a
+história do projeto na tela do cliente.
+
+### D-30 — o activity log não produz superfície client-facing
+
+**FASE 8.** Nem direto, nem agregado, nem traduzido. Ele é auditoria da Boop, e
+`listRecentActivityForBoop()` começa com `requireBoop()`. Uma linha do tempo para
+o cliente, se existir um dia, é superfície própria com contrato próprio — nunca
+uma projeção do log. Há guard de código-fonte.
+
 ## 4. Overengineering a evitar
 
 O que a especificação sugere, ou o que seria tentador construir, e que **não**

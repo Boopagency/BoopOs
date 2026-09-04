@@ -185,12 +185,32 @@ perdeu nada; ao finalizar, a etapa avança sozinha.
   não existe, e uma linha `pending` em `notifications` sem consumidor seria uma
   fila que ninguém esvazia. O gatilho volta na FASE 16.
 
-### FASE 8 — Dashboard
+### FASE 8 — Client Dashboard / Attention First ✅
 
-Seis blocos na ordem da [`product.md`](product.md#dashboard-início), blocos vazios
-desaparecendo, "Precisa da sua atenção" derivado por query, mobile first.
-**Pronto quando:** o cliente entende, em cinco segundos e no celular, o que
-depende dele.
+_Era "Dashboard". A fase sempre foi esta — dashboard real, atenção derivada por
+query, blocos vazios desaparecendo, mobile first —, e o que mudou foi a
+definição de pronto, não a posição no roadmap._
+
+Home client-facing com quatro blocos e nenhum dado fictício; **Attention
+Engine** derivado (`src/domains/attention`), com o onboarding em `draft` como
+única source; três estados — atenção, calma e degradação — decididos no domínio;
+etapa corrente e jornada resumida reais; `/projeto` como aprofundamento;
+navegação por disponibilidade de feature; fim dos mocks client-facing e do
+hardcode de identidade; rotas futuras com estado honesto.
+
+**Pronto:** 1174 casos de teste em 64 arquivos (708 no projeto `unit`, 466 na
+suíte `rls` contra Postgres real)
+— contagem do Vitest, nunca de `grep` —, `pnpm check` e `pnpm build` verdes com
+24 rotas,
+**zero mudança de banco** (fingerprint idêntico nas nove partes), a resposta a
+"preciso fazer alguma coisa?" acima da dobra em 375 × 667 nos três estados, e
+zero overflow em quatro larguras. Documentado em
+[`FASE8ESTADO.md`](FASE8ESTADO.md), [ADR-0025](adr/0025-atencao-derivada-nunca-armazenada.md)
+e [ADR-0026](adr/0026-calma-exige-verificacao-completa.md).
+
+**A pergunta que precede toda source nova:** _o cliente precisa executar alguma
+ação?_ Se não, aquilo é contexto da Home — não é `AttentionItem`, e não nasce um
+`AttentionKind`. Uma reunião marcada não é atenção só por existir.
 
 ### FASE 9 — Estratégia
 
@@ -199,6 +219,9 @@ depende dele.
 Aprovação fica para a FASE 11.
 **Pronto quando:** a Boop escreve uma estratégia e o cliente a lê como
 apresentação, não como formulário.
+**Atenção:** nenhuma source nova. Nesta fase o cliente LÊ; não há ação que ele
+execute, então não há `AttentionKind`. Ligar `strategy` na navegação
+(`PORTAL_SECTIONS`) é a mudança de uma linha.
 
 ### FASE 10 — Conteúdo
 
@@ -207,6 +230,9 @@ lista e preview no portal, `createContentVersion` (função SQL) marcando a vers
 anterior como `superseded`.
 **Pronto quando:** criar a v2 de um conteúdo aprovado preserva a aprovação da v1 e
 devolve o item para produção.
+**Atenção:** nenhuma source nova, pelo mesmo motivo da FASE 9. Ligar `content`
+na navegação basta — mesmo com zero peças, a seção aparece e mostra estado
+vazio honesto (D-25).
 
 ### FASE 11 — Feedback e aprovação 🎯 Marco 1
 
@@ -215,6 +241,9 @@ devolve o item para produção.
 duplo clique, e-mails `content_needs_approval` e `changes_requested`.
 **Pronto quando:** o fluxo inteiro da §45 roda ponta a ponta em staging, com dois
 clientes distintos, sem toque manual no banco.
+**Atenção:** aqui nascem `strategy.approve` e `content.approve` — é a primeira
+fase em que existe ação de aprovação que o CLIENTE executa. Cada kind entra com
+a sua linha em `PRIORITY` e a sua source, no molde de `sources/onboarding.ts`.
 
 ### FASE 12 — Arquivos
 
@@ -230,6 +259,9 @@ correto, e não vê arquivo `internal` do próprio cliente.
 CRUD de reuniões, timezone `America/Sao_Paulo`, próximo encontro no dashboard,
 tela de Encontros, `meeting_url` manual.
 **Pronto quando:** o cliente vê o próximo encontro com data, hora e link.
+**Atenção:** reunião marcada NÃO é atenção — o cliente não precisa executar nada
+para ela acontecer. Só vira `AttentionKind` se existir confirmação de presença,
+reagendamento ou envio de pauta, e essa decisão é desta fase, não da FASE 8.
 
 ### FASE 14 — Resultados
 

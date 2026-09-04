@@ -1,0 +1,85 @@
+From 044ca74ab96d526f92653c22c2d9c34df368f55a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 4 Sep 2026 21:14:56 +0000
+Subject: [PATCH 8/8] fix: the skip link was landing behind the navigation
+
+scroll-padding-top was set to 3.5rem, the height of the header's top bar.
+Measured in Chromium, the whole sticky header is 101px up to md and 109px
+above it, because the section nav rides along underneath. A hash target --
+and the skip link's #main is one -- stopped 45px behind the navigation,
+for the people who use that link precisely because they cannot see where
+they are.
+
+6.5rem and 7rem now, zero at lg where the header does not exist. The
+number is measured rather than derived, so a note in the CSS says to
+re-measure it when phase 9 lights the bottom bar and the section row
+disappears below md.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018UKPpUS3fkG6nVBWrmzHnT
+---
+ docs/FASE85ESTADO.md | 10 ++++++++++
+ src/app/globals.css  | 14 +++++++++++---
+ 2 files changed, 21 insertions(+), 3 deletions(-)
+
+diff --git a/docs/FASE85ESTADO.md b/docs/FASE85ESTADO.md
+index a5c372e..8f9a714 100644
+--- a/docs/FASE85ESTADO.md
++++ b/docs/FASE85ESTADO.md
+@@ -104,6 +104,13 @@ medir em Chromium achou três coisas:
+    voltavam ao CSS de produção como regras mortas, e foi isso que quase
+    escondeu o defeito acima da auditoria. Resolvido com `@source not`.
+ 
++6. **O skip link parava por baixo da navegação** — `scroll-padding-top` foi
++   posto em 3.5rem, a altura da BARRA do cabeçalho. Medido em Chromium, o
++   cabeçalho sticky inteiro tem 101px até `md` e 109px acima, porque a linha de
++   seções vem junto. O alvo do "Pular para o conteúdo" parava 45px atrás da
++   navegação — para quem usa exatamente esse link. Corrigido para 6.5rem/7rem,
++   e zero em `lg`, onde o cabeçalho não existe.
++
+ E um falso positivo que quase virou bug report: **o Chromium headless força
+ largura mínima de 500px**, então um screenshot pedido em 375 renderiza em 500 e
+ recorta. O "overflow" era a medição, não a página. Medido por iframe,
+@@ -141,6 +148,9 @@ utilitário voltar a escrever `-[--token]` no lugar de `-(--token)`.
+ - **`prefers-reduced-motion` verificado por CSS, não por navegador.** O bloco
+   global cobre `boop-workspace` e `skeleton-pulse` por construção (`*` com
+   `!important`), e há teste que lê o CSS; ninguém ligou a preferência no SO.
++- **`scroll-padding-top` é um número medido, não derivado.** Quando a FASE 9
++  ligar a barra inferior, a linha de seções some abaixo de `md` e o cabeçalho
++  volta a 56px: o valor precisa ser remedido junto. Está anotado no CSS.
+ - **O esqueleto é genérico.** Uma rota com geometria muito diferente da Home
+   ainda verá as três faixas padrão. Vale reavaliar quando Estratégia existir.
+ 
+diff --git a/src/app/globals.css b/src/app/globals.css
+index 88c1752..c42da01 100644
+--- a/src/app/globals.css
++++ b/src/app/globals.css
+@@ -238,14 +238,22 @@
+      * topo da pagina depois da navegacao: o Next PULA elementos sticky ao
+      * procurar o alvo de scroll, entao a compensacao e nossa. E a receita da
+      * documentacao do proprio Next (`link.md#scroll-offset-with-sticky-headers`).
+-     * Em `lg` o cabecalho nao existe, e a compensacao zera.
++     *
++     * O valor e o cabecalho INTEIRO — barra mais linha de secoes —, nao so a
++     * barra: medido em Chromium, 101px ate `md` e 109px acima. Um valor menor
++     * deixaria o alvo do "Pular para o conteudo" parando por baixo da
++     * navegacao, que e justamente quem usa o skip link.
++     *
++     * Em `lg` o cabecalho nao existe e a compensacao zera. Quando a FASE 9
++     * ligar a barra inferior, a linha de secoes some abaixo de `md` e o
++     * cabecalho volta a 56px: este valor precisa ser remedido junto.
+      */
+-    scroll-padding-top: 3.5rem;
++    scroll-padding-top: 6.5rem;
+   }
+ 
+   @media (min-width: 48rem) {
+     html {
+-      scroll-padding-top: 4rem;
++      scroll-padding-top: 7rem;
+     }
+   }
+ 
+-- 
+2.43.0
+

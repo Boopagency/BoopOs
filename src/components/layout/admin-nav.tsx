@@ -40,7 +40,7 @@ export function AdminNav() {
                   className={cn(
                     /* 44px de alvo de toque, mesmo no admin. */
                     't-meta flex h-11 items-center px-3 transition-colors',
-                    'duration-[--motion-fast] ease-[--ease-standard]',
+                    'duration-(--motion-fast) ease-(--ease-standard)',
                     /*
                      * A barra inferior e o portador do estado, e o peso do
                      * texto acompanha: cor sozinha nao pode carregar

@@ -94,11 +94,16 @@ describe('as superficies desta fase nao falam com os mocks', () => {
     expect(arquivo!.codigo).not.toContain('@/mocks')
   })
 
-  it('APENAS `lib/data/portal.ts` importa os mocks — a fronteira unica', () => {
+  /*
+   * Na FASE 6 a fronteira unica era `lib/data/portal.ts`: um arquivo so podia
+   * tocar os mocks. Na FASE 8 os mocks morreram e a camada foi junto, entao a
+   * afirmacao passou de "so um importa" para "ninguem importa".
+   */
+  it('⚠️ NINGUEM importa os mocks — eles nao existem mais', () => {
     const importadores = FONTES.filter((f) => f.codigo.includes("from '@/mocks")).map(
       (f) => f.caminho,
     )
-    expect(importadores).toEqual(['lib/data/portal.ts'])
+    expect(importadores).toEqual([])
   })
 
   it('nenhuma TELA importa os mocks direto (a regra do CLAUDE.md)', () => {
