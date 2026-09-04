@@ -54,7 +54,7 @@ export function AttentionBlock({
     <section aria-labelledby="atencao" className="on-inverse bg-navy relative overflow-hidden">
       <CloudLayer density="single" className="opacity-25 mix-blend-screen" />
 
-      <div className="content relative py-14 md:py-20">
+      <div className="content relative py-12 md:py-20">
         <h2 id="atencao" className="t-meta text-sky">
           Precisa da sua atenção
         </h2>

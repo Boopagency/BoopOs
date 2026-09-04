@@ -34,7 +34,7 @@ export function PortalGreeting({
   const nome = firstName(fullName)
 
   return (
-    <section className="content py-10 md:py-14">
+    <section className="content py-8 md:py-14">
       <h1 className="t-title text-foreground max-w-[18ch]">
         {nome ? `${greeting()}, ${nome}.` : `${greeting()}.`}
       </h1>

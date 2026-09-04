@@ -31,10 +31,16 @@ export function DegradedState() {
         <BoopEyes className="w-12 shrink-0 opacity-70 md:w-16" />
 
         <div className="min-w-0">
-          <h2 id="nao-verificado" className="t-section text-foreground max-w-[20ch]">
+          {/*
+            Escala menor que a do estado de calma, de propósito. Este bloco diz
+            que uma leitura falhou — é menos importante que uma pendência de
+            verdade, e gritar mais alto que ela seria alarme, que é justamente o
+            tom que este estado não pode ter.
+          */}
+          <h2 id="nao-verificado" className="t-title text-foreground max-w-[30ch]">
             Não conseguimos verificar todas as suas pendências agora.
           </h2>
-          <p className="t-lead text-muted mt-4 max-w-[36ch]">
+          <p className="t-body text-muted mt-4 max-w-[40ch]">
             Você ainda pode acompanhar o andamento do projeto abaixo.
           </p>
         </div>
