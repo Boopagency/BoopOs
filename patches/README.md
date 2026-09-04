@@ -36,20 +36,20 @@ fase anterior**, que continham os da anterior, e assim por diante.
 | ---- | ------- | ------------------------------- |
 | 6    | 22 MB   | —                               |
 | 7    | 29 MB   | 22 MB (76%)                     |
-| 8    | ~65 MB  | projetado                       |
-| 9    | ~140 MB | **acima do limite do GitHub**   |
+| 8    | 7,8 MB  | **zero** — a exclusão funcionou |
+| 9    | ~8,5 MB | projetado, crescendo com código |
 
-Excluindo a pasta, o histórico real do código-fonte são **7,1 MB**, e o
-crescimento volta a ser o do código.
+Excluindo a pasta, o histórico real do código-fonte era **7,1 MB** ao fim da
+FASE 7 e são **7,8 MB** ao fim da FASE 8 — o crescimento voltou a ser o do
+código, como previsto.
 
 Nada se perde. Um patch que reconstrói arquivos de patch é circular: quem
-restaura a partir daqui recebe as 295 fontes rastreadas — verificado byte a byte
+restaura a partir daqui recebe as 317 fontes rastreadas — verificado byte a byte
 contra `git ls-tree` — e pode regerar os patches com um `git format-patch`.
 
 Duas consequências que quem restaura precisa saber:
 
-- **36 commits, não 38.** Os dois commits da FASE 6 que tocaram
-  _exclusivamente_ `patches/` viram patch vazio e são omitidos. Eles não
-  continham código.
+- **47 commits.** Os commits que tocaram _exclusivamente_ `patches/` viram patch
+  vazio e são omitidos. Eles não continham código.
 - **A pasta `patches/` não existe** no repositório restaurado, até a próxima
   fase gerá-la de novo.

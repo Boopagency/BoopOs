@@ -1,0 +1,674 @@
+From f53c956337a01d0a9a96de9f8b9212c68f993aa6 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 4 Sep 2026 04:40:44 +0000
+Subject: [PATCH 06/10] feat: navigation follows the product, not the row count
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+A section appears in the navigation when the feature exists, and that is a
+constant in code changed by a phase commit — never a query. The difference
+is the client: a menu that shows up when the first row is created and
+disappears when the last one is deleted makes the system's architecture
+blink at someone who is only trying to follow their own project. When
+phase 10 turns content on, it appears for everyone, including clients with
+zero pieces, who get an honest empty state and still know where the section
+lives.
+
+Two sections exist today, so two are listed. The other five keep their
+slugs and their routes: hiding a section from the navigation never
+invalidates a deep link, and email is the way most clients arrive.
+
+Onboarding is not a section and will not become one. It is a task, reached
+from the attention block and from the journey stage. A pending item that
+becomes a menu entry stops being pending and becomes a place.
+
+The bottom bar only pays for itself with three destinations. With two it
+would spend fifty-six permanent pixels plus the gesture area to offer one
+link the home already gives, and its "More" panel would have nothing to
+open. Below the threshold the header's word row serves both breakpoints —
+and the height reservation in main disappears with the bar, or a phantom
+footer stays behind.
+
+Cycle left the header. It means something inside the journey and nothing
+inside an application bar, so it moved down to the block that gives it
+context.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0117F4Mdwaya7rKTrRBr7Tws
+---
+ .../(portal)/portal/[projectId]/layout.tsx    |   9 +-
+ src/components/layout/portal-bottom-nav.tsx   | 145 +++++++++++-------
+ src/components/layout/portal-nav.tsx          |  38 +++--
+ src/components/layout/portal-shell.tsx        |  50 ++++--
+ src/config/app.ts                             |  83 +++++++---
+ tests/unit/phase8-nav-availability.test.ts    | 121 +++++++++++++++
+ 6 files changed, 344 insertions(+), 102 deletions(-)
+ create mode 100644 tests/unit/phase8-nav-availability.test.ts
+
+diff --git a/src/app/(portal)/portal/[projectId]/layout.tsx b/src/app/(portal)/portal/[projectId]/layout.tsx
+index 56ec9c6..c138f97 100644
+--- a/src/app/(portal)/portal/[projectId]/layout.tsx
++++ b/src/app/(portal)/portal/[projectId]/layout.tsx
+@@ -1,5 +1,6 @@
+ import type { ReactNode } from 'react'
+ import { PortalShell } from '@/components/layout/portal-shell'
++import { visibleSections } from '@/config/app'
+ import { getClientPublic } from '@/domains/clients/queries'
+ import { listPortalProjects, requireVisiblePortalProject } from '@/domains/projects/queries'
+ 
+@@ -53,7 +54,13 @@ export default async function ProjectLayout({
+       projectId={project.id}
+       clientName={client.name}
+       projectName={project.name}
+-      cycle={project.cycle}
++      /*
++       * A navegacao segue o PRODUTO: uma secao aparece quando a funcionalidade
++       * existe, e nunca porque uma tabela ganhou a primeira linha. Um menu que
++       * pisca conforme os dados faz a arquitetura do sistema aparecer para quem
++       * so queria acompanhar o proprio projeto (D-25).
++       */
++      sections={visibleSections(project.type)}
+       /*
+        * O seletor só aparece com mais de um projeto — com um só, a complexidade
+        * fica invisível (docs/product.md). Não é um oitavo item de navegação: é
+diff --git a/src/components/layout/portal-bottom-nav.tsx b/src/components/layout/portal-bottom-nav.tsx
+index ed67244..0af8340 100644
+--- a/src/components/layout/portal-bottom-nav.tsx
++++ b/src/components/layout/portal-bottom-nav.tsx
+@@ -3,7 +3,7 @@
+ import { useEffect, useRef, useState } from 'react'
+ import Link from 'next/link'
+ import { usePathname } from 'next/navigation'
+-import { MOBILE_PRIMARY, PORTAL_NAV, portalHref } from '@/config/app'
++import { portalHref, type PortalSection } from '@/config/app'
+ import { cn } from '@/lib/cn'
+ 
+ /*
+@@ -19,15 +19,28 @@ import { cn } from '@/lib/cn'
+  * `pb-[env(safe-area-inset-bottom)]` mantém a barra acima da barra de gestos
+  * do iOS.
+  */
+-const PRIMARY = PORTAL_NAV.filter((item) => MOBILE_PRIMARY.includes(item.key))
+-const SECONDARY = PORTAL_NAV.filter((item) => !MOBILE_PRIMARY.includes(item.key))
++/**
++ * Quantos destinos cabem na barra antes de "Mais" existir.
++ *
++ * Três, mais o botão. Sete botões em 375px seriam ilegíveis.
++ */
++const NA_BARRA = 3
+ 
+-export function PortalBottomNav({ projectId }: { projectId: string }) {
++export function PortalBottomNav({
++  projectId,
++  sections,
++}: {
++  projectId: string
++  sections: readonly PortalSection[]
++}) {
+   const pathname = usePathname()
+   const dialogRef = useRef<HTMLDialogElement>(null)
+   const [open, setOpen] = useState(false)
+   const root = portalHref(projectId, '')
+ 
++  const PRIMARY = sections.slice(0, NA_BARRA)
++  const SECONDARY = sections.slice(NA_BARRA)
++
+   /*
+    * Fecha o painel quando a navegação acontece. Não precisa de setState aqui:
+    * `dialog.close()` dispara o evento `close`, e o `onClose` abaixo é quem
+@@ -54,13 +67,23 @@ export function PortalBottomNav({ projectId }: { projectId: string }) {
+ 
+   const secondaryActive = SECONDARY.some((item) => isActive(item.slug))
+ 
++  /*
++   * "Mais" só existe quando tem o que abrir. Um botão que abre um painel vazio
++   * é pior que a ausência dele — e é o que aconteceria hoje, com duas seções.
++   */
++  const temMais = SECONDARY.length > 0
++  const colunas = PRIMARY.length + (temMais ? 1 : 0)
++
+   return (
+     <>
+       <nav
+         aria-label="Seções do projeto"
+         className="border-rule bg-cloud/95 fixed inset-x-0 bottom-0 z-40 border-t backdrop-blur-sm md:hidden"
+       >
+-        <ul className="grid grid-cols-4 pb-[env(safe-area-inset-bottom)]">
++        <ul
++          className="grid pb-[env(safe-area-inset-bottom)]"
++          style={{ gridTemplateColumns: `repeat(${colunas}, minmax(0, 1fr))` }}
++        >
+           {PRIMARY.map((item) => {
+             const active = isActive(item.slug)
+             return (
+@@ -83,65 +106,69 @@ export function PortalBottomNav({ projectId }: { projectId: string }) {
+             )
+           })}
+ 
+-          <li>
+-            <button
+-              type="button"
+-              onClick={toggle}
+-              aria-expanded={open}
+-              aria-haspopup="dialog"
+-              className={cn(
+-                't-meta flex h-14 w-full flex-col items-center justify-center gap-1.5',
+-                secondaryActive || open ? 'text-foreground' : 'text-muted',
+-              )}
+-            >
+-              <span
+-                aria-hidden="true"
++          {temMais && (
++            <li>
++              <button
++                type="button"
++                onClick={toggle}
++                aria-expanded={open}
++                aria-haspopup="dialog"
+                 className={cn(
+-                  'h-0.5 w-6',
+-                  secondaryActive && !open ? 'bg-accent' : 'bg-transparent',
++                  't-meta flex h-14 w-full flex-col items-center justify-center gap-1.5',
++                  secondaryActive || open ? 'text-foreground' : 'text-muted',
+                 )}
+-              />
+-              Mais
+-            </button>
+-          </li>
++              >
++                <span
++                  aria-hidden="true"
++                  className={cn(
++                    'h-0.5 w-6',
++                    secondaryActive && !open ? 'bg-accent' : 'bg-transparent',
++                  )}
++                />
++                Mais
++              </button>
++            </li>
++          )}
+         </ul>
+       </nav>
+ 
+-      <dialog
+-        ref={dialogRef}
+-        aria-label="Mais seções"
+-        onClose={() => setOpen(false)}
+-        className={cn(
+-          'border-rule bg-cloud mt-auto mb-0 w-full max-w-none rounded-t-lg border-t p-0',
+-          'backdrop:bg-navy/40 open:animate-[boop-rise_var(--motion-default)_var(--ease-out)]',
+-        )}
+-      >
+-        <div className="px-5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+-          <p className="t-meta text-muted">Mais seções</p>
+-          <ul className="divide-rule mt-4 divide-y">
+-            {SECONDARY.map((item) => (
+-              <li key={item.key}>
+-                <Link
+-                  href={portalHref(projectId, item.slug)}
+-                  className="t-title text-foreground flex h-14 items-center justify-between"
+-                >
+-                  {item.label}
+-                  <span aria-hidden="true" className="text-muted">
+-                    →
+-                  </span>
+-                </Link>
+-              </li>
+-            ))}
+-          </ul>
+-          <button
+-            type="button"
+-            onClick={toggle}
+-            className="t-meta border-rule-strong text-foreground mt-6 h-12 w-full border"
+-          >
+-            Fechar
+-          </button>
+-        </div>
+-      </dialog>
++      {temMais && (
++        <dialog
++          ref={dialogRef}
++          aria-label="Mais seções"
++          onClose={() => setOpen(false)}
++          className={cn(
++            'border-rule bg-cloud mt-auto mb-0 w-full max-w-none rounded-t-lg border-t p-0',
++            'backdrop:bg-navy/40 open:animate-[boop-rise_var(--motion-default)_var(--ease-out)]',
++          )}
++        >
++          <div className="px-5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
++            <p className="t-meta text-muted">Mais seções</p>
++            <ul className="divide-rule mt-4 divide-y">
++              {SECONDARY.map((item) => (
++                <li key={item.key}>
++                  <Link
++                    href={portalHref(projectId, item.slug)}
++                    className="t-title text-foreground flex h-14 items-center justify-between"
++                  >
++                    {item.label}
++                    <span aria-hidden="true" className="text-muted">
++                      →
++                    </span>
++                  </Link>
++                </li>
++              ))}
++            </ul>
++            <button
++              type="button"
++              onClick={toggle}
++              className="t-meta border-rule-strong text-foreground mt-6 h-12 w-full border"
++            >
++              Fechar
++            </button>
++          </div>
++        </dialog>
++      )}
+     </>
+   )
+ }
+diff --git a/src/components/layout/portal-nav.tsx b/src/components/layout/portal-nav.tsx
+index 76d0d96..59c6cba 100644
+--- a/src/components/layout/portal-nav.tsx
++++ b/src/components/layout/portal-nav.tsx
+@@ -2,27 +2,45 @@
+ 
+ import Link from 'next/link'
+ import { usePathname } from 'next/navigation'
+-import { PORTAL_NAV, portalHref } from '@/config/app'
++import { portalHref, type PortalSection } from '@/config/app'
+ import { cn } from '@/lib/cn'
+ 
+ /*
+- * Navegação do desktop: uma linha de palavras, como o sumário de uma revista.
++ * Navegação do portal: uma linha de palavras, como o sumário de uma revista.
+  *
+- * Não é sidebar (ocuparia 240px permanentes para sete links que cabem numa
+- * linha) e não é pill (a direção proíbe). O item ativo é marcado por um filete
+- * azul embaixo — o mesmo gesto de uma régua editorial.
++ * Não é sidebar — ocuparia 240px permanentes para links que cabem numa linha —
++ * e não é pill: a direção proíbe. O item ativo é marcado por um filete azul
++ * embaixo, o mesmo gesto de uma régua editorial.
+  *
+- * `use client` apenas por causa do `usePathname`: é a única parte da casca que
++ * ## Por que ela agora aparece no celular também
++ *
++ * Enquanto houver menos de três seções, a barra inferior não é renderizada
++ * (`BOTTOM_NAV_THRESHOLD`): ela custaria a metade inferior da tela para
++ * oferecer um link que a Home já dá. Duas palavras cabem folgado em 375px, e o
++ * cabeçalho já é sticky — a navegação continua sempre alcançável.
++ *
++ * `use client` só por causa do `usePathname`: é a única parte da casca que
+  * precisa saber onde o usuário está.
+  */
+-export function PortalNav({ projectId }: { projectId: string }) {
++export function PortalNav({
++  projectId,
++  sections,
++  className,
++}: {
++  projectId: string
++  sections: readonly PortalSection[]
++  className?: string
++}) {
+   const pathname = usePathname()
+   const root = portalHref(projectId, '')
+ 
++  /* Uma seção só é o próprio lugar onde a pessoa está: não é navegação. */
++  if (sections.length < 2) return null
++
+   return (
+-    <nav aria-label="Seções do projeto" className="hidden md:block">
++    <nav aria-label="Seções do projeto" className={className}>
+       <ul className="flex flex-wrap items-center gap-x-7 gap-y-2 lg:gap-x-9">
+-        {PORTAL_NAV.map((item) => {
++        {sections.map((item) => {
+           const href = portalHref(projectId, item.slug)
+           const active = item.slug === '' ? pathname === root : pathname.startsWith(href)
+ 
+@@ -32,7 +50,7 @@ export function PortalNav({ projectId }: { projectId: string }) {
+                 href={href}
+                 aria-current={active ? 'page' : undefined}
+                 className={cn(
+-                  't-meta relative block py-3 transition-colors duration-[--motion-fast]',
++                  't-meta relative flex min-h-11 items-center transition-colors duration-[--motion-fast]',
+                   active ? 'text-foreground' : 'text-muted hover:text-foreground',
+                 )}
+               >
+diff --git a/src/components/layout/portal-shell.tsx b/src/components/layout/portal-shell.tsx
+index ba40ad4..96f93c6 100644
+--- a/src/components/layout/portal-shell.tsx
++++ b/src/components/layout/portal-shell.tsx
+@@ -4,13 +4,17 @@ import { BoopMark } from '@/components/brand/boop-mark'
+ import { PortalBottomNav } from '@/components/layout/portal-bottom-nav'
+ import { PortalNav } from '@/components/layout/portal-nav'
+ import { SignOutButton } from '@/components/patterns/sign-out-button'
+-import { portalHref } from '@/config/app'
++import { BOTTOM_NAV_THRESHOLD, portalHref, type PortalSection } from '@/config/app'
+ 
+ export interface PortalShellProps {
+   projectId: string
+   clientName: string
+   projectName: string
+-  cycle: number
++  /**
++   * As secoes DISPONIVEIS para este projeto — decididas pelo produto, nunca
++   * por contagem de linhas (`visibleSections`).
++   */
++  sections: readonly PortalSection[]
+   /**
+    * Todos os projetos que esta pessoa alcanca. Com um so, nada muda na tela.
+    *
+@@ -33,17 +37,27 @@ export function PortalShell({
+   projectId,
+   clientName,
+   projectName,
+-  cycle,
++  sections,
+   projects,
+   children,
+ }: PortalShellProps) {
+   const others = (projects ?? []).filter((project) => project.id !== projectId)
+ 
++  /*
++   * A barra inferior so se paga com tres destinos ou mais. Abaixo disso ela
++   * custaria 56px permanentes mais a area de gestos para oferecer um link que a
++   * Home ja da, e o painel "Mais" nao teria o que abrir.
++   *
++   * Quando ela nao renderiza, a RESERVA de espaco no `main` some junto — senao
++   * sobra um rodape fantasma de 96px no celular.
++   */
++  const comBarra = sections.length >= BOTTOM_NAV_THRESHOLD
++
+   return (
+     <div className="bg-background flex min-h-dvh flex-col">
+       <header className="border-rule bg-background/92 sticky top-0 z-30 border-b backdrop-blur-sm">
+         <div className="content">
+-          <div className="flex h-16 items-center justify-between gap-4 md:h-20">
++          <div className="flex h-14 items-center justify-between gap-4 md:h-16">
+             <Link
+               href={portalHref(projectId, '')}
+               className="flex items-center gap-3"
+@@ -93,22 +107,30 @@ export function PortalShell({
+                 </details>
+               )}
+ 
+-              <p className="t-meta text-muted text-right">
+-                <span className="text-foreground">Ciclo {cycle}</span>
+-              </p>
+-
+-              <span aria-hidden="true" className="bg-rule-strong h-5 w-px" />
+-
++              {/*
++                "Ciclo N" saiu daqui na FASE 8. Ciclo e vocabulario de operacao:
++                ele significa alguma coisa DENTRO da jornada, e nada dentro de
++                uma barra de aplicacao. Desceu para o bloco "Agora", onde tem
++                contexto (D-29, docs/product.md).
++              */}
+               <SignOutButton />
+             </div>
+           </div>
+ 
+-          <PortalNav projectId={projectId} />
++          {/*
++            A linha de palavras vale nos DOIS breakpoints enquanto a barra
++            inferior nao existir. Duas palavras cabem folgado em 375px.
++          */}
++          <PortalNav
++            projectId={projectId}
++            sections={sections}
++            className={comBarra ? 'hidden md:block' : ''}
++          />
+         </div>
+       </header>
+ 
+-      {/* pb-20 no celular reserva a altura da barra inferior fixa */}
+-      <main id="main" className="flex-1 pb-24 md:pb-0">
++      {/* A reserva de altura existe SO quando a barra inferior existe. */}
++      <main id="main" className={comBarra ? 'flex-1 pb-24 md:pb-0' : 'flex-1'}>
+         {children}
+       </main>
+ 
+@@ -124,7 +146,7 @@ export function PortalShell({
+         </div>
+       </footer>
+ 
+-      <PortalBottomNav projectId={projectId} />
++      {comBarra && <PortalBottomNav projectId={projectId} sections={sections} />}
+     </div>
+   )
+ }
+diff --git a/src/config/app.ts b/src/config/app.ts
+index 5caa8b4..d4d66e9 100644
+--- a/src/config/app.ts
++++ b/src/config/app.ts
+@@ -1,3 +1,5 @@
++import type { ProjectType } from '@/config/enums'
++
+ /**
+  * Constantes de produto. Nenhuma string fundamental duplicada pelo código.
+  * Ver docs/product.md.
+@@ -12,31 +14,76 @@ export const APP = {
+ } as const
+ 
+ /**
+- * Navegação do portal — sete itens, e um oitavo exige justificativa escrita
+- * (CLAUDE.md).
++ * As seções do portal, e o que decide se elas aparecem.
++ *
++ * ## A navegação segue o PRODUTO, nunca a contagem de linhas
++ *
++ * `available` é uma constante em código, alterada por commit de fase. Ela
++ * responde "esta funcionalidade existe?", e não "este cliente tem dados?".
++ *
++ * A diferença é o cliente. Um menu que aparece quando a primeira linha é criada
++ * e some quando a última é apagada faz a arquitetura do sistema piscar na cara
++ * de quem está tentando só acompanhar o próprio projeto. Quando a FASE 10
++ * ligar Conteúdo, ele aparece para todo mundo — inclusive para quem tem zero
++ * peças, que vê um estado vazio honesto e continua sabendo onde a seção fica.
++ *
++ * ## O teto de sete continua valendo
++ *
++ * Sete chaves, e uma oitava exige justificativa escrita (CLAUDE.md). O que
++ * mudou é que o teto deixou de ser piso: hoje duas estão disponíveis, porque
++ * duas existem de verdade.
+  *
+- * `slug` vazio é a raiz do projeto. Os href são montados a partir do
+- * projectId, porque toda rota do portal é escopada por projeto
+- * (docs/product.md).
++ * O onboarding não está aqui e não vai estar: ele é uma TAREFA, não uma área. É
++ * alcançado pelo bloco de atenção e pela etapa da jornada. Uma pendência que
++ * vira item de menu deixa de ser pendência e vira lugar.
+  */
+-export const PORTAL_NAV = [
+-  { key: 'home', label: 'Início', slug: '' },
+-  { key: 'project', label: 'Projeto', slug: 'projeto' },
+-  { key: 'content', label: 'Conteúdo', slug: 'conteudo' },
+-  { key: 'strategy', label: 'Estratégia', slug: 'estrategia' },
+-  { key: 'results', label: 'Resultados', slug: 'resultados' },
+-  { key: 'meetings', label: 'Encontros', slug: 'encontros' },
+-  { key: 'files', label: 'Arquivos', slug: 'arquivos' },
++export interface PortalSection {
++  key: PortalNavKey
++  label: string
++  slug: string
++  /** A funcionalidade existe no produto? Muda por fase, nunca por consulta. */
++  available: boolean
++  /**
++   * Tipos de projeto a que a seção se aplica. `null` = todos.
++   *
++   * Existe para o caso real de uma seção não fazer sentido em um tipo de
++   * projeto. Hoje nenhuma usa — e olhar para o TIPO não é olhar para os dados.
++   */
++  appliesTo: readonly ProjectType[] | null
++}
++
++export const PORTAL_SECTIONS: readonly PortalSection[] = [
++  { key: 'home', label: 'Início', slug: '', available: true, appliesTo: null },
++  { key: 'project', label: 'Projeto', slug: 'projeto', available: true, appliesTo: null },
++  /* As rotas abaixo existem e respondem. O que não existe é o domínio. */
++  { key: 'strategy', label: 'Estratégia', slug: 'estrategia', available: false, appliesTo: null },
++  { key: 'content', label: 'Conteúdo', slug: 'conteudo', available: false, appliesTo: null },
++  { key: 'files', label: 'Arquivos', slug: 'arquivos', available: false, appliesTo: null },
++  { key: 'meetings', label: 'Encontros', slug: 'encontros', available: false, appliesTo: null },
++  { key: 'results', label: 'Resultados', slug: 'resultados', available: false, appliesTo: null },
+ ] as const
+ 
+-export type PortalNavKey = (typeof PORTAL_NAV)[number]['key']
++export type PortalNavKey =
++  'home' | 'project' | 'strategy' | 'content' | 'files' | 'meetings' | 'results'
++
++/** As seções que este projeto realmente mostra. */
++export function visibleSections(type: ProjectType): readonly PortalSection[] {
++  return PORTAL_SECTIONS.filter(
++    (section) =>
++      section.available && (section.appliesTo === null || section.appliesTo.includes(type)),
++  )
++}
+ 
+ /**
+- * No celular a barra inferior carrega só o que se usa toda semana. O resto
+- * vive atrás de "Mais" — sete botões numa barra de 375px seria ilegível, e
+- * a alternativa (sidebar) é justamente o que a direção proíbe.
++ * A barra inferior do celular só se paga com três destinos ou mais.
++ *
++ * Com dois, ela custa 56px permanentes mais a área de gestos para oferecer UM
++ * link que a Home já oferece — e o painel "Mais" não teria o que abrir. Abaixo
++ * do limiar, a navegação compacta do cabeçalho vale nos dois breakpoints.
++ *
++ * O componente continua no repositório, testado, esperando a FASE 9 ou 10.
+  */
+-export const MOBILE_PRIMARY: PortalNavKey[] = ['home', 'project', 'content']
++export const BOTTOM_NAV_THRESHOLD = 3
+ 
+ export function portalHref(projectId: string, slug: string): string {
+   return slug ? `/portal/${projectId}/${slug}` : `/portal/${projectId}`
+diff --git a/tests/unit/phase8-nav-availability.test.ts b/tests/unit/phase8-nav-availability.test.ts
+new file mode 100644
+index 0000000..209d2ea
+--- /dev/null
++++ b/tests/unit/phase8-nav-availability.test.ts
+@@ -0,0 +1,121 @@
++import { describe, expect, it } from 'vitest'
++import { BOTTOM_NAV_THRESHOLD, PORTAL_SECTIONS, portalHref, visibleSections } from '@/config/app'
++import { PROJECT_TYPES, type ProjectType } from '@/config/enums'
++
++/**
++ * A navegação segue o PRODUTO, nunca a contagem de linhas.
++ *
++ * O caso que este arquivo existe para travar é o negativo: nada aqui consulta
++ * dados. Se alguém um dia fizer o menu depender de "tem conteúdo?", a
++ * arquitetura do sistema passa a piscar na cara de quem só queria acompanhar o
++ * próprio projeto — e o teste que quebra é este.
++ */
++
++describe('na FASE 8, duas seções existem de verdade', () => {
++  it('`visibleSections` devolve exatamente Início e Projeto', () => {
++    expect(visibleSections('social').map((s) => s.key)).toEqual(['home', 'project'])
++  })
++
++  it.each(PROJECT_TYPES)('vale para o projeto do tipo `%s`', (type: ProjectType) => {
++    expect(visibleSections(type).map((s) => s.key)).toEqual(['home', 'project'])
++  })
++
++  it('⚠️ nenhuma feature de fase futura está ligada', () => {
++    const futuras = ['strategy', 'content', 'files', 'meetings', 'results']
++
++    for (const key of futuras) {
++      const section = PORTAL_SECTIONS.find((s) => s.key === key)
++      expect(section, `seção ${key}`).toBeDefined()
++      expect(section?.available, `${key} não pode estar disponível na F8`).toBe(false)
++    }
++  })
++})
++
++describe('as rotas continuam existindo mesmo fora da navegação', () => {
++  it('toda seção mantém o slug, disponível ou não', () => {
++    const slugs = PORTAL_SECTIONS.map((s) => s.slug)
++
++    expect(slugs).toContain('conteudo')
++    expect(slugs).toContain('estrategia')
++    expect(slugs).toContain('resultados')
++    expect(slugs).toContain('encontros')
++    expect(slugs).toContain('arquivos')
++  })
++
++  it('ocultar da navegação não invalida o deep link', () => {
++    const conteudo = PORTAL_SECTIONS.find((s) => s.key === 'content')
++
++    expect(conteudo?.available).toBe(false)
++    expect(portalHref('abc', conteudo!.slug)).toBe('/portal/abc/conteudo')
++  })
++})
++
++describe('⚠️ disponibilidade não olha para dados', () => {
++  it('`visibleSections` recebe o TIPO do projeto, e nada mais', () => {
++    /*
++     * A assinatura é a garantia: sem `projectId`, sem contagem, sem client.
++     * Não há como fazer o menu depender de linhas sem mudar o contrato.
++     */
++    expect(visibleSections.length).toBe(1)
++  })
++
++  it('a decisão é constante entre chamadas', () => {
++    expect(visibleSections('social')).toEqual(visibleSections('social'))
++  })
++
++  it('o código de `visibleSections` não consulta banco', async () => {
++    const { readFileSync } = await import('node:fs')
++    const fonte = readFileSync('src/config/app.ts', 'utf8')
++
++    expect(fonte).not.toMatch(/supabase|from\('|createClient/i)
++  })
++})
++
++describe('o teto de sete continua valendo', () => {
++  it('sete chaves, nem uma a mais', () => {
++    expect(PORTAL_SECTIONS).toHaveLength(7)
++  })
++
++  it('nenhuma chave repetida', () => {
++    const keys = PORTAL_SECTIONS.map((s) => s.key)
++    expect(new Set(keys).size).toBe(keys.length)
++  })
++
++  it('nenhum slug repetido', () => {
++    const slugs = PORTAL_SECTIONS.map((s) => s.slug)
++    expect(new Set(slugs).size).toBe(slugs.length)
++  })
++
++  it('⚠️ onboarding NÃO é uma seção — é uma tarefa', () => {
++    expect(PORTAL_SECTIONS.map((s) => s.slug)).not.toContain('onboarding')
++  })
++})
++
++describe('a barra inferior espera ter o que oferecer', () => {
++  it('o limiar é três destinos', () => {
++    expect(BOTTOM_NAV_THRESHOLD).toBe(3)
++  })
++
++  it('⚠️ com duas seções, a barra não é renderizada', () => {
++    expect(visibleSections('social').length).toBeLessThan(BOTTOM_NAV_THRESHOLD)
++  })
++
++  it('o shell decide pela contagem, e some com a reserva junto', async () => {
++    const { readFileSync } = await import('node:fs')
++    const fonte = readFileSync('src/components/layout/portal-shell.tsx', 'utf8')
++
++    expect(fonte).toContain('sections.length >= BOTTOM_NAV_THRESHOLD')
++    expect(fonte).toContain("comBarra ? 'flex-1 pb-24 md:pb-0' : 'flex-1'")
++  })
++})
++
++describe('o cabeçalho é moldura', () => {
++  it('⚠️ "Ciclo N" saiu do shell', async () => {
++    const { readFileSync } = await import('node:fs')
++    const fonte = readFileSync('src/components/layout/portal-shell.tsx', 'utf8')
++    const codigo = fonte.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
++
++    expect(codigo).not.toContain('Ciclo {')
++    expect(codigo).not.toContain('cycle')
++  })
++})
+-- 
+2.43.0
+

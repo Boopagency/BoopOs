@@ -1,0 +1,771 @@
+From 02f72d208333932bd07b7931a85aae614d8177f2 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 4 Sep 2026 02:57:37 +0000
+Subject: [PATCH 02/10] feat: attention becomes a derived, fail-honest contract
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Attention is what depends on the client right now. It is derived on every
+request from the domains that already authorise themselves — there is no
+attention_items table, no queue, no dismiss state and no persistence.
+
+The contract carries the decision, not an exception: state is one of
+attention, calm or degraded, plus a complete flag and two counters. Nothing
+technical crosses the RSC boundary, so a component can render the answer
+without knowing why a read failed.
+
+The distinction that matters is between zero items because everything was
+checked and zero items because a read failed. The first is calm; the second
+is degraded, and calling it calm would tell a client nothing is waiting for
+them while a pending item sits unread. The ternary tests failure before
+calm, and a test breaks if anyone shortens it.
+
+Isolating a source has a trap: notFound() and redirect() signal by throwing,
+so a naive catch turns a cross-tenant 404 into "we could not check your
+pending items" while the page keeps mounting around it. That is a security
+failure wearing the costume of resilience. unstable_rethrow is the first
+line of the catch — verified to exist in the Next version this project
+pins — and a dedicated test asserts both signals still propagate.
+
+The kind union declares only what exists. Nothing is anticipated because it
+appears in the roadmap: a kind is born when there is a real client-facing
+state, a real action, and an action the client can actually take.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0117F4Mdwaya7rKTrRBr7Tws
+---
+ src/config/attention.ts               |  22 ++++
+ src/domains/attention/resolve.ts      |  60 +++++++++++
+ src/domains/attention/safety.ts       |  47 +++++++++
+ src/domains/attention/types.ts        | 130 +++++++++++++++++++++++
+ tests/support/attention-items.ts      |  27 +++++
+ tests/unit/attention-contract.test.ts | 118 +++++++++++++++++++++
+ tests/unit/attention-degraded.test.ts | 145 ++++++++++++++++++++++++++
+ tests/unit/attention-order.test.ts    | 116 +++++++++++++++++++++
+ 8 files changed, 665 insertions(+)
+ create mode 100644 src/config/attention.ts
+ create mode 100644 src/domains/attention/resolve.ts
+ create mode 100644 src/domains/attention/safety.ts
+ create mode 100644 src/domains/attention/types.ts
+ create mode 100644 tests/support/attention-items.ts
+ create mode 100644 tests/unit/attention-contract.test.ts
+ create mode 100644 tests/unit/attention-degraded.test.ts
+ create mode 100644 tests/unit/attention-order.test.ts
+
+diff --git a/src/config/attention.ts b/src/config/attention.ts
+new file mode 100644
+index 0000000..cc9fe7f
+--- /dev/null
++++ b/src/config/attention.ts
+@@ -0,0 +1,22 @@
++import type { AttentionKind } from '@/domains/attention/types'
++
++/**
++ * A política de ordem da atenção — uma TABELA, não uma cadeia de `if`.
++ *
++ * Uma linha, porque existe um `AttentionKind`. As faixas abaixo são orientação
++ * para quem acrescentar o próximo, e não linhas a preencher agora: um kind
++ * declarado sem source que o emita é semântica congelada antes do domínio
++ * existir (`src/domains/attention/types.ts`).
++ *
++ *     00–19  destrava o projeto     — o trabalho para sem isso
++ *     20–39  decisão do cliente     — aprovar, pedir ajuste
++ *     40–59  insumo pedido          — algo que só ele tem
++ *     60–79  tempo                  — algo com hora marcada
++ *
++ * `Record<AttentionKind, number>` é deliberado: acrescentar um kind sem a
++ * prioridade correspondente não compila.
++ */
++export const PRIORITY: Record<AttentionKind, number> = {
++  /* Onboarding parado bloqueia a etapa seguinte do projeto inteiro. */
++  'onboarding.continue': 10,
++}
+diff --git a/src/domains/attention/resolve.ts b/src/domains/attention/resolve.ts
+new file mode 100644
+index 0000000..3e5cdde
+--- /dev/null
++++ b/src/domains/attention/resolve.ts
+@@ -0,0 +1,60 @@
++import type { AttentionItem, AttentionResult, AttentionState, SourceOutcome } from './types'
++
++/**
++ * A decisão da atenção, pura e sem servidor.
++ *
++ * Mora fora de `queries.ts` de propósito: a regra que separa calma de degradação
++ * é a regra mais importante da fase, e ela precisa ser testável sem banco, sem
++ * Next e sem mock de infraestrutura.
++ */
++
++/**
++ * Ordem determinística. Os dois últimos critérios existem só para o desempate
++ * ser total: um teste que dependa da ordem de resolução do `Promise.all` falha
++ * de forma intermitente, e teste intermitente é pior que teste ausente.
++ *
++ * `dueAt` nulo vai por último — item sem prazo não disputa com item com prazo.
++ */
++export function byPriority(a: AttentionItem, b: AttentionItem): number {
++  if (a.priority !== b.priority) return a.priority - b.priority
++
++  if (a.dueAt !== b.dueAt) {
++    if (a.dueAt === null) return 1
++    if (b.dueAt === null) return -1
++    return a.dueAt < b.dueAt ? -1 : 1
++  }
++
++  if (a.kind !== b.kind) return a.kind < b.kind ? -1 : 1
++
++  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
++}
++
++/**
++ * As três respostas, decididas em UM lugar.
++ *
++ * ## A ordem do ternário é a fase inteira
++ *
++ * A simplificação natural — `items.length === 0 ? 'calm' : 'attention'` — é uma
++ * linha mais curta e é uma mentira: uma source que FALHOU também produz zero
++ * itens, e o cliente leria "tudo certo por aqui" com uma pendência aberta que
++ * ninguém conseguiu ler.
++ *
++ * Por isso a falha é testada ANTES da calma. `tests/unit/attention-degraded`
++ * quebra se alguém inverter.
++ *
++ * ## Zero sources avaliadas é calma, não degradação
++ *
++ * Projeto pausado, concluído ou sem source aplicável não tem o que verificar.
++ * Não há pergunta em aberto, então não há incerteza a comunicar.
++ */
++export function resolveAttention(
++  outcomes: readonly SourceOutcome[],
++  evaluated: number,
++): AttentionResult {
++  const failed = outcomes.filter((outcome) => !outcome.ok).length
++  const items = outcomes.flatMap((outcome) => (outcome.ok ? outcome.items : [])).sort(byPriority)
++
++  const state: AttentionState = items.length > 0 ? 'attention' : failed > 0 ? 'degraded' : 'calm'
++
++  return { state, items, complete: failed === 0, evaluated, failed }
++}
+diff --git a/src/domains/attention/safety.ts b/src/domains/attention/safety.ts
+new file mode 100644
+index 0000000..71d2df6
+--- /dev/null
++++ b/src/domains/attention/safety.ts
+@@ -0,0 +1,47 @@
++import { unstable_rethrow } from 'next/navigation'
++import { logger } from '@/lib/logging/logger'
++import type { AttentionContext, AttentionSource, SourceOutcome } from './types'
++
++/**
++ * Isolamento de erro por source — e a armadilha que ele existe para evitar.
++ *
++ * ## `notFound()` e `redirect()` são exceções
++ *
++ * Toda a cadeia de autorização do portal sinaliza por `throw`:
++ * `requireProjectAccess()` chama `notFound()`, `requireActor()` chama
++ * `redirect()`. Um `try/catch` ingênuo em volta de uma source **engoliria um
++ * 404 e o transformaria em estado degradado** — o cliente veria "não
++ * conseguimos verificar suas pendências" no lugar de um 404, e a página
++ * continuaria montando por cima de uma recusa de acesso.
++ *
++ * Isso não é resiliência: é falha de segurança com aparência de resiliência.
++ *
++ * `unstable_rethrow` é a API do próprio Next para isso, e existe e é função no
++ * Next 16.3.4 (conferido, não presumido). Ela é a PRIMEIRA linha do `catch`:
++ * devolve ao Next o que é do Next — 404, redirect e o sinal de saída do RSC —
++ * e só o que sobra é falha de leitura de verdade.
++ *
++ * O guard principal, de qualquer forma, roda FORA daqui: `getClientAttention()`
++ * chama `requireVisiblePortalProject()` antes de qualquer source existir. Este
++ * relançamento é a segunda barreira, para o dia em que uma source nova chamar
++ * um loader que guarda de novo.
++ */
++export async function runSafely(
++  source: AttentionSource,
++  ctx: AttentionContext,
++): Promise<SourceOutcome> {
++  try {
++    return { ok: true, items: await source.run(ctx) }
++  } catch (error) {
++    unstable_rethrow(error)
++
++    /*
++     * Só a chave da source vai para o log. Nunca o payload, nunca o id do
++     * cliente, nunca a mensagem do Postgres — a regra de log do repositório
++     * vale aqui como em qualquer outro lugar.
++     */
++    logger.error('attention.source_failed', { source: source.key })
++
++    return { ok: false }
++  }
++}
+diff --git a/src/domains/attention/types.ts b/src/domains/attention/types.ts
+new file mode 100644
+index 0000000..59add93
+--- /dev/null
++++ b/src/domains/attention/types.ts
+@@ -0,0 +1,130 @@
++import type { AssertClientFacing } from '@/lib/data/projection'
++import type { ProjectPublic } from '@/domains/projects/types'
++
++/**
++ * O contrato da atenção.
++ *
++ * ## O que é atenção, e o que não é
++ *
++ * Atenção é o que **depende do cliente agora**. Não é notícia, não é contexto,
++ * não é "coisas que existem no projeto". A pergunta que decide se um estado
++ * novo entra aqui é sempre a mesma, e ela é feita antes de qualquer código:
++ *
++ *     O cliente precisa executar alguma ação?
++ *
++ * Se a resposta for não, aquilo é conteúdo da Home — não é `AttentionItem`.
++ * Uma reunião marcada não vira atenção só por existir; um arquivo entregue
++ * também não. Sem acionabilidade, sem atenção.
++ *
++ * ## Derivada, nunca armazenada
++ *
++ * Não existe tabela `attention_items`, nem fila, nem dismiss, nem estado
++ * persistido (ADR-0025). O resultado é recalculado a cada request a partir dos
++ * domínios que já sabem autorizar a si mesmos.
++ */
++
++/**
++ * Os tipos de atenção que EXISTEM.
++ *
++ * Um valor só entra aqui quando há, ao mesmo tempo: estado client-facing real,
++ * ação real, e ação que o CLIENTE pode executar. Nada é antecipado porque está
++ * no roadmap — declarar `content.approve` hoje congelaria a semântica de
++ * aprovação antes de a FASE 11 projetar o domínio.
++ *
++ * Faixas de prioridade reservadas, como orientação para quem acrescentar o
++ * próximo — e não como linhas a preencher agora:
++ *
++ *     00–19  destrava o projeto
++ *     20–39  decisão do cliente
++ *     40–59  insumo pedido
++ *     60–79  tempo
++ */
++export type AttentionKind = 'onboarding.continue'
++
++export interface AttentionItem {
++  /**
++   * Estável entre requests, processos e canais: `${kind}:${entityId ?? projectId}`.
++   *
++   * Serve de chave no React, de `dedupe_key` quando a FASE 16 mandar e-mail, e
++   * de correlação em log. Por isso não pode conter PII e não pode ser aleatório.
++   */
++  id: string
++  kind: AttentionKind
++  /** Menor = mais urgente. Vem da tabela de `src/config/attention.ts`. */
++  priority: number
++  /**
++   * Quantas PENDÊNCIAS este item representa — nunca unidades internas.
++   *
++   * Onboarding em rascunho é `1`, e não o número de perguntas que faltam: o
++   * numeral gigante precisa significar a mesma coisa em todos os blocos, senão
++   * "03" quer dizer três conteúdos numa laje e três perguntas na outra.
++   */
++  count: number
++  /** pt-BR, pronto para renderizar. Sem jargão, sem status cru. */
++  title: string
++  description: string | null
++  /** `href` SEMPRE por `portalHref()`. Nunca literal, nunca concatenado. */
++  cta: { label: string; href: string }
++  projectId: string
++  entityId: string | null
++  dueAt: string | null
++}
++
++export type _AttentionItemIsSafe = AssertClientFacing<AttentionItem>
++
++/**
++ * As três respostas possíveis, e a diferença entre duas delas é a fase inteira.
++ *
++ * - `attention` — há algo esperando o cliente.
++ * - `calm`      — TODAS as sources relevantes responderam, e nenhuma trouxe
++ *                 item. É uma afirmação sobre o mundo.
++ * - `degraded`  — não foi possível verificar. **Não é calma.** Zero itens
++ *                 porque a leitura falhou não é zero pendências.
++ */
++export type AttentionState = 'attention' | 'calm' | 'degraded'
++
++export interface AttentionResult {
++  /** A decisão, já tomada no domínio. A UI não recalcula nada. */
++  state: AttentionState
++  items: readonly AttentionItem[]
++  /** Todas as sources relevantes responderam com sucesso? */
++  complete: boolean
++  /**
++   * Números, nunca erros.
++   *
++   * Nada técnico atravessa a fronteira do RSC: o componente sabe QUANTAS
++   * sources falharam, e nunca por quê. O motivo vai para o log.
++   */
++  evaluated: number
++  failed: number
++}
++
++export type _AttentionResultIsSafe = AssertClientFacing<AttentionResult>
++
++/** O que uma source recebe: o projeto JÁ verificado, nunca uma string solta. */
++export interface AttentionContext {
++  project: ProjectPublic
++}
++
++export interface AttentionSource {
++  /** Identifica a source em log e em teste. Nunca aparece na tela. */
++  key: string
++  /**
++   * A source se aplica a este projeto? Avaliada ANTES de rodar.
++   *
++   * Separar isto do `run` é o que faz "todas as sources RELEVANTES" virar
++   * código: uma source que não se aplica não conta como avaliada nem como
++   * falha, e um projeto sem onboarding continua em calma legítima em vez de
++   * parecer degradado.
++   */
++  appliesTo: (ctx: AttentionContext) => boolean
++  run: (ctx: AttentionContext) => Promise<readonly AttentionItem[]>
++}
++
++/**
++ * O resultado de UMA source, já isolado.
++ *
++ * `ok: false` não carrega o erro de propósito: quem decide o estado não deve
++ * ter como vazar detalhe técnico para a tela nem por engano.
++ */
++export type SourceOutcome = { ok: true; items: readonly AttentionItem[] } | { ok: false }
+diff --git a/tests/support/attention-items.ts b/tests/support/attention-items.ts
+new file mode 100644
+index 0000000..8ace64d
+--- /dev/null
++++ b/tests/support/attention-items.ts
+@@ -0,0 +1,27 @@
++import type { AttentionItem, AttentionKind } from '@/domains/attention/types'
++
++/**
++ * Construtor de item para as duas suítes que precisam de um.
++ *
++ * Mesma forma de `tests/support/answer-cases.ts`: a tabela mora fora do arquivo
++ * de teste para que unit e component afirmem sobre exatamente o mesmo objeto.
++ */
++export const PROJETO = '30000000-0000-4000-8000-000000000001'
++
++export function item(over: Partial<AttentionItem> = {}): AttentionItem {
++  const kind: AttentionKind = over.kind ?? 'onboarding.continue'
++
++  return {
++    id: `${kind}:${over.projectId ?? PROJETO}`,
++    kind,
++    priority: 10,
++    count: 1,
++    title: 'Seu onboarding está esperando você.',
++    description: null,
++    cta: { label: 'Continuar', href: `/portal/${PROJETO}/onboarding` },
++    projectId: PROJETO,
++    entityId: null,
++    dueAt: null,
++    ...over,
++  }
++}
+diff --git a/tests/unit/attention-contract.test.ts b/tests/unit/attention-contract.test.ts
+new file mode 100644
+index 0000000..045e538
+--- /dev/null
++++ b/tests/unit/attention-contract.test.ts
+@@ -0,0 +1,118 @@
++import { describe, expect, it } from 'vitest'
++import { resolveAttention } from '@/domains/attention/resolve'
++import type { SourceOutcome } from '@/domains/attention/types'
++import { item } from '../support/attention-items'
++
++/**
++ * As invariantes do contrato.
++ *
++ * Elas não são documentação com teste: são o teste. A regra que separa calma de
++ * degradação é a regra de honestidade da fase, e ela mora em um lugar só —
++ * `resolveAttention()` — justamente para poder ser cercada aqui.
++ */
++
++const ok = (...items: ReturnType<typeof item>[]): SourceOutcome => ({ ok: true, items })
++const falhou: SourceOutcome = { ok: false }
++
++describe('calma exige verificação completa', () => {
++  it('SUCCESS + zero itens → calm', () => {
++    const r = resolveAttention([ok()], 1)
++
++    expect(r.state).toBe('calm')
++    expect(r.items).toEqual([])
++    expect(r.complete).toBe(true)
++    expect(r.failed).toBe(0)
++  })
++
++  it('⚠️ FALHA + zero itens → degraded, NUNCA calm', () => {
++    const r = resolveAttention([falhou], 1)
++
++    expect(r.state).toBe('degraded')
++    expect(r.items).toEqual([])
++    expect(r.complete).toBe(false)
++    expect(r.failed).toBe(1)
++  })
++
++  it('sucesso + item → attention', () => {
++    const r = resolveAttention([ok(item())], 1)
++
++    expect(r.state).toBe('attention')
++    expect(r.items).toHaveLength(1)
++    expect(r.complete).toBe(true)
++  })
++
++  it('⚠️ item de uma source + falha de outra → attention com complete=false', () => {
++    /*
++     * Mostrar o que se sabe é melhor do que esconder por causa do que não se
++     * sabe — desde que não se afirme completude. A UI acrescenta um aviso
++     * discreto quando `complete` é falso; ela NÃO some com o item verdadeiro.
++     */
++    const r = resolveAttention([ok(item()), falhou], 2)
++
++    expect(r.state).toBe('attention')
++    expect(r.items).toHaveLength(1)
++    expect(r.complete).toBe(false)
++    expect(r.failed).toBe(1)
++  })
++
++  it('nenhuma source relevante → calm, não degraded', () => {
++    /*
++     * Projeto pausado, concluído, ou sem source aplicável: não há o que
++     * verificar, então não há incerteza a comunicar.
++     */
++    const r = resolveAttention([], 0)
++
++    expect(r.state).toBe('calm')
++    expect(r.evaluated).toBe(0)
++    expect(r.failed).toBe(0)
++    expect(r.complete).toBe(true)
++  })
++
++  it('todas as sources falham → degraded, com a contagem', () => {
++    const r = resolveAttention([falhou, falhou], 2)
++
++    expect(r.state).toBe('degraded')
++    expect(r.failed).toBe(2)
++    expect(r.evaluated).toBe(2)
++  })
++})
++
++describe('as invariantes valem para toda combinação', () => {
++  const combinacoes: SourceOutcome[][] = [
++    [],
++    [ok()],
++    [falhou],
++    [ok(item())],
++    [ok(item()), falhou],
++    [ok(), falhou],
++    [falhou, falhou],
++    [ok(item()), ok(item({ projectId: 'outro' }))],
++    [ok(item()), ok()],
++  ]
++
++  it.each(combinacoes.map((c, i) => [i, c] as const))(
++    'combinação %i respeita as cinco invariantes',
++    (_i, outcomes) => {
++      const r = resolveAttention(outcomes, outcomes.length)
++
++      if (r.state === 'calm') {
++        expect(r.items).toHaveLength(0)
++        expect(r.complete).toBe(true)
++        expect(r.failed).toBe(0)
++      }
++
++      if (r.state === 'degraded') {
++        expect(r.items).toHaveLength(0)
++        expect(r.complete).toBe(false)
++        expect(r.failed).toBeGreaterThan(0)
++      }
++
++      if (r.state === 'attention') {
++        expect(r.items.length).toBeGreaterThan(0)
++      }
++
++      expect(r.complete).toBe(r.failed === 0)
++      expect(r.evaluated).toBeGreaterThanOrEqual(r.failed)
++    },
++  )
++})
+diff --git a/tests/unit/attention-degraded.test.ts b/tests/unit/attention-degraded.test.ts
+new file mode 100644
+index 0000000..9e2306e
+--- /dev/null
++++ b/tests/unit/attention-degraded.test.ts
+@@ -0,0 +1,145 @@
++import { notFound, redirect } from 'next/navigation'
++import { describe, expect, it } from 'vitest'
++import { runSafely } from '@/domains/attention/safety'
++import { resolveAttention } from '@/domains/attention/resolve'
++import type { AttentionContext, AttentionSource } from '@/domains/attention/types'
++import { item, PROJETO } from '../support/attention-items'
++
++/**
++ * Falha de source não pode virar falsa calma — e um 404 não pode virar falha.
++ *
++ * Estes dois casos são a fase inteira. O primeiro é honestidade com o cliente;
++ * o segundo é segurança: engolir o `notFound()` de um projeto de outro tenant
++ * transformaria uma recusa de acesso em "não conseguimos verificar", e a página
++ * continuaria montando por cima dela.
++ */
++
++const ctx = {
++  project: {
++    id: PROJETO,
++    clientId: '20000000-0000-4000-8000-000000000001',
++    name: 'Social',
++    type: 'social',
++    status: 'active',
++    cycle: 1,
++    startedOn: null,
++  },
++} as unknown as AttentionContext
++
++function source(run: AttentionSource['run'], key = 'fake'): AttentionSource {
++  return { key, appliesTo: () => true, run }
++}
++
++describe('uma source que falha é isolada', () => {
++  it('source que responde → ok, com os itens', async () => {
++    const r = await runSafely(
++      source(() => Promise.resolve([item()])),
++      ctx,
++    )
++
++    expect(r.ok).toBe(true)
++    expect(r.ok && r.items).toHaveLength(1)
++  })
++
++  it('source que lança erro de leitura → ok:false, sem derrubar a Home', async () => {
++    const r = await runSafely(
++      source(() => Promise.reject(new Error('onboarding.submission_read_failed'))),
++      ctx,
++    )
++
++    expect(r.ok).toBe(false)
++  })
++
++  it('o outcome de falha NÃO carrega o erro — nada técnico chega à tela', async () => {
++    const r = await runSafely(
++      source(() => Promise.reject(new Error('permission denied for table onboarding_submissions'))),
++      ctx,
++    )
++
++    expect(Object.keys(r)).toEqual(['ok'])
++    expect(JSON.stringify(r)).not.toMatch(/permission denied|onboarding_submissions/)
++  })
++})
++
++describe('⚠️ sinais de navegação do Next são RELANÇADOS', () => {
++  it('notFound() atravessa o isolamento', async () => {
++    /*
++     * Se este teste falhar, um projeto de outro tenant deixa de responder 404 e
++     * passa a responder "não conseguimos verificar suas pendências" — com a
++     * página montando em volta. É falha de segurança com cara de resiliência.
++     */
++    await expect(
++      runSafely(
++        source(() => notFound()),
++        ctx,
++      ),
++    ).rejects.toThrow()
++  })
++
++  it('redirect() atravessa o isolamento', async () => {
++    await expect(
++      runSafely(
++        source(() => redirect('/login')),
++        ctx,
++      ),
++    ).rejects.toThrow()
++  })
++
++  it('o sinal relançado é o do Next, não um erro genérico', async () => {
++    const capturado = await runSafely(
++      source(() => notFound()),
++      ctx,
++    ).catch((error: unknown) => error)
++
++    /* O Next identifica os próprios sinais pelo `digest`. */
++    expect((capturado as { digest?: string }).digest).toBeTypeOf('string')
++  })
++})
++
++describe('⚠️ o atalho proibido', () => {
++  it('zero itens por FALHA nunca é calma', async () => {
++    const outcome = await runSafely(
++      source(() => Promise.reject(new Error('qualquer coisa'))),
++      ctx,
++    )
++
++    const r = resolveAttention([outcome], 1)
++
++    expect(r.state).toBe('degraded')
++    expect(r.state).not.toBe('calm')
++  })
++
++  it('zero itens por SUCESSO é calma', async () => {
++    const outcome = await runSafely(
++      source(() => Promise.resolve([])),
++      ctx,
++    )
++    const r = resolveAttention([outcome], 1)
++
++    expect(r.state).toBe('calm')
++  })
++
++  it('a diferença entre os dois é invisível em `items` e só existe em `failed`', async () => {
++    const falha = resolveAttention(
++      [
++        await runSafely(
++          source(() => Promise.reject(new Error('x'))),
++          ctx,
++        ),
++      ],
++      1,
++    )
++    const vazio = resolveAttention(
++      [
++        await runSafely(
++          source(() => Promise.resolve([])),
++          ctx,
++        ),
++      ],
++      1,
++    )
++
++    expect(falha.items).toEqual(vazio.items)
++    expect(falha.state).not.toBe(vazio.state)
++  })
++})
+diff --git a/tests/unit/attention-order.test.ts b/tests/unit/attention-order.test.ts
+new file mode 100644
+index 0000000..626efa3
+--- /dev/null
++++ b/tests/unit/attention-order.test.ts
+@@ -0,0 +1,116 @@
++import { describe, expect, it } from 'vitest'
++import { byPriority, resolveAttention } from '@/domains/attention/resolve'
++import { PRIORITY } from '@/config/attention'
++import type { AttentionKind } from '@/domains/attention/types'
++import { item } from '../support/attention-items'
++
++describe('a ordem é determinística', () => {
++  it('prioridade menor vem primeiro', () => {
++    const urgente = item({ id: 'a', priority: 10 })
++    const depois = item({ id: 'b', priority: 30 })
++
++    expect([depois, urgente].sort(byPriority).map((i) => i.id)).toEqual(['a', 'b'])
++  })
++
++  it('empatada a prioridade, prazo mais próximo vem primeiro', () => {
++    const cedo = item({ id: 'a', dueAt: '2026-09-10' })
++    const tarde = item({ id: 'b', dueAt: '2026-09-20' })
++
++    expect([tarde, cedo].sort(byPriority).map((i) => i.id)).toEqual(['a', 'b'])
++  })
++
++  it('item sem prazo vai por último', () => {
++    const semPrazo = item({ id: 'a', dueAt: null })
++    const comPrazo = item({ id: 'b', dueAt: '2026-09-20' })
++
++    expect([semPrazo, comPrazo].sort(byPriority).map((i) => i.id)).toEqual(['b', 'a'])
++  })
++
++  it('empatado tudo, o id desempata — a ordem nunca fica ambígua', () => {
++    const a = item({ id: 'a' })
++    const b = item({ id: 'b' })
++
++    expect([b, a].sort(byPriority).map((i) => i.id)).toEqual(['a', 'b'])
++    expect([a, b].sort(byPriority).map((i) => i.id)).toEqual(['a', 'b'])
++  })
++
++  it('⚠️ a mesma entrada embaralhada produz a mesma saída', () => {
++    /*
++     * As sources rodam em `Promise.all`: a ordem de chegada não é garantida.
++     * Sem desempate total, este teste falharia de vez em quando — e teste
++     * intermitente é pior que teste ausente.
++     */
++    const itens = [
++      item({ id: 'c', priority: 30 }),
++      item({ id: 'a', priority: 10, dueAt: '2026-09-01' }),
++      item({ id: 'b', priority: 10, dueAt: null }),
++      item({ id: 'd', priority: 30 }),
++    ]
++
++    const esperado = ['a', 'b', 'c', 'd']
++
++    expect([...itens].sort(byPriority).map((i) => i.id)).toEqual(esperado)
++    expect(
++      [...itens]
++        .reverse()
++        .sort(byPriority)
++        .map((i) => i.id),
++    ).toEqual(esperado)
++  })
++
++  it('o resultado já vem ordenado — o componente não ordena nada', () => {
++    const r = resolveAttention(
++      [
++        { ok: true, items: [item({ id: 'z', priority: 30 })] },
++        { ok: true, items: [item({ id: 'a', priority: 10 })] },
++      ],
++      2,
++    )
++
++    expect(r.items.map((i) => i.id)).toEqual(['a', 'z'])
++  })
++})
++
++describe('a tabela de prioridade', () => {
++  const kinds = Object.keys(PRIORITY) as AttentionKind[]
++
++  it('tem exatamente os kinds que existem na FASE 8', () => {
++    expect(kinds).toEqual(['onboarding.continue'])
++  })
++
++  it('⚠️ nenhum kind foi antecipado de fase futura', () => {
++    const futuros = ['strategy.approve', 'content.approve', 'file.requested', 'meeting.upcoming']
++
++    for (const futuro of futuros) {
++      expect(kinds).not.toContain(futuro)
++    }
++  })
++
++  it('nenhuma prioridade repetida', () => {
++    const valores = Object.values(PRIORITY)
++    expect(new Set(valores).size).toBe(valores.length)
++  })
++
++  it('onboarding fica na faixa que destrava o projeto (00–19)', () => {
++    expect(PRIORITY['onboarding.continue']).toBeGreaterThanOrEqual(0)
++    expect(PRIORITY['onboarding.continue']).toBeLessThan(20)
++  })
++})
++
++describe('o id é estável e não carrega PII', () => {
++  it('deriva de kind + projeto, e é o mesmo entre chamadas', () => {
++    expect(item().id).toBe(item().id)
++    expect(item().id).toMatch(/^onboarding\.continue:/)
++  })
++
++  it('ids são únicos dentro de um resultado', () => {
++    const r = resolveAttention([{ ok: true, items: [item({ id: 'a' }), item({ id: 'b' })] }], 1)
++
++    expect(new Set(r.items.map((i) => i.id)).size).toBe(r.items.length)
++  })
++
++  it('⚠️ o id não contém e-mail nem nome', () => {
++    expect(item().id).not.toMatch(/@/)
++    expect(item().id).not.toMatch(/[Hh]artmann|[Vv]elmont/)
++  })
++})
+-- 
+2.43.0
+

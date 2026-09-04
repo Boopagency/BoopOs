@@ -1,0 +1,639 @@
+From 3fda52bc4eb510388cbda3d59869a2ae62fdd511 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 4 Sep 2026 04:30:12 +0000
+Subject: [PATCH 04/10] feat: three answers to the only question the client
+ opens the portal for
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Attention, calm and degraded are different content, not styling variants,
+and the component only dispatches — the rule that separates them lives in
+the domain, because the phase 16 email and any later assistant read the
+same decision and a second implementation is where divergence starts.
+
+The attention slab keeps its language: navy, eyes looking down at the
+number, the padded numeral, a full-width call to action on mobile. What
+changed is where the items come from. The first item dominates and the rest
+collapse into compact rows, because a column of giant numbers answers
+nothing.
+
+Calm is not an empty state, and that distinction is the reason it exists.
+It is the answer to "is anything waiting for me?", so it never disappears —
+if it did, the client would go hunting through the system, which is the
+behaviour this phase exists to end. It is also the most seen block in the
+product, since most visits happen when nothing is pending, so it gets the
+same care as the slab in an inverted register. A paused project does not
+say everything is fine; it says it is paused, and it does not repeat the
+current stage, which would assert work that stopped.
+
+Degraded says the reading failed without saying anything technical, and
+without alarm: no alert role, no error colour, no retry button for a
+failure the client did not cause. A component test asserts the calm phrases
+appear nowhere in its tree.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0117F4Mdwaya7rKTrRBr7Tws
+---
+ src/components/patterns/attention-block.tsx | 123 ++++++++---
+ src/components/patterns/attention-state.tsx |  40 ++++
+ src/components/patterns/calm-state.tsx      |  99 +++++++++
+ src/components/patterns/degraded-state.tsx  |  44 ++++
+ tests/component/attention-state.test.tsx    | 229 ++++++++++++++++++++
+ 5 files changed, 505 insertions(+), 30 deletions(-)
+ create mode 100644 src/components/patterns/attention-state.tsx
+ create mode 100644 src/components/patterns/calm-state.tsx
+ create mode 100644 src/components/patterns/degraded-state.tsx
+ create mode 100644 tests/component/attention-state.test.tsx
+
+diff --git a/src/components/patterns/attention-block.tsx b/src/components/patterns/attention-block.tsx
+index bdb32f1..edc8030 100644
+--- a/src/components/patterns/attention-block.tsx
++++ b/src/components/patterns/attention-block.tsx
+@@ -1,23 +1,55 @@
+ import Link from 'next/link'
+ import { BoopEyes } from '@/components/brand/boop-eyes'
+ import { CloudLayer } from '@/components/brand/cloud-layer'
+-import type { AttentionItem } from '@/lib/data/types'
++import type { AttentionItem } from '@/domains/attention/types'
+ import { padded } from '@/lib/format'
+ 
+ /*
+  * "Precisa da sua atenção" — o bloco mais importante do produto.
+  *
+  * É aqui que a marca e a função se encontram: o símbolo da Boop é um par de
+- * olhos, e este é o único lugar em que eles olham para você. O número é
+- * enorme porque a pergunta "tem algo esperando por mim?" precisa ser
+- * respondida antes da leitura, à distância de um braço.
++ * olhos, e este é o único lugar em que eles olham para você. O número é enorme
++ * porque a pergunta "tem algo esperando por mim?" precisa ser respondida antes
++ * da leitura, à distância de um braço.
+  *
+- * Se não há nada esperando, o bloco NÃO aparece — não vira card de "nenhum
+- * item pendente" (CLAUDE.md). Quem decide é `getAttention()`, que já filtra.
++ * ## O que mudou na FASE 8
++ *
++ * A composição não. O que mudou foi de onde vêm os itens: eram uma constante em
++ * `src/mocks/hartmann.ts`, com um `href` literal apontando para um projeto que
++ * deixou de existir na FASE 6 — o CTA mais importante do produto respondia 404.
++ * Agora vêm de `getClientAttention()`, derivados do banco a cada request.
++ *
++ * ## Hierarquia: o primeiro item domina
++ *
++ * Um numeral gigante por item viraria uma lista de números, e uma lista de
++ * números não responde nada. O primeiro — o de maior prioridade — leva o
++ * numeral e o CTA em escala; os demais viram linhas compactas na mesma laje.
++ * Na FASE 8 existe uma source, então na prática há no máximo um.
+  */
+-export function AttentionBlock({ items }: { items: AttentionItem[] }) {
++
++/** Teto do que aparece. O excedente é resumido, não rolável. */
++const VISIVEIS = 3
++
++export function AttentionBlock({
++  items,
++  complete = true,
++}: {
++  items: readonly AttentionItem[]
++  /**
++   * Alguma source não pôde ser verificada?
++   *
++   * Com item na tela, o estado continua sendo `attention` — mostrar o que se
++   * sabe é melhor do que esconder por causa do que não se sabe. O que não se
++   * pode é afirmar completude, e é isso que a linha discreta abaixo diz.
++   */
++  complete?: boolean
++}) {
+   if (items.length === 0) return null
+ 
++  const [primeiro, ...resto] = items
++  const visiveis = resto.slice(0, VISIVEIS - 1)
++  const excedente = resto.length - visiveis.length
++
+   return (
+     <section aria-labelledby="atencao" className="on-inverse bg-navy relative overflow-hidden">
+       <CloudLayer density="single" className="opacity-25 mix-blend-screen" />
+@@ -27,30 +59,61 @@ export function AttentionBlock({ items }: { items: AttentionItem[] }) {
+           Precisa da sua atenção
+         </h2>
+ 
+-        <ul className="mt-8 space-y-12">
+-          {items.map((item) => (
+-            <li key={item.id} className="md:flex md:items-end md:justify-between md:gap-10">
+-              <div className="flex items-start gap-5 md:gap-7">
+-                <BoopEyes gaze="down" blink className="w-14 shrink-0 md:w-20" />
+-                <p>
+-                  <span className="t-numeral text-accent block" data-numeric>
+-                    {padded(item.count)}
+-                  </span>
+-                  <span className="t-lead text-on-inverse mt-3 block max-w-[15ch]">
+-                    {item.label}
++        <div className="mt-8 md:flex md:items-end md:justify-between md:gap-10">
++          <div className="flex items-start gap-5 md:gap-7">
++            <BoopEyes gaze="down" blink className="w-14 shrink-0 md:w-20" />
++            <p>
++              {/*
++                O numeral é gráfico: quem usa leitor de tela recebe a frase, que
++                é a informação. "01" sozinho não diz nada.
++              */}
++              <span className="t-numeral text-accent block" data-numeric aria-hidden="true">
++                {padded(primeiro!.count)}
++              </span>
++              <span className="t-lead text-on-inverse mt-3 block max-w-[19ch]">
++                {primeiro!.title}
++              </span>
++              {primeiro!.description && (
++                <span className="t-body text-muted-on-inverse mt-3 block max-w-[34ch]">
++                  {primeiro!.description}
++                </span>
++              )}
++            </p>
++          </div>
++
++          <Link
++            href={primeiro!.cta.href}
++            className="t-meta bg-accent text-accent-foreground hover:bg-accent-hover mt-8 inline-flex h-14 items-center justify-center rounded-sm px-8 transition-colors duration-[--motion-fast] max-md:w-full md:mt-0"
++          >
++            {primeiro!.cta.label}
++          </Link>
++        </div>
++
++        {visiveis.length > 0 && (
++          <ul className="divide-rule-inverse border-rule-inverse mt-10 divide-y border-t">
++            {visiveis.map((item) => (
++              <li key={item.id}>
++                <Link
++                  href={item.cta.href}
++                  className="text-on-inverse hover:text-sky flex min-h-14 items-center justify-between gap-6 py-4 transition-colors"
++                >
++                  <span className="t-body">{item.title}</span>
++                  <span aria-hidden="true" className="text-sky">
++                    →
+                   </span>
+-                </p>
+-              </div>
+-
+-              <Link
+-                href={item.href}
+-                className="t-meta bg-accent text-accent-foreground hover:bg-accent-hover mt-8 inline-flex h-14 items-center justify-center rounded-sm px-8 transition-colors duration-[--motion-fast] max-md:w-full md:mt-0"
+-              >
+-                {item.cta}
+-              </Link>
+-            </li>
+-          ))}
+-        </ul>
++                </Link>
++              </li>
++            ))}
++          </ul>
++        )}
++
++        {excedente > 0 && <p className="t-meta text-muted-on-inverse mt-6">e mais {excedente}</p>}
++
++        {!complete && (
++          <p className="t-meta text-muted-on-inverse mt-8 max-w-[46ch]">
++            Pode haver outras pendências que não conseguimos verificar agora.
++          </p>
++        )}
+       </div>
+     </section>
+   )
+diff --git a/src/components/patterns/attention-state.tsx b/src/components/patterns/attention-state.tsx
+new file mode 100644
+index 0000000..70d663b
+--- /dev/null
++++ b/src/components/patterns/attention-state.tsx
+@@ -0,0 +1,40 @@
++import { AttentionBlock } from '@/components/patterns/attention-block'
++import { CalmState } from '@/components/patterns/calm-state'
++import { DegradedState } from '@/components/patterns/degraded-state'
++import type { ProjectStatus } from '@/config/enums'
++import type { AttentionResult } from '@/domains/attention/types'
++
++/**
++ * A resposta à primeira pergunta do cliente, nas três formas que ela tem.
++ *
++ * Este componente NÃO decide nada: ele despacha. A regra que separa calma de
++ * degradação é de produto e mora no domínio (`resolveAttention`), porque ela
++ * vai ser lida também pelo e-mail da FASE 16 e, mais tarde, por uma IA — e a
++ * segunda implementação de uma regra é onde a divergência nasce.
++ *
++ * As três formas são conteúdos diferentes, não variações de estilo:
++ *
++ *   attention  há algo esperando você        laje navy, numeral, CTA
++ *   calm       nada esperando, e é verdade   fundo claro, sem CTA
++ *   degraded   não deu para verificar        neutro, sem alarme
++ *
++ * O bloco nunca fica ausente. A pergunta "preciso fazer alguma coisa?" sempre
++ * tem resposta na tela — é a razão de o cliente ter aberto o portal.
++ */
++export function AttentionState({
++  result,
++  status,
++  stageSummary,
++}: {
++  result: AttentionResult
++  status: ProjectStatus
++  stageSummary: string | null
++}) {
++  if (result.state === 'attention') {
++    return <AttentionBlock items={result.items} complete={result.complete} />
++  }
++
++  if (result.state === 'degraded') return <DegradedState />
++
++  return <CalmState status={status} stageSummary={stageSummary} />
++}
+diff --git a/src/components/patterns/calm-state.tsx b/src/components/patterns/calm-state.tsx
+new file mode 100644
+index 0000000..9002946
+--- /dev/null
++++ b/src/components/patterns/calm-state.tsx
+@@ -0,0 +1,99 @@
++import { BoopEyes } from '@/components/brand/boop-eyes'
++import type { ProjectStatus } from '@/config/enums'
++
++/**
++ * "Tudo certo por aqui." — e por que isto NÃO é um estado vazio.
++ *
++ * A regra da casa diz que bloco sem conteúdo desaparece. Este é a exceção
++ * nomeada (D-26), e a razão é que ele não é uma lista sem itens: é a RESPOSTA à
++ * pergunta que o cliente fez ao abrir o portal — "preciso fazer alguma coisa?".
++ * Se ele sumir, a resposta some com ele e o cliente vai caçar a informação pelo
++ * sistema, que é exatamente o comportamento que a fase existe para acabar.
++ *
++ * É, com folga, o bloco mais visto do produto: a maioria das visitas acontece
++ * quando não há nada pendente. Por isso ele recebe o mesmo cuidado da laje de
++ * atenção, em registro invertido — fundo claro, olhos piscando devagar,
++ * tipografia em escala de leitura, e nenhum CTA.
++ *
++ * ## Só aparece quando a afirmação é verdadeira
++ *
++ * Calma é uma afirmação sobre o mundo, e só pode ser feita quando TODAS as
++ * sources relevantes responderam com sucesso. Quando alguma falha, quem
++ * renderiza é o `DegradedState` — nunca este componente. A decisão é do
++ * domínio, e chega pronta em `AttentionResult.state`.
++ */
++
++interface Fala {
++  titulo: string
++  linha: string
++  /** A frase da etapa corrente ainda faz sentido neste status? */
++  contextualiza: boolean
++}
++
++/*
++ * Nenhuma destas frases inventa atividade. Cada uma afirma só o que o banco
++ * afirma: o status do projeto. O que a Boop está fazendo, quando aparece, vem
++ * do `summary` oficial da etapa corrente — texto de template, não invenção.
++ */
++const FALA: Record<ProjectStatus, Fala> = {
++  active: {
++    titulo: 'Tudo certo por aqui.',
++    linha: 'Você não precisa fazer nada agora.',
++    contextualiza: true,
++  },
++  paused: {
++    titulo: 'Este projeto está pausado no momento.',
++    linha: 'A gente avisa quando retomar. Não há nada esperando por você.',
++    contextualiza: false,
++  },
++  completed: {
++    titulo: 'Este projeto foi concluído.',
++    linha: 'Fica tudo registrado aqui, quando você quiser rever.',
++    contextualiza: false,
++  },
++  archived: {
++    titulo: 'Este projeto está arquivado.',
++    linha: 'Ele continua acessível como histórico.',
++    contextualiza: false,
++  },
++  /*
++   * Um rascunho não alcança um `client_user` — a recusa é 404, e acontece no
++   * layout (D-18). Quem chega aqui é da Boop, conferindo o projeto antes de
++   * publicá-lo, e a frase diz isso sem fingir que é a visão do cliente.
++   */
++  draft: {
++    titulo: 'Este projeto ainda é um rascunho.',
++    linha: 'Ele não aparece para o cliente enquanto estiver assim.',
++    contextualiza: false,
++  },
++}
++
++export function CalmState({
++  status,
++  stageSummary,
++}: {
++  status: ProjectStatus
++  /** O `summary` da etapa corrente, quando existir. `null` some sem substituto. */
++  stageSummary: string | null
++}) {
++  const fala = FALA[status]
++
++  return (
++    <section aria-labelledby="tudo-certo" className="border-rule border-y">
++      <div className="content flex items-start gap-5 py-12 md:gap-8 md:py-16">
++        <BoopEyes blink className="w-12 shrink-0 md:w-16" />
++
++        <div className="min-w-0">
++          <h2 id="tudo-certo" className="t-section text-foreground max-w-[16ch]">
++            {fala.titulo}
++          </h2>
++          <p className="t-lead text-muted mt-4 max-w-[34ch]">{fala.linha}</p>
++
++          {fala.contextualiza && stageSummary && (
++            <p className="t-body text-muted mt-5 max-w-[46ch]">{stageSummary}</p>
++          )}
++        </div>
++      </div>
++    </section>
++  )
++}
+diff --git a/src/components/patterns/degraded-state.tsx b/src/components/patterns/degraded-state.tsx
+new file mode 100644
+index 0000000..1409fdb
+--- /dev/null
++++ b/src/components/patterns/degraded-state.tsx
+@@ -0,0 +1,44 @@
++import { BoopEyes } from '@/components/brand/boop-eyes'
++
++/**
++ * "Não conseguimos verificar todas as suas pendências agora."
++ *
++ * O estado que impede a mentira mais fácil do produto.
++ *
++ * Uma source que falha devolve zero itens — exatamente como uma source que
++ * respondeu e não achou nada. Se o produto tratasse os dois casos igual, uma
++ * falha de leitura viraria "tudo certo por aqui", e o cliente sairia do portal
++ * achando que nada depende dele com uma pendência aberta que ninguém conseguiu
++ * ler. Zero itens porque a leitura falhou não é zero pendências.
++ *
++ * ## O tom é neutro, e isso é decisão
++ *
++ * Sem `role="alert"`, sem ícone de erro, sem cor de perigo, sem botão de
++ * "tentar de novo" — o cliente não causou nada e não tem o que consertar. A
++ * recarga normal da página é o retry, e a frase seguinte diz que o resto da
++ * Home continua valendo.
++ *
++ * ## O que nunca aparece aqui
++ *
++ * Stack, SQL, nome de tabela, código do Postgres, digest, valor de env. O
++ * motivo da falha vai para o log com a chave da source e nada mais; o
++ * componente recebe números, nunca erros.
++ */
++export function DegradedState() {
++  return (
++    <section aria-labelledby="nao-verificado" className="bg-surface-soft/60 border-rule border-y">
++      <div className="content flex items-start gap-5 py-12 md:gap-8 md:py-16">
++        <BoopEyes className="w-12 shrink-0 opacity-70 md:w-16" />
++
++        <div className="min-w-0">
++          <h2 id="nao-verificado" className="t-section text-foreground max-w-[20ch]">
++            Não conseguimos verificar todas as suas pendências agora.
++          </h2>
++          <p className="t-lead text-muted mt-4 max-w-[36ch]">
++            Você ainda pode acompanhar o andamento do projeto abaixo.
++          </p>
++        </div>
++      </div>
++    </section>
++  )
++}
+diff --git a/tests/component/attention-state.test.tsx b/tests/component/attention-state.test.tsx
+new file mode 100644
+index 0000000..bdb3b07
+--- /dev/null
++++ b/tests/component/attention-state.test.tsx
+@@ -0,0 +1,229 @@
++import { render, screen } from '@testing-library/react'
++import { describe, expect, it } from 'vitest'
++import { AttentionState } from '@/components/patterns/attention-state'
++import type { AttentionItem, AttentionResult } from '@/domains/attention/types'
++import { item } from '../support/attention-items'
++
++/**
++ * As três formas são conteúdos diferentes, não variações de estilo.
++ *
++ * O caso que vale por todos está no bloco `degraded`: as frases de calma não
++ * podem aparecer em lugar nenhum daquela árvore. É a regra de honestidade da
++ * fase virando asserção — se alguém simplificar a decisão do domínio para
++ * `items.length === 0 ? calm : attention`, este teste é o que quebra.
++ */
++
++function resultado(over: Partial<AttentionResult> = {}): AttentionResult {
++  const items: readonly AttentionItem[] = over.items ?? []
++  const failed = over.failed ?? 0
++
++  return {
++    state: over.state ?? 'calm',
++    items,
++    complete: over.complete ?? failed === 0,
++    evaluated: over.evaluated ?? 1,
++    failed,
++  }
++}
++
++const CALMA = ['Tudo certo por aqui', 'não precisa fazer nada']
++
++describe('attention — há algo esperando', () => {
++  const result = resultado({ state: 'attention', items: [item()] })
++
++  it('mostra o título do item e o CTA com href real', () => {
++    render(<AttentionState result={result} status="active" stageSummary={null} />)
++
++    expect(screen.getByText('Seu onboarding está esperando você.')).toBeInTheDocument()
++
++    const cta = screen.getByRole('link', { name: 'Continuar' })
++    expect(cta).toHaveAttribute('href', expect.stringContaining('/onboarding'))
++  })
++
++  it('⚠️ o numeral é gráfico — a frase é o texto acessível', () => {
++    const { container } = render(
++      <AttentionState result={result} status="active" stageSummary={null} />,
++    )
++
++    const numeral = container.querySelector('[data-numeric]')
++    expect(numeral).toHaveTextContent('01')
++    expect(numeral).toHaveAttribute('aria-hidden', 'true')
++  })
++
++  it('a laje é anunciada como seção com nome', () => {
++    render(<AttentionState result={result} status="active" stageSummary={null} />)
++
++    expect(screen.getByRole('heading', { name: 'Precisa da sua atenção' })).toBeInTheDocument()
++  })
++
++  it('não mostra frase de calma quando há pendência', () => {
++    render(<AttentionState result={result} status="active" stageSummary={null} />)
++
++    for (const frase of CALMA) {
++      expect(screen.queryByText(new RegExp(frase, 'i'))).not.toBeInTheDocument()
++    }
++  })
++
++  it('só o primeiro item leva numeral; os demais viram lista', () => {
++    const varios = resultado({
++      state: 'attention',
++      items: [item({ id: 'a', title: 'Primeiro' }), item({ id: 'b', title: 'Segundo' })],
++    })
++
++    const { container } = render(
++      <AttentionState result={varios} status="active" stageSummary={null} />,
++    )
++
++    expect(container.querySelectorAll('[data-numeric]')).toHaveLength(1)
++    expect(screen.getByText('Segundo')).toBeInTheDocument()
++  })
++
++  it('com verificação incompleta, avisa sem esconder o item verdadeiro', () => {
++    const parcial = resultado({
++      state: 'attention',
++      items: [item()],
++      complete: false,
++      failed: 1,
++      evaluated: 2,
++    })
++
++    render(<AttentionState result={parcial} status="active" stageSummary={null} />)
++
++    expect(screen.getByText('Seu onboarding está esperando você.')).toBeInTheDocument()
++    expect(screen.getByText(/não conseguimos verificar agora/i)).toBeInTheDocument()
++  })
++})
++
++describe('calm — nada esperando, e é verdade', () => {
++  it('projeto ativo diz que está tudo certo', () => {
++    render(<AttentionState result={resultado()} status="active" stageSummary={null} />)
++
++    expect(screen.getByText('Tudo certo por aqui.')).toBeInTheDocument()
++    expect(screen.getByText('Você não precisa fazer nada agora.')).toBeInTheDocument()
++  })
++
++  it('⚠️ não há CTA nenhum — não existe ação a cobrar', () => {
++    render(<AttentionState result={resultado()} status="active" stageSummary={null} />)
++
++    expect(screen.queryAllByRole('link')).toHaveLength(0)
++  })
++
++  it('acrescenta a frase oficial da etapa corrente quando existe', () => {
++    render(
++      <AttentionState
++        result={resultado()}
++        status="active"
++        stageSummary="Estudamos a categoria e as concorrentes."
++      />,
++    )
++
++    expect(screen.getByText('Estudamos a categoria e as concorrentes.')).toBeInTheDocument()
++  })
++
++  it('sem etapa corrente, a terceira linha simplesmente some', () => {
++    const { container } = render(
++      <AttentionState result={resultado()} status="active" stageSummary={null} />,
++    )
++
++    expect(container.querySelectorAll('p')).toHaveLength(1)
++  })
++
++  it('⚠️ projeto pausado não diz "tudo certo" — diz que está pausado', () => {
++    render(<AttentionState result={resultado()} status="paused" stageSummary="Pesquisa." />)
++
++    expect(screen.getByText('Este projeto está pausado no momento.')).toBeInTheDocument()
++    expect(screen.queryByText('Tudo certo por aqui.')).not.toBeInTheDocument()
++  })
++
++  it('⚠️ pausado não repete a etapa corrente — seria afirmar trabalho parado', () => {
++    render(<AttentionState result={resultado()} status="paused" stageSummary="Pesquisa." />)
++
++    expect(screen.queryByText('Pesquisa.')).not.toBeInTheDocument()
++  })
++
++  it('concluído fala no passado', () => {
++    render(<AttentionState result={resultado()} status="completed" stageSummary={null} />)
++
++    expect(screen.getByText('Este projeto foi concluído.')).toBeInTheDocument()
++  })
++
++  it('arquivado fala de histórico', () => {
++    render(<AttentionState result={resultado()} status="archived" stageSummary={null} />)
++
++    expect(screen.getByText('Este projeto está arquivado.')).toBeInTheDocument()
++  })
++})
++
++describe('⚠️ degraded — não deu para verificar', () => {
++  const degradado = resultado({ state: 'degraded', failed: 1, complete: false })
++
++  it('diz que não conseguiu verificar', () => {
++    render(<AttentionState result={degradado} status="active" stageSummary={null} />)
++
++    expect(
++      screen.getByText('Não conseguimos verificar todas as suas pendências agora.'),
++    ).toBeInTheDocument()
++  })
++
++  it('⚠️ NENHUMA frase de calma aparece na árvore', () => {
++    const { container } = render(
++      <AttentionState result={degradado} status="active" stageSummary="Pesquisa." />,
++    )
++
++    for (const frase of CALMA) {
++      expect(container.textContent).not.toMatch(new RegExp(frase, 'i'))
++    }
++  })
++
++  it('não é alerta: sem role="alert"', () => {
++    render(<AttentionState result={degradado} status="active" stageSummary={null} />)
++
++    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
++  })
++
++  it('não oferece botão de tentar de novo — o cliente não causou nada', () => {
++    render(<AttentionState result={degradado} status="active" stageSummary={null} />)
++
++    expect(screen.queryAllByRole('button')).toHaveLength(0)
++    expect(screen.queryAllByRole('link')).toHaveLength(0)
++  })
++
++  it('⚠️ nenhum detalhe técnico atravessa a fronteira', () => {
++    const { container } = render(
++      <AttentionState result={degradado} status="active" stageSummary={null} />,
++    )
++
++    const texto = container.textContent ?? ''
++    for (const proibido of [
++      'error',
++      'Error',
++      'supabase',
++      'onboarding_submissions',
++      'digest',
++      'PGRST',
++      'select',
++    ]) {
++      expect(texto).not.toContain(proibido)
++    }
++  })
++
++  it('a Home continua: o texto convida a acompanhar o projeto abaixo', () => {
++    render(<AttentionState result={degradado} status="active" stageSummary={null} />)
++
++    expect(screen.getByText(/acompanhar o andamento do projeto abaixo/i)).toBeInTheDocument()
++  })
++})
++
++describe('a resposta nunca falta', () => {
++  const estados: AttentionResult[] = [
++    resultado({ state: 'attention', items: [item()] }),
++    resultado({ state: 'calm' }),
++    resultado({ state: 'degraded', failed: 1, complete: false }),
++  ]
++
++  it.each(estados)('estado `$state` sempre renderiza uma seção com título', (result) => {
++    render(<AttentionState result={result} status="active" stageSummary={null} />)
++
++    expect(screen.getAllByRole('heading').length).toBeGreaterThan(0)
++  })
++})
+-- 
+2.43.0
+
