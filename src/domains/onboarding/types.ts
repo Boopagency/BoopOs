@@ -36,6 +36,16 @@ import type { AssertClientFacing } from '@/lib/data/projection'
 /** A submissão como o portal a lê. Sem template, sem autoria, sem carimbos. */
 export const SUBMISSION_PUBLIC_COLUMNS = 'id, status, started_at, submitted_at'
 
+/**
+ * A projeção MÍNIMA: só o ciclo de vida.
+ *
+ * Existe para o motor de atenção, que roda em toda abertura da Home e precisa
+ * responder uma pergunta só — "é a vez do cliente?". Reusar
+ * `SUBMISSION_PUBLIC_COLUMNS` funcionaria e traria `id`, `started_at` e
+ * `submitted_at` que ninguém lê ali. Projeção client-facing encolhe; não cresce.
+ */
+export const SUBMISSION_STATE_COLUMNS = 'status'
+
 /** A submissão como o admin a lê: acrescenta autoria e o template respondido. */
 export const SUBMISSION_ADMIN_COLUMNS =
   'id, client_id, project_id, template_id, status, started_at, submitted_at, submitted_by, updated_at'
