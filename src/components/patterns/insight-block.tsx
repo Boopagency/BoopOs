@@ -28,15 +28,19 @@ export function InsightBlock({
       {/*
         Sobre a laje slate (#7488A3) o texto secundario precisa ser navy:
         #4E6076 daria menos de 2:1. Navy sobre slate da 4.80:1.
+
+        E precisa ser navy CHEIO. As opacidades que estavam aqui — 85% e 60% —
+        derrubavam a mesma combinacao para 3.99:1 e 2.81:1, e o desconto nao
+        aparecia na tabela de tokens porque o token continuava sendo o
+        aprovado. A hierarquia vem da escala tipografica, que nao custa
+        contraste (tests/unit/contrast.test.ts).
       */}
       <figcaption className="mt-5">
-        <p className={cn('t-body max-w-[46ch]', soft ? 'text-navy/85' : 'text-muted')}>
+        <p className={cn('t-body max-w-[46ch]', soft ? 'text-navy' : 'text-muted')}>
           {insight.detail}
         </p>
         {insight.evidence && (
-          <p className={cn('t-meta mt-4', soft ? 'text-navy/60' : 'text-muted/70')}>
-            {insight.evidence}
-          </p>
+          <p className={cn('t-meta mt-4', soft ? 'text-navy' : 'text-muted')}>{insight.evidence}</p>
         )}
       </figcaption>
     </figure>

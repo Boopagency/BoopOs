@@ -233,3 +233,78 @@ describe('a projeção do motor é mínima', () => {
     expect(fonte).not.toMatch(/template_id/)
   })
 })
+
+/* ═══ 5. Um cliente com MAIS DE UM projeto ═════════════════════════════════ */
+
+/**
+ * O seed tem um projeto por cliente, e por isso a pergunta do multi-projeto
+ * não estava respondida por nenhum caso: dois projetos do MESMO tenant passam
+ * pela mesma policy, e a policy sozinha não separa um do outro. O que separa é
+ * o `project_id` da consulta — e é isso que se prova aqui, contra Postgres de
+ * verdade e pelo caminho real de criação.
+ */
+describe('dois projetos do mesmo cliente não se misturam', () => {
+  it('o cliente lê os DOIS projetos do próprio tenant', async () => {
+    await withIdentity(db, asUser(BOOP_ADMIN), async (tx) => {
+      const primeiro = await projetoComOnboarding(tx, HARTMANN, 'Social — ciclo A')
+      const segundo = await projetoComOnboarding(tx, HARTMANN, 'Social — ciclo B')
+
+      await switchIdentity(tx, asUser(CLIENTE_A))
+
+      const { rows } = await tx.query<{ id: string }>(
+        `select id from public.projects where id = any($1::uuid[])`,
+        [[primeiro, segundo]],
+      )
+
+      expect(rows.map((r) => r.id).sort()).toEqual([primeiro, segundo].sort())
+    })
+  })
+
+  it('⚠️ o `draft` de um projeto NÃO aparece na leitura do outro', async () => {
+    await withIdentity(db, asUser(BOOP_ADMIN), async (tx) => {
+      const semAbrir = await projetoComOnboarding(tx, HARTMANN, 'Social — ciclo A')
+      const aberto = await projetoComOnboarding(tx, HARTMANN, 'Social — ciclo B')
+      await tx.query(`select public.start_onboarding($1)`, [aberto])
+
+      await switchIdentity(tx, asUser(CLIENTE_A))
+
+      /*
+       * A Home do primeiro projeto tem de ficar calma enquanto a do segundo
+       * cobra ação. Se a leitura fosse por cliente em vez de por projeto, os
+       * dois exibiriam a mesma pendência — e o cliente clicaria num onboarding
+       * que não é o daquela tela.
+       */
+      expect(await statusDaSubmissao(tx, semAbrir)).toBeNull()
+      expect(await statusDaSubmissao(tx, aberto)).toBe('draft')
+    })
+  })
+
+  it('⚠️ nem com os dois ids na mão o outro tenant lê qualquer um deles', async () => {
+    await withIdentity(db, asUser(BOOP_ADMIN), async (tx) => {
+      const primeiro = await projetoComOnboarding(tx, HARTMANN, 'Social — ciclo A')
+      const segundo = await projetoComOnboarding(tx, HARTMANN, 'Social — ciclo B')
+      await tx.query(`select public.start_onboarding($1)`, [segundo])
+
+      await switchIdentity(tx, asUser(CLIENTE_B))
+
+      const { rows } = await tx.query(`select id from public.projects where id = any($1::uuid[])`, [
+        [primeiro, segundo],
+      ])
+
+      expect(rows).toHaveLength(0)
+      expect(await statusDaSubmissao(tx, segundo)).toBeNull()
+    })
+  })
+
+  it('a etapa de onboarding de um projeto não vaza para o irmão', async () => {
+    await withIdentity(db, asUser(BOOP_ADMIN), async (tx) => {
+      const comEtapa = await projetoComOnboarding(tx, HARTMANN, 'Social — ciclo A')
+
+      await switchIdentity(tx, asUser(CLIENTE_A))
+
+      expect(await temEtapaOnboarding(tx, comEtapa)).toBe(true)
+      /* O projeto do seed é do mesmo cliente e continua sem a etapa. */
+      expect(await temEtapaOnboarding(tx, PROJETO_HARTMANN)).toBe(false)
+    })
+  })
+})

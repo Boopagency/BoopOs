@@ -23,10 +23,10 @@ import { listPortalProjects, requireVisiblePortalProject } from '@/domains/proje
  * idêntico. Quem troca uuid na barra de endereços não distingue nenhuma delas
  * (docs/security.md).
  *
- * Os loaders de `src/lib/data/portal.ts` repetem o guard, e a repetição é de
- * propósito: eles precisam ser seguros onde quer que sejam chamados, inclusive
- * de um lugar que ainda não existe. O custo é uma consulta em cache de request
- * (`cache()` do React); o custo de esquecer é um tenant.
+ * Os loaders de domínio repetem o guard, e a repetição é de propósito: eles
+ * precisam ser seguros onde quer que sejam chamados, inclusive de um lugar que
+ * ainda não existe. O custo é uma consulta em cache de request (`cache()` do
+ * React); o custo de esquecer é um tenant.
  */
 export default async function ProjectLayout({
   children,

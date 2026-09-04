@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 /**
@@ -53,6 +53,61 @@ describe('contraste — texto normal (AA 4.5:1)', () => {
 
   it.each(cases)('%s', (_label, fg, bg) => {
     expect(ratio(token(fg), token(bg))).toBeGreaterThanOrEqual(AA)
+  })
+})
+
+/**
+ * Opacidade é desconto de contraste, e o desconto não aparece na tabela de
+ * tokens: `text-muted/75` continua "usando o token aprovado" e mesmo assim
+ * pinta 3.59:1. A medição no Chromium achou dois desses na jornada; este caso
+ * fixa a regra para os próximos.
+ */
+describe('contraste — opacidade sobre o fundo claro', () => {
+  /** O mesmo `mix` que o Tailwind faz com `/NN`: a cor sobre o fundo. */
+  function comOpacidade(hex: string, alpha: number, sobre: string): string {
+    const canal = (i: number) =>
+      Math.round(
+        parseInt(hex.slice(i, i + 2), 16) * alpha +
+          parseInt(sobre.slice(i, i + 2), 16) * (1 - alpha),
+      )
+    return `#${[1, 3, 5].map((i) => canal(i).toString(16).padStart(2, '0')).join('')}`
+  }
+
+  it('texto secundário CHEIO passa em AA', () => {
+    expect(ratio(token('slate-deep'), token('cloud'))).toBeGreaterThanOrEqual(AA)
+  })
+
+  it('⚠️ o mesmo texto a 75% REPROVA — por isso não é usado em texto', () => {
+    const desbotado = comOpacidade(token('slate-deep'), 0.75, token('cloud'))
+
+    expect(ratio(desbotado, token('cloud'))).toBeLessThan(AA)
+  })
+
+  it('⚠️ nenhum texto de conteúdo é pintado com opacidade', () => {
+    const pastas = ['src/components/patterns', 'src/components/layout', 'src/domains']
+    const culpados: string[] = []
+
+    /* Sem comentários: a prosa que EXPLICA a regra não pode violá-la. */
+    const semComentarios = (codigo: string) =>
+      codigo.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+
+    const varrer = (dir: string): void => {
+      for (const entrada of readdirSync(dir, { withFileTypes: true })) {
+        const caminho = join(dir, entrada.name)
+        if (entrada.isDirectory()) varrer(caminho)
+        else if (
+          /\.tsx$/.test(entrada.name) &&
+          /['"`\s](?:text-)(?:muted|foreground|navy|on-inverse)\/\d/.test(
+            semComentarios(readFileSync(caminho, 'utf8')),
+          )
+        ) {
+          culpados.push(caminho)
+        }
+      }
+    }
+    for (const pasta of pastas) varrer(pasta)
+
+    expect(culpados, `texto desbotado por opacidade em: ${culpados.join(', ')}`).toEqual([])
   })
 })
 

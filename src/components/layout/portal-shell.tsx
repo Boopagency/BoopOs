@@ -60,7 +60,7 @@ export function PortalShell({
           <div className="flex h-14 items-center justify-between gap-4 md:h-16">
             <Link
               href={portalHref(projectId, '')}
-              className="flex items-center gap-3"
+              className="flex min-h-11 items-center gap-3"
               aria-label={`${clientName} — início do projeto`}
             >
               <BoopMark className="h-6 w-auto md:h-7" priority />
