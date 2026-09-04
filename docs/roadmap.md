@@ -198,9 +198,10 @@ etapa corrente e jornada resumida reais; `/projeto` como aprofundamento;
 navegação por disponibilidade de feature; fim dos mocks client-facing e do
 hardcode de identidade; rotas futuras com estado honesto.
 
-**Pronto:** 1128 casos de teste em 62 arquivos (666 no projeto `unit`, 462 na
+**Pronto:** 1174 casos de teste em 64 arquivos (708 no projeto `unit`, 466 na
 suíte `rls` contra Postgres real)
-— contagem do Vitest, nunca de `grep` —, `pnpm check` e `pnpm build` verdes,
+— contagem do Vitest, nunca de `grep` —, `pnpm check` e `pnpm build` verdes com
+24 rotas,
 **zero mudança de banco** (fingerprint idêntico nas nove partes), a resposta a
 "preciso fazer alguma coisa?" acima da dobra em 375 × 667 nos três estados, e
 zero overflow em quatro larguras. Documentado em

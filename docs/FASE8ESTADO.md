@@ -192,15 +192,21 @@ contraste ou semântica.
 
 | Suíte                 | Antes   | Depois   |
 | --------------------- | ------- | -------- |
-| `tests/unit`          | 407     | **542**  |
-| `tests/component`     | 81      | **124**  |
-| projeto `unit`        | 488     | **666**  |
-| `rls` (Postgres real) | 446     | **462**  |
-| **total**             | **934** | **1128** |
+| `tests/unit`          | 407     | **582**  |
+| `tests/component`     | 81      | **126**  |
+| projeto `unit`        | 488     | **708**  |
+| `rls` (Postgres real) | 446     | **466**  |
+| **total**             | **934** | **1174** |
 
-62 arquivos (eram 49). Contagem do Vitest — nunca de `grep`: a diferença entre
+64 arquivos (eram 49). Contagem do Vitest — nunca de `grep`: a diferença entre
 ocorrência de `it(` no fonte e caso executado chega a 85 num único arquivo desta
 suíte, porque ela é orientada a tabela.
+
+Os números acima já incluem o QA de borda que fechou a fase: 46 casos
+acrescentados depois da primeira contagem, cobrindo multi-projeto contra
+Postgres real, o portão de status do motor, a existência em disco da rota por
+trás de cada slug, e a altura de toque dos controles do cabeçalho. `pnpm build`
+compila 24 rotas.
 
 Arquivos novos:
 
@@ -247,6 +253,37 @@ saiu" virou "a pasta de mocks não existe".
 7. **`stageSummary` no `CalmState` é decisão da composição.** A Home passa `null`
    ao bloco "Agora" quando o estado é calmo, para não imprimir a mesma frase
    duas vezes. Se um terceiro consumidor aparecer, isso vira regra explícita.
+
+## O CI passou a executar a suíte que já existia
+
+Fechando a fase, o GitHub Actions provisiona banco. Até aqui não provisionava, e
+o efeito era pior do que parecia: `pnpm test` roda as duas _projects_ do Vitest,
+e a `rls` abre conexão num Postgres de verdade. Sem banco no runner, ela morria
+em `ECONNREFUSED 127.0.0.1:54322` — **falhando fechada, como foi projetada**,
+porque um teste de isolamento que "passa" sem banco não prova nada. O vermelho
+no CI era a ausência da cobertura, não uma regressão: os 466 casos de RLS nunca
+haviam rodado fora da máquina de quem os escreveu.
+
+Os passos de banco estavam escritos para a FASE 4 — o próprio comentário no fim
+do `ci.yml` dizia isso — e chegaram só agora. O pipeline passou a ser o que
+`.claude/rules/testing.md` e `docs/deployment.md` sempre descreveram:
+
+```
+typecheck → lint → format:check → test:unit
+  → db:start → db:reset → test:rls → build
+```
+
+A correção **provisiona, nunca afrouxa**: sem `continue-on-error`, sem
+`|| true`, sem trocar `test` por `test:unit`, sem staging. O runner tem daemon
+de Docker, então `pnpm db:start` toma o caminho oficial do repositório
+(`supabase start`) em vez do plano B sem Docker, e `pnpm db:reset` reaplica as
+22 migrations do zero — que é a própria pergunta da suíte — mais o seed com os
+dois tenants sem os quais o isolamento não teria o que comparar. `test:unit`
+ficou antes do contêiner: erro de lógica pura falha em 22 segundos em vez de
+esperar o pull das imagens.
+
+**Zero efeito no banco.** A mudança toca `ci.yml` e dois documentos; a árvore
+`supabase/` continua com o mesmo hash da base da FASE 7.
 
 ## Débito de segurança
 

@@ -14,8 +14,8 @@ Percepção-alvo: _"Eu sei exatamente o que está acontecendo com minha marca."_
 
 **Status atual: FASE 8 concluída.**
 22 migrations, 19 tabelas com RLS **e políticas**, 11 funções `app.*` de
-autorização, 11 fronteiras `security definer` em `public`, e **1128 testes**
-(462 contra Postgres real). Contagem sempre do Vitest, nunca de `grep`.
+autorização, 11 fronteiras `security definer` em `public`, e **1174 testes**
+(466 contra Postgres real). Contagem sempre do Vitest, nunca de `grep`.
 Fingerprint local ↔ staging idêntico nas nove partes — a FASE 8 **não tocou o
 banco**.
 
