@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -47,6 +47,37 @@ describe('o varredor funciona', () => {
   it('guarda contra o teste virar tautologia: acha arquivos de verdade', () => {
     expect(TODOS.length).toBeGreaterThan(50)
     expect(TODOS).toContain(HOME)
+  })
+})
+
+describe('⚠️ a ficção não existe mais', () => {
+  it('`src/mocks` não existe', () => {
+    expect(existsSync(`${RAIZ}/mocks`), 'a pasta de mocks voltou').toBe(false)
+  })
+
+  it('`src/lib/data/portal.ts` não existe', () => {
+    /*
+     * A camada existia para segurar mock. Mantê-la depois que o mock morre é
+     * deixar a próxima ficção com um lugar pronto para nascer.
+     */
+    expect(existsSync(`${RAIZ}/lib/data/portal.ts`), 'a camada de mock voltou').toBe(false)
+  })
+
+  it('nenhum arquivo de `src` importa `@/mocks`', () => {
+    const culpados = TODOS.filter((caminho) => /from '@\/mocks/.test(conteudo(caminho)))
+
+    expect(culpados.map(relativo)).toEqual([])
+  })
+
+  it('os componentes que só renderizavam o protótipo se foram', () => {
+    for (const morto of [
+      'content-row.tsx',
+      'content-preview.tsx',
+      'approval-panel.tsx',
+      'strategy-approval.tsx',
+    ]) {
+      expect(existsSync(`${RAIZ}/components/patterns/${morto}`), morto).toBe(false)
+    }
   })
 })
 
