@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -61,11 +61,14 @@ describe('o mock de onboarding morreu', () => {
     expect(TODOS.length).toBeGreaterThan(50)
   })
 
-  it('⚠️ `ONBOARDING` não existe mais em `src/mocks`', () => {
-    const mock = conteudo(`${RAIZ}/mocks/hartmann.ts`)
-
-    expect(/export const ONBOARDING\b/.test(mock), 'o mock de onboarding voltou').toBe(false)
-    expect(/OnboardingSection/.test(mock)).toBe(false)
+  /*
+   * Na FASE 7 este caso lia `src/mocks/hartmann.ts` e afirmava que o bloco de
+   * onboarding tinha saído de lá. Na FASE 8 o arquivo inteiro morreu, então a
+   * afirmação ficou mais forte e mais simples: não existe mock nenhum.
+   */
+  it('⚠️ `src/mocks` não existe mais — nem o de onboarding, nem os outros', () => {
+    expect(existsSync(`${RAIZ}/mocks`), 'a pasta de mocks voltou').toBe(false)
+    expect(existsSync(`${RAIZ}/mocks/hartmann.ts`)).toBe(false)
   })
 
   it('⚠️ ninguém importa `hartmann.ONBOARDING`', () => {
@@ -73,9 +76,13 @@ describe('o mock de onboarding morreu', () => {
     expect(culpados.map(relativo)).toEqual([])
   })
 
-  it('⚠️ `getOnboarding()` não existe: o domínio tem query própria', () => {
-    const portal = conteudo(`${RAIZ}/lib/data/portal.ts`)
-    expect(/export async function getOnboarding\b/.test(portal)).toBe(false)
+  /*
+   * Idem: a camada que segurava os mocks foi embora na FASE 8. Ela existia para
+   * isolar ficção, e mantê-la depois que a ficção morre deixaria a próxima com
+   * um lugar pronto para nascer.
+   */
+  it('⚠️ `lib/data/portal.ts` não existe: cada domínio tem query própria', () => {
+    expect(existsSync(`${RAIZ}/lib/data/portal.ts`), 'a camada de mock voltou').toBe(false)
   })
 
   it('nenhum componente ou página importa `src/mocks`', () => {

@@ -1,193 +1,64 @@
 /**
- * Read models do portal.
+ * Formas de APRESENTAÇÃO do portal.
  *
- * NAO sao entidades de dominio. Sao exatamente o que cada tela precisa ler,
- * ja resolvido e ja em pt-BR quando o texto for de produto. As entidades de
- * dominio nascem na fase de cada dominio (docs/architecture.md).
+ * O que sobrou aqui depois da FASE 8 são os dois tipos que descrevem o que um
+ * COMPONENTE precisa receber — nada mais. Eles não são entidades de domínio,
+ * não são projeções de banco e não têm loader: as entidades vivem em
+ * `src/domains/<dominio>/types.ts`, cada uma com a própria fronteira de autorização.
  *
- * O contrato e este arquivo. Hoje `src/lib/data/portal.ts` o preenche a partir
- * de `src/mocks/`; na FASE 5+ passa a preencher a partir de repositories sobre
- * o Supabase. Nenhum componente muda:
+ * ## O que este arquivo era, e por que encolheu tanto
  *
- *     MOCK  →  DATA LAYER (este contrato)  →  SUPABASE
+ * Ele nasceu na FASE 1 como o contrato do meio de `MOCK → DATA LAYER →
+ * SUPABASE`, com treze interfaces: conteúdo, estratégia, resultados, arquivos,
+ * reuniões, entrega, atenção. Cada fase que ligou dado real levou a sua embora
+ * — projetos na FASE 6, onboarding na FASE 7, atenção nesta.
+ *
+ * As que sumiram sem substituto (`ContentItem`, `Strategy`, `ResultsPeriod`,
+ * `ProjectFile`, `Meeting`, `Delivery`) descreviam o PROTÓTIPO, não o banco:
+ * `previewTone`, `sizeLabel`, `versionCount` não são colunas de lugar nenhum.
+ * Guardá-las como referência garantiria que a FASE 9 ou 10 tentasse encaixar o
+ * schema real numa forma inventada — foi exatamente o que a FASE 7 evitou ao
+ * descartar `OnboardingSection` do protótipo e reescrevê-la a partir das colunas.
+ *
+ * `src/lib/data/portal.ts` foi embora junto: ele existia para segurar mock, e
+ * manter a camada depois que o mock morre é deixar a próxima ficção com um
+ * lugar pronto para nascer.
  */
-import type {
-  ContentChannel,
-  ContentFormat,
-  ContentStatus,
-  FileCategory,
-  MeetingType,
-  ProjectType,
-  StageState,
-} from '@/config/enums'
+import type { StageState } from '@/config/enums'
 
 /**
- * O projeto, como o portal precisa dele. Preenchido pelo banco desde a FASE 6.
+ * Uma etapa, como o `ProjectJourney` precisa dela.
  *
- * ## Dois campos sairam daqui na FASE 6, e a ausencia e decisao (D-16)
- *
- * `scope: string[]` — "o que combinamos" — **nao tem origem**. Nenhuma coluna
- * do schema o guarda, e `docs/data-model.md` nao o lista nem entre as tabelas
- * adiadas. Enquanto o portal lia mock ele existia como texto ilustrativo; com
- * dado real, mante-lo exigiria inventar o conteudo de um acordo comercial na
- * tela do cliente. O bloco saiu inteiro — bloco sem origem nao aparece.
- *
- * `team` saiu daqui, mas NAO do produto: ele passou a ser carregado a parte,
- * por `listClientTeam()`, porque vem de outra tabela e tem outra fronteira de
- * autorizacao. Compor os dois e papel da tela, nao deste tipo.
+ * Estruturalmente compatível com `ProjectStage` do domínio, que é quem a
+ * preenche de verdade — a página passa as linhas do banco direto.
  */
-export interface ProjectSummary {
-  id: string
-  clientName: string
-  name: string
-  type: ProjectType
-  /** Ciclo editorial corrente. A jornada e ciclica (docs/product.md). */
-  cycle: number
-  /**
-   * `projects.starts_on` e nullable, e o tipo nao finge o contrario.
-   *
-   * Um projeto pode ser cadastrado antes de a data de inicio estar combinada.
-   * A tela omite a linha quando nao ha data — nunca inventa "hoje" para
-   * satisfazer o TypeScript.
-   */
-  startedOn: string | null
-}
-
 export interface JourneyStage {
   key: string
   label: string
   state: StageState
   /**
-   * Uma linha explicando o que acontece nesta etapa. Visivel ao cliente.
+   * Uma linha explicando o que acontece nesta etapa. Visível ao cliente.
    *
-   * `null` quando a `stage_key` do projeto nao existe mais no template — um
+   * `null` quando a `stage_key` do projeto não existe mais no template — um
    * projeto criado com uma jornada depois aposentada. A etapa continua com
-   * rotulo, posicao e estado, que vem do banco; some so o texto de apoio
-   * (`src/config/journeys.ts#stageSummary`).
+   * rótulo, posição e estado, que vêm do banco; some só o texto de apoio.
    */
   summary: string | null
   completedOn?: string | null
 }
 
-/** O bloco mais importante do dashboard: o que depende do cliente. */
-export interface AttentionItem {
-  id: string
-  kind: 'content' | 'strategy' | 'onboarding'
-  count: number
-  label: string
-  href: string
-  cta: string
-}
-
-export interface Delivery {
-  title: string
-  description: string
-  dueOn: string
-}
-
-export interface Meeting {
-  id: string
-  type: MeetingType
-  title: string
-  description?: string
-  startAt: string
-  durationMinutes: number
-  status: 'scheduled' | 'completed' | 'cancelled'
-  url?: string
-}
-
-/** O diferencial da Boop: nao so execucao, aprendizado continuo. */
+/**
+ * Uma leitura com autoria: o diferencial declarado da Boop.
+ *
+ * Nenhuma tela a renderiza hoje — a origem é `monthly_reviews` e as tabelas de
+ * métrica, que chegam nas FASES 14 e 15. O `InsightBlock` fica no repositório
+ * porque é composição visual pura, sem forma de domínio inventada: quando
+ * houver leitura de verdade, ele a recebe como está.
+ */
 export interface Insight {
   id: string
   headline: string
   detail: string
-  /** De onde veio a leitura. Da credibilidade ao insight. */
+  /** De onde veio a leitura. Dá credibilidade ao insight. */
   evidence?: string
-}
-
-export interface ContentVersionSummary {
-  version: number
-  hook: string
-  caption: string
-  cta: string
-  createdOn: string
-}
-
-export interface ContentItem {
-  id: string
-  reference: string
-  title: string
-  channel: ContentChannel
-  format: ContentFormat
-  status: ContentStatus
-  objective: string
-  territory: string
-  scheduledFor?: string
-  currentVersion: ContentVersionSummary
-  versionCount: number
-  /** Tom da arte, usado para compor o preview enquanto nao ha midia real. */
-  previewTone: 'navy' | 'slate' | 'sky' | 'bone'
-  comments: ContentComment[]
-}
-
-export interface ContentComment {
-  id: string
-  author: string
-  authorSide: 'boop' | 'client'
-  body: string
-  createdOn: string
-}
-
-export interface StrategyChapter {
-  number: string
-  title: string
-  lead: string
-  body: string[]
-  /** Itens curtos: territorios, series, experimentos, metricas. */
-  items?: { label: string; description: string }[]
-}
-
-export interface Strategy {
-  clientName: string
-  title: string
-  period: string
-  version: number
-  status: 'awaiting_client' | 'approved' | 'changes_requested'
-  chapters: StrategyChapter[]
-}
-
-/*
- * `OnboardingQuestion` e `OnboardingSection` moravam aqui e saíram na FASE 7.
- *
- * Elas descreviam o formulário do PROTÓTIPO — sem `id`, sem `is_required`, com
- * um `placeholder` que o banco não tem e um `type` recortado que omitia
- * `boolean`, `number` e `file`. As formas reais vivem em
- * `src/domains/onboarding/types.ts`, separadas por audiência, como manda a
- * convenção de projeção das FASES 5 e 6.
- */
-
-export interface MetricReading {
-  key: string
-  value: string
-  label: string
-  delta?: string
-}
-
-export interface ResultsPeriod {
-  period: string
-  metrics: MetricReading[]
-  whatHappened: string
-  whatWorked: { title: string; detail: string }[]
-  whatDidNot: { title: string; detail: string }[]
-  learnings: Insight[]
-  whatChanges: string[]
-}
-
-export interface ProjectFile {
-  id: string
-  name: string
-  category: FileCategory
-  kind: string
-  sizeLabel: string
-  addedOn: string
 }
